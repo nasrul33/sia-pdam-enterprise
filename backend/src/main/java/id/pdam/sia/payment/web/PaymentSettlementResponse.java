@@ -19,6 +19,7 @@ public record PaymentSettlementResponse(
         BigDecimal amount,
         Instant paidAt,
         Instant settledAt,
+        UUID settlementJournalEntryId,
         Receipt receipt,
         List<Allocation> allocations,
         Instant createdAt,
@@ -35,6 +36,7 @@ public record PaymentSettlementResponse(
                 result.payment().getAmount(),
                 result.payment().getPaidAt(),
                 result.payment().getSettledAt(),
+                result.payment().getSettlementJournalEntryId(),
                 new Receipt(
                         result.receipt().getId(),
                         result.receipt().getPaymentId(),

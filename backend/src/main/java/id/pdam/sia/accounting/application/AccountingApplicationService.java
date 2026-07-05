@@ -221,6 +221,72 @@ public class AccountingApplicationService {
     }
 
     @Transactional
+    public JournalEntry postPaymentSettlement(PaymentSettlementPostingCommand command, String actor) {
+        if (command == null) {
+            throw new BusinessException("PAYMENT_POSTING_COMMAND_REQUIRED", "Payment settlement posting command is required.");
+        }
+        String paymentNumber = requireNormalize(
+                command.paymentNumber(),
+                "PAYMENT_POSTING_NUMBER_REQUIRED",
+                "Payment number is required."
+        );
+        if (command.paymentId() == null) {
+            throw new BusinessException("PAYMENT_POSTING_PAYMENT_REQUIRED", "Payment id is required.");
+        }
+        String periodValue = normalizeAccountingPeriod(command.period());
+        BigDecimal amount = requirePositiveAmount(command.amount(), "PAYMENT_POSTING_AMOUNT_REQUIRED", "Payment posting amount is required.");
+        if (journalEntryRepository.existsBySourceModuleAndSourceRecordId("PAYMENT", command.paymentId())) {
+            throw new BusinessException(
+                    "PAYMENT_JOURNAL_DUPLICATE",
+                    "Payment already has a settlement journal."
+            );
+        }
+        if (command.cashAccountId() != null && command.cashAccountId().equals(command.receivableAccountId())) {
+            throw new BusinessException(
+                    "PAYMENT_POSTING_ACCOUNT_DUPLICATE",
+                    "Cash/bank account and receivable account must be different."
+            );
+        }
+
+        AccountingPeriod period = accountingPeriodRepository.findByPeriod(periodValue)
+                .orElseThrow(() -> new BusinessException("ACCOUNTING_PERIOD_NOT_FOUND", "Accounting period was not found."));
+        Account cashAccount = findAccount(command.cashAccountId());
+        Account receivableAccount = findAccount(command.receivableAccountId());
+        requireAccountType(cashAccount, AccountType.ASSET, "PAYMENT_CASH_ACCOUNT_INVALID", "Payment cash or bank account must be an asset account.");
+        requireAccountType(receivableAccount, AccountType.ASSET, "PAYMENT_RECEIVABLE_ACCOUNT_INVALID", "Payment receivable account must be an asset account.");
+
+        String journalNumber = paymentJournalNumber(paymentNumber);
+        journalEntryRepository.findByJournalNumber(journalNumber).ifPresent(existing -> {
+            throw new BusinessException("JOURNAL_NUMBER_DUPLICATE", "Journal number already exists.");
+        });
+
+        JournalEntry journal = JournalEntry.draftFromSource(
+                journalNumber,
+                period.getId(),
+                "Settle payment " + paymentNumber,
+                "PAYMENT",
+                command.paymentId(),
+                paymentNumber
+        );
+        journal.addLine(
+                cashAccount.getId(),
+                amount,
+                BigDecimal.ZERO,
+                "Kas/bank pembayaran " + paymentNumber
+        );
+        journal.addLine(
+                receivableAccount.getId(),
+                BigDecimal.ZERO,
+                amount,
+                "Pelunasan piutang " + paymentNumber
+        );
+
+        JournalEntry saved = journalEntryRepository.save(journal);
+        postingService.post(saved, period, actor, command.reason());
+        return saved;
+    }
+
+    @Transactional
     public JournalEntry postJournal(UUID journalId, String reason, String actor) {
         JournalEntry journal = journalEntryRepository.findForPosting(journalId)
                 .orElseThrow(() -> new BusinessException("JOURNAL_NOT_FOUND", "Journal entry was not found."));
@@ -284,18 +350,30 @@ public class AccountingApplicationService {
     }
 
     private static BigDecimal requirePositiveAmount(BigDecimal amount) {
+        return requirePositiveAmount(amount, "BILLING_POSTING_AMOUNT_REQUIRED", "Billing invoice posting amount is required.");
+    }
+
+    private static BigDecimal requirePositiveAmount(BigDecimal amount, String code, String message) {
         if (amount == null) {
-            throw new BusinessException("BILLING_POSTING_AMOUNT_REQUIRED", "Billing invoice posting amount is required.");
+            throw new BusinessException(code, message);
         }
         BigDecimal normalized = amount.setScale(2, RoundingMode.HALF_UP);
         if (normalized.signum() <= 0) {
-            throw new BusinessException("BILLING_POSTING_AMOUNT_INVALID", "Billing invoice posting amount must be greater than zero.");
+            throw new BusinessException("POSTING_AMOUNT_INVALID", "Posting amount must be greater than zero.");
         }
         return normalized;
     }
 
     private static String billingJournalNumber(String invoiceNumber) {
-        String journalNumber = "BIL-" + invoiceNumber;
+        return sourceJournalNumber("BIL-", invoiceNumber);
+    }
+
+    private static String paymentJournalNumber(String paymentNumber) {
+        return sourceJournalNumber("PMT-", paymentNumber);
+    }
+
+    private static String sourceJournalNumber(String prefix, String documentNumber) {
+        String journalNumber = prefix + documentNumber;
         if (journalNumber.length() <= 64) {
             return journalNumber;
         }

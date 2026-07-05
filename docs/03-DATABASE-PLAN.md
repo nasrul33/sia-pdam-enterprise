@@ -44,5 +44,6 @@
 | V1__baseline.sql | auth, audit, accounting core | unique account/journal keys, period format check, posted journal immutability trigger |
 | V2__domain_foundation.sql | idempotency, customer, connection, metering, billing, payment, receivable, ledger | unique idempotency/payment keys, unique invoice and meter period keys, status checks, monetary non-negative checks, reporting indexes |
 | V3__invoice_issue_accounting_trace.sql | invoice issue accounting traceability | source metadata on journal entries, unique source journal index, invoice-to-issue-journal link, unique issue journal reference |
+| V4__payment_settlement_accounting_trace.sql | payment settlement accounting traceability | payment-to-settlement-journal link and unique settlement journal reference |
 
 Smoke test on PostgreSQL 16 confirms migrations apply from an empty schema and Hibernate validation passes afterward.

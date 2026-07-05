@@ -1,5 +1,8 @@
 package id.pdam.sia.payment.application;
 
+import id.pdam.sia.accounting.application.AccountingApplicationService;
+import id.pdam.sia.accounting.application.PaymentSettlementPostingCommand;
+import id.pdam.sia.accounting.domain.JournalEntry;
 import id.pdam.sia.billing.domain.Invoice;
 import id.pdam.sia.billing.domain.InvoiceStatus;
 import id.pdam.sia.billing.repository.InvoiceRepository;
@@ -35,6 +38,8 @@ import static org.mockito.Mockito.when;
 
 class PaymentIdempotencyTest {
     private static final Instant PAID_AT = Instant.parse("2026-07-31T12:00:00Z");
+    private static final UUID CASH_ACCOUNT_ID = UUID.fromString("00000000-0000-0000-0000-000000001110");
+    private static final UUID RECEIVABLE_ACCOUNT_ID = UUID.fromString("00000000-0000-0000-0000-000000001130");
 
     private final PaymentRepository paymentRepository = mock(PaymentRepository.class);
     private final PaymentAllocationRepository paymentAllocationRepository = mock(PaymentAllocationRepository.class);
@@ -42,13 +47,15 @@ class PaymentIdempotencyTest {
     private final InvoiceRepository invoiceRepository = mock(InvoiceRepository.class);
     private final IdempotencyService idempotencyService = mock(IdempotencyService.class);
     private final AuditTrailService auditTrailService = mock(AuditTrailService.class);
+    private final AccountingApplicationService accountingApplicationService = mock(AccountingApplicationService.class);
     private final PaymentSettlementApplicationService service = new PaymentSettlementApplicationService(
             paymentRepository,
             paymentAllocationRepository,
             paymentReceiptRepository,
             invoiceRepository,
             idempotencyService,
-            auditTrailService
+            auditTrailService,
+            accountingApplicationService
     );
 
     @Test
@@ -68,6 +75,9 @@ class PaymentIdempotencyTest {
         when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(paymentAllocationRepository.save(any(PaymentAllocation.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(paymentReceiptRepository.save(any(PaymentReceipt.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        JournalEntry settlementJournal = JournalEntry.draft("PMT-PAY-20260731-0001", UUID.randomUUID(), "Payment settlement");
+        when(accountingApplicationService.postPaymentSettlement(any(PaymentSettlementPostingCommand.class), eq("kasir.loket")))
+                .thenReturn(settlementJournal);
 
         PaymentSettlementResult result = service.settleCounterPayment(
                 request(invoice.getId(), "COUNTER-202607-0001", "bayar loket"),
@@ -78,6 +88,7 @@ class PaymentIdempotencyTest {
         assertThat(result.payment().getStatus()).isEqualTo(PaymentStatus.SETTLED);
         assertThat(result.payment().getChannel()).isEqualTo("COUNTER");
         assertThat(result.payment().getAmount()).isEqualByComparingTo("100000.00");
+        assertThat(result.payment().getSettlementJournalEntryId()).isEqualTo(settlementJournal.getId());
         assertThat(result.receipt().getPaymentId()).isEqualTo(result.payment().getId());
         assertThat(result.receipt().getReceiptNumber()).startsWith("RCT-");
         assertThat(result.allocations()).hasSize(1);
@@ -92,6 +103,14 @@ class PaymentIdempotencyTest {
         assertThat(allocationCaptor.getValue().getPaymentId()).isEqualTo(result.payment().getId());
         assertThat(allocationCaptor.getValue().getInvoiceId()).isEqualTo(invoice.getId());
         assertThat(allocationCaptor.getValue().getAmount()).isEqualByComparingTo("100000.00");
+        ArgumentCaptor<PaymentSettlementPostingCommand> postingCaptor = ArgumentCaptor.forClass(PaymentSettlementPostingCommand.class);
+        verify(accountingApplicationService).postPaymentSettlement(postingCaptor.capture(), eq("kasir.loket"));
+        assertThat(postingCaptor.getValue().paymentNumber()).isEqualTo(result.payment().getPaymentNumber());
+        assertThat(postingCaptor.getValue().paymentId()).isEqualTo(result.payment().getId());
+        assertThat(postingCaptor.getValue().period()).isEqualTo("2026-07");
+        assertThat(postingCaptor.getValue().amount()).isEqualByComparingTo("100000.00");
+        assertThat(postingCaptor.getValue().cashAccountId()).isEqualTo(CASH_ACCOUNT_ID);
+        assertThat(postingCaptor.getValue().receivableAccountId()).isEqualTo(RECEIVABLE_ACCOUNT_ID);
         verify(auditTrailService).record(
                 "kasir.loket",
                 "PAYMENT",
@@ -140,6 +159,7 @@ class PaymentIdempotencyTest {
         verify(paymentRepository, never()).save(any());
         verify(paymentAllocationRepository, never()).save(any());
         verify(paymentReceiptRepository, never()).save(any());
+        verify(accountingApplicationService, never()).postPaymentSettlement(any(), any());
         verify(auditTrailService, never()).record(any(), any(), any(), any(), any());
     }
 
@@ -149,6 +169,8 @@ class PaymentIdempotencyTest {
                 new BigDecimal("100000.00"),
                 PAID_AT,
                 List.of(new PaymentAllocationRequest(invoiceId, new BigDecimal("100000.00"))),
+                CASH_ACCOUNT_ID,
+                RECEIVABLE_ACCOUNT_ID,
                 reason
         );
     }

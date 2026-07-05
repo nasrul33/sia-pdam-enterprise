@@ -10,12 +10,15 @@ import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 public record SettleCounterPaymentRequest(
         @Size(max = 128) String externalReference,
         @NotNull @DecimalMin(value = "0.01") BigDecimal amount,
         @NotNull Instant paidAt,
         @NotEmpty List<@Valid PaymentAllocationRequest> allocations,
+        @NotNull UUID cashAccountId,
+        @NotNull UUID receivableAccountId,
         @NotBlank @Size(max = 500) String reason
 ) {
 }

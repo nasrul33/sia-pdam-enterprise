@@ -11,6 +11,7 @@ import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.util.UUID;
 
 @Entity
 @Table(name = "payments")
@@ -41,6 +42,8 @@ public class Payment extends BaseEntity {
 
     private Instant reversedAt;
 
+    private UUID settlementJournalEntryId;
+
     @Column(columnDefinition = "TEXT")
     private String reversalReason;
 
@@ -66,6 +69,16 @@ public class Payment extends BaseEntity {
         this.paidAt = paidAt;
         this.settledAt = paidAt;
         this.status = PaymentStatus.SETTLED;
+    }
+
+    public void linkSettlementJournal(UUID settlementJournalEntryId) {
+        if (settlementJournalEntryId == null) {
+            throw new BusinessException("PAYMENT_SETTLEMENT_JOURNAL_REQUIRED", "Payment settlement journal is required.");
+        }
+        if (this.settlementJournalEntryId != null) {
+            throw new BusinessException("PAYMENT_SETTLEMENT_JOURNAL_ALREADY_LINKED", "Payment already has settlement journal.");
+        }
+        this.settlementJournalEntryId = settlementJournalEntryId;
     }
 
     private static BigDecimal requirePositive(BigDecimal value, String code, String message) {
@@ -127,6 +140,10 @@ public class Payment extends BaseEntity {
 
     public Instant getReversedAt() {
         return reversedAt;
+    }
+
+    public UUID getSettlementJournalEntryId() {
+        return settlementJournalEntryId;
     }
 
     public String getReversalReason() {

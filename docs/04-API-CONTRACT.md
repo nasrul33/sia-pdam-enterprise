@@ -128,7 +128,7 @@ All payment settlement mutation endpoints must send an `Idempotency-Key` header 
 |---|---|---|---|
 | POST | /api/payments/counter | counter payment settlement | payment.counter |
 
-`POST /api/payments/counter` requires authentication, `Idempotency-Key`, `amount`, `paidAt`, `allocations[]`, and `reason`. The payment amount must equal the allocation total. Each invoice allocation must target an `ISSUED` or `PARTIAL_PAID` invoice and cannot exceed invoice outstanding amount. A completed retry with the same idempotency key and payload returns the original payment, receipt, and allocations without duplicate writes. This endpoint records operational payment settlement only; kas-bank journal posting is reserved for a later controlled accounting workflow.
+`POST /api/payments/counter` requires authentication, `Idempotency-Key`, `amount`, `paidAt`, `allocations[]`, `cashAccountId`, `receivableAccountId`, and `reason`. The payment amount must equal the allocation total. Each invoice allocation must target an `ISSUED` or `PARTIAL_PAID` invoice and cannot exceed invoice outstanding amount. Accounting period is derived from `paidAt` using UTC `yyyy-MM`; the period must exist and allow posting. Accounting validates cash/bank and receivable accounts as `ASSET`, blocks duplicate source journals, posts debit cash/bank and credit receivable through `PostingService`, materializes ledger entries, then links `payments.settlement_journal_entry_id`. A completed retry with the same idempotency key and payload returns the original payment, receipt, and allocations without duplicate writes or duplicate journal posting.
 
 ## Payment Reversal Planned
 

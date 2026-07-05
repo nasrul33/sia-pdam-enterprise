@@ -1,5 +1,8 @@
 package id.pdam.sia.payment.application;
 
+import id.pdam.sia.accounting.application.AccountingApplicationService;
+import id.pdam.sia.accounting.application.PaymentSettlementPostingCommand;
+import id.pdam.sia.accounting.domain.JournalEntry;
 import id.pdam.sia.billing.domain.Invoice;
 import id.pdam.sia.billing.repository.InvoiceRepository;
 import id.pdam.sia.payment.domain.Payment;
@@ -40,6 +43,7 @@ public class PaymentSettlementApplicationService {
     private static final String CHANNEL_COUNTER = "COUNTER";
     private static final String IDEMPOTENCY_MODULE = "PAYMENT_SETTLEMENT";
     private static final DateTimeFormatter NUMBER_DATE_FORMATTER = DateTimeFormatter.BASIC_ISO_DATE.withZone(ZoneOffset.UTC);
+    private static final DateTimeFormatter PERIOD_FORMATTER = DateTimeFormatter.ofPattern("uuuu-MM").withZone(ZoneOffset.UTC);
 
     private final PaymentRepository paymentRepository;
     private final PaymentAllocationRepository paymentAllocationRepository;
@@ -47,6 +51,7 @@ public class PaymentSettlementApplicationService {
     private final InvoiceRepository invoiceRepository;
     private final IdempotencyService idempotencyService;
     private final AuditTrailService auditTrailService;
+    private final AccountingApplicationService accountingApplicationService;
 
     public PaymentSettlementApplicationService(
             PaymentRepository paymentRepository,
@@ -54,7 +59,8 @@ public class PaymentSettlementApplicationService {
             PaymentReceiptRepository paymentReceiptRepository,
             InvoiceRepository invoiceRepository,
             IdempotencyService idempotencyService,
-            AuditTrailService auditTrailService
+            AuditTrailService auditTrailService,
+            AccountingApplicationService accountingApplicationService
     ) {
         this.paymentRepository = paymentRepository;
         this.paymentAllocationRepository = paymentAllocationRepository;
@@ -62,6 +68,7 @@ public class PaymentSettlementApplicationService {
         this.invoiceRepository = invoiceRepository;
         this.idempotencyService = idempotencyService;
         this.auditTrailService = auditTrailService;
+        this.accountingApplicationService = accountingApplicationService;
     }
 
     @Transactional
@@ -82,13 +89,18 @@ public class PaymentSettlementApplicationService {
         BigDecimal amount = requirePositive(request.amount(), "PAYMENT_AMOUNT_REQUIRED", "Payment amount is required.");
         Instant paidAt = requirePaidAt(request.paidAt());
         String reason = requireNormalize(request.reason(), "PAYMENT_REASON_REQUIRED", "Payment reason is required.");
+        UUID cashAccountId = requireUuid(request.cashAccountId(), "PAYMENT_CASH_ACCOUNT_REQUIRED", "Payment cash or bank account is required.");
+        UUID receivableAccountId = requireUuid(request.receivableAccountId(), "PAYMENT_RECEIVABLE_ACCOUNT_REQUIRED", "Payment receivable account is required.");
+        if (cashAccountId.equals(receivableAccountId)) {
+            throw new BusinessException("PAYMENT_POSTING_ACCOUNT_DUPLICATE", "Cash/bank account and receivable account must be different.");
+        }
         List<AllocationCommand> allocations = normalizeAllocations(request.allocations());
         ensureAllocationTotalMatchesPayment(amount, allocations);
 
         IdempotencyRecord idempotencyRecord = idempotencyService.reserve(
                 normalizedIdempotencyKey,
                 IDEMPOTENCY_MODULE,
-                requestHash(externalReference, amount, paidAt, allocations),
+                requestHash(externalReference, amount, paidAt, cashAccountId, receivableAccountId, allocations),
                 Instant.now().plus(Duration.ofHours(24))
         );
         if (idempotencyRecord.isCompleted()) {
@@ -119,11 +131,25 @@ public class PaymentSettlementApplicationService {
                 receiptNumber(normalizedIdempotencyKey, paidAt),
                 paidAt
         ));
+        JournalEntry settlementJournal = accountingApplicationService.postPaymentSettlement(
+                new PaymentSettlementPostingCommand(
+                        payment.getPaymentNumber(),
+                        payment.getId(),
+                        paymentPeriod(paidAt),
+                        amount,
+                        cashAccountId,
+                        receivableAccountId,
+                        reason
+                ),
+                actor
+        );
+        payment.linkSettlementJournal(settlementJournal.getId());
+        Payment savedPayment = paymentRepository.save(payment);
 
-        idempotencyRecord.markCompleted(payment.getId().toString());
-        auditTrailService.record(actor, "PAYMENT", "SETTLE_COUNTER_PAYMENT", payment.getId().toString(), reason);
+        idempotencyRecord.markCompleted(savedPayment.getId().toString());
+        auditTrailService.record(actor, "PAYMENT", "SETTLE_COUNTER_PAYMENT", savedPayment.getId().toString(), reason);
 
-        return new PaymentSettlementResult(payment, receipt, savedAllocations);
+        return new PaymentSettlementResult(savedPayment, receipt, savedAllocations);
     }
 
     private PaymentSettlementResult existingResult(IdempotencyRecord idempotencyRecord) {
@@ -196,6 +222,13 @@ public class PaymentSettlementApplicationService {
         return paidAt;
     }
 
+    private static UUID requireUuid(UUID value, String code, String message) {
+        if (value == null) {
+            throw new BusinessException(code, message);
+        }
+        return value;
+    }
+
     private static BigDecimal requirePositive(BigDecimal value, String code, String message) {
         if (value == null) {
             throw new BusinessException(code, message);
@@ -229,10 +262,16 @@ public class PaymentSettlementApplicationService {
         return "RCT-" + NUMBER_DATE_FORMATTER.format(paidAt) + "-" + shortHash(idempotencyKey);
     }
 
+    private static String paymentPeriod(Instant paidAt) {
+        return PERIOD_FORMATTER.format(paidAt);
+    }
+
     private static String requestHash(
             String externalReference,
             BigDecimal amount,
             Instant paidAt,
+            UUID cashAccountId,
+            UUID receivableAccountId,
             List<AllocationCommand> allocations
     ) {
         String allocationPayload = allocations.stream()
@@ -243,6 +282,8 @@ public class PaymentSettlementApplicationService {
                 + (externalReference == null ? "" : externalReference) + "\n"
                 + amount.toPlainString() + "\n"
                 + paidAt + "\n"
+                + cashAccountId + "\n"
+                + receivableAccountId + "\n"
                 + allocationPayload);
     }
 

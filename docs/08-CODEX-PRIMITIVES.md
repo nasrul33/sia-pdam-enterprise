@@ -15,6 +15,7 @@
 | JournalEntry | accounting/domain | DRAFT/POSTED/REVERSED/VOID |
 | JournalLine | accounting/domain | one-sided debit/credit |
 | BillingInvoicePostingCommand | accounting/application | source command for invoice receivable/revenue journal posting |
+| PaymentSettlementPostingCommand | accounting/application | source command for payment cash/bank and receivable journal posting |
 | PostingService | accounting/application | debit=credit and period lock |
 | LedgerEntryMaterializationService | reporting/application | creates one posted ledger row per journal line after successful journal posting |
 | AccountingApplicationService | accounting/application | repository-backed CoA, period, journal draft, posting workflow |
@@ -25,7 +26,7 @@
 | TariffEngineApplicationService | billing/application | versioned progressive tariff calculation from active effective tariff blocks with audit trail |
 | BillingBatchApplicationService | billing/application | idempotent draft invoice generation and controlled invoice issue through accounting service |
 | PaymentWebhookApplicationService | payment/application | HMAC-validated provider callback persistence without settlement writes |
-| PaymentSettlementApplicationService | payment/application | idempotent counter payment settlement with receipt, invoice allocation, audit trail, and duplicate no-op |
+| PaymentSettlementApplicationService | payment/application | idempotent counter payment settlement with receipt, invoice allocation, accounting journal link, audit trail, and duplicate no-op |
 | ReceivableAgingApplicationService | receivable/application | open-invoice aging snapshot with current, 30, 60, 90, and over-90 buckets |
 | PostedLedgerReportApplicationService | reporting/application | trial balance from posted ledger entries only, excluding draft operational records |
 | PageResponse | shared/web | shared pagination contract for API lists |
