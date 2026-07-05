@@ -25,6 +25,7 @@
 | PaymentWebhookApplicationService | payment/application | HMAC-validated provider callback persistence without settlement writes |
 | PaymentSettlementApplicationService | payment/application | idempotent counter payment settlement with receipt, invoice allocation, audit trail, and duplicate no-op |
 | ReceivableAgingApplicationService | receivable/application | open-invoice aging snapshot with current, 30, 60, 90, and over-90 buckets |
+| PostedLedgerReportApplicationService | reporting/application | trial balance from posted ledger entries only, excluding draft operational records |
 | PageResponse | shared/web | shared pagination contract for API lists |
 
 ## Frontend Primitives

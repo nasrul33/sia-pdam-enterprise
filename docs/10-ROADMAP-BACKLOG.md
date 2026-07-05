@@ -26,4 +26,4 @@
 | T-060 | PaymentAgent | Payment webhook | payment | T-054 | HMAC signature validated before event persistence | PaymentWebhookApplicationServiceTest |
 | T-062 | PaymentAgent | Payment idempotency | payment | T-060 | counter payment duplicate no-op with receipt and invoice allocation | PaymentIdempotencyTest |
 | T-070 | ReceivableAgent | Aging | receivable | T-062 | current, 30, 60, 90, and over-90 aging buckets valid | AgingServiceTest |
-| T-080 | ReportingAgent | Posted reports | reporting | T-023,T-054,T-062 | report excludes draft | ReportPostedOnlyTest |
+| T-080 | ReportingAgent | Posted reports | reporting | T-023,T-054,T-062 | trial balance reads posted ledger entries only and excludes draft operational records | ReportPostedOnlyTest |
