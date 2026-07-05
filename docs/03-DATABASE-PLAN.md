@@ -46,5 +46,6 @@
 | V3__invoice_issue_accounting_trace.sql | invoice issue accounting traceability | source metadata on journal entries, unique source journal index, invoice-to-issue-journal link, unique issue journal reference |
 | V4__payment_settlement_accounting_trace.sql | payment settlement accounting traceability | payment-to-settlement-journal link and unique settlement journal reference |
 | V5__payment_reversal_accounting_trace.sql | payment reversal accounting traceability | payment-to-reversal-journal link and unique reversal journal reference |
+| V6__collection_action_controls.sql | receivable collection workflow controls | action type check, completed state check, active duplicate prevention by invoice/type or customer/type, scheduled status index |
 
 Smoke test on PostgreSQL 16 confirms migrations apply from an empty schema and Hibernate validation passes afterward.

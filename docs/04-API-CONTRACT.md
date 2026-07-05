@@ -149,6 +149,19 @@ All payment settlement mutation endpoints must send an `Idempotency-Key` header 
 
 `POST /api/receivable-aging-snapshots/generate` requires authentication, `period`, `asOfDate`, and `reason`. Aging uses only open invoices with status `ISSUED` or `PARTIAL_PAID` and positive outstanding amount. Bucket rules are: `current` for not-yet-due or due today, `bucket30` for 1-30 days overdue, `bucket60` for 31-60 days, `bucket90` for 61-90 days, and `bucketOver90` for more than 90 days. This is an operational receivable snapshot; final financial reporting must still use posted ledger entries.
 
+## Receivable Collection
+
+| Method | Endpoint | Purpose | Permission |
+|---|---|---|---|
+| GET | /api/collection-actions | list collection actions with `status`, `customerId`, `invoiceId`, pagination | collection-action.read |
+| GET | /api/collection-actions/{actionId} | collection action detail | collection-action.read |
+| POST | /api/collection-actions | create collection or dunning action | collection-action.create |
+| POST | /api/collection-actions/{actionId}/start | mark action in progress | collection-action.execute |
+| POST | /api/collection-actions/{actionId}/complete | complete action | collection-action.execute |
+| POST | /api/collection-actions/{actionId}/cancel | cancel action | collection-action.cancel |
+
+`POST /api/collection-actions` requires authentication, `customerId`, `actionType`, `scheduledAt`, and mandatory `reason`. Invoice-level dunning types `REMINDER`, `WARNING_LETTER`, and `DISCONNECTION_NOTICE` require `invoiceId`; the invoice must be `ISSUED` or `PARTIAL_PAID`, have positive outstanding amount, and be overdue on the scheduled date. The backend blocks duplicate active `OPEN` or `IN_PROGRESS` actions for the same invoice/type and for customer-level actions without invoice. Workflow transitions are audited and limited to `OPEN -> IN_PROGRESS`, `OPEN/IN_PROGRESS -> COMPLETED`, and `OPEN/IN_PROGRESS -> CANCELLED`.
+
 ## Reporting
 
 | Method | Endpoint | Purpose | Permission |

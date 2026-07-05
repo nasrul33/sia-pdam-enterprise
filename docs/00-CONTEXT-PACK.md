@@ -39,6 +39,7 @@
 | BR-PAY-004 | Counter payment settlement posts debit cash/bank and credit receivable through accounting service | Payment | confirmed |
 | BR-PAY-005 | Payment reversal restores invoice outstanding and posts debit receivable credit cash/bank through accounting service | Payment | confirmed |
 | BR-REC-001 | Receivable aging uses open invoice outstanding balance with current, 30, 60, 90, and over-90 day buckets | Receivable | confirmed |
+| BR-REC-002 | Collection and dunning action requires active customer context, overdue open invoice for invoice-level action, and no duplicate active action by invoice/type | Receivable | confirmed |
 | BR-REP-001 | Financial reports must read posted ledger entries only and exclude draft operational records | Reporting | confirmed |
 | BR-AUD-001 | Sensitive actions are audit logged | Shared | confirmed |
 
@@ -62,6 +63,7 @@
 | REQ-PAY-003 | Settlement pembayaran posting kas/bank dan piutang | Payment/Accounting | `/api/payments/counter` calls AccountingApplicationService, posts source journal, links payment to settlement journal | T-083 | PaymentIdempotencyTest, AccountingApplicationServiceTest |
 | REQ-PAY-004 | Reversal pembayaran memulihkan piutang dan posting jurnal balik | Payment/Accounting | `/api/payments/{id}/reverse` restores invoice allocation, posts source reversal journal, links payment to reversal journal | T-084 | PaymentIdempotencyTest, AccountingApplicationServiceTest |
 | REQ-REC-001 | Aging piutang valid | Receivable | `receivable_aging_snapshots` generated from open `ISSUED/PARTIAL_PAID` invoices | T-070 | AgingServiceTest |
+| REQ-REC-002 | Aksi penagihan piutang terkendali | Receivable | `/api/collection-actions` creates overdue invoice dunning actions, blocks duplicate active action, and controls start/complete/cancel transitions | T-085 | CollectionActionApplicationServiceTest |
 | REQ-REP-001 | Report keuangan posted-only | Reporting | trial balance generated from `ledger_entries` only | T-080 | ReportPostedOnlyTest |
 
 ## Decision Log
@@ -91,6 +93,7 @@
 | 2026-07-06 | Add Controlled Invoice Issue posting | Revenue recognition must be posted through accounting, not by billing writing journals directly | Invoice issue creates a source-traceable posted journal: debit receivable, credit revenue, then marks invoice `ISSUED` with issue journal link |
 | 2026-07-06 | Add Controlled Payment Settlement posting | Cash/bank recognition must be posted through accounting, not by payment writing journals directly | Counter settlement creates a source-traceable posted journal: debit cash/bank, credit receivable, then links payment to settlement journal |
 | 2026-07-06 | Add Controlled Payment Reversal posting | Payment cancellation must restore receivable and reverse cash/bank through accounting | Payment reversal restores invoice outstanding, posts debit receivable and credit cash/bank, then links payment to reversal journal |
+| 2026-07-06 | Add Receivable Collection Action controls | Penagihan needs auditable operational workflow after aging identifies overdue receivables | Collection actions now require valid customer context, invoice-level dunning only for overdue open invoices, duplicate active actions are blocked, and state transitions are audited |
 
 ## Assumptions Register
 
@@ -125,10 +128,10 @@
 
 ## Current Implementation State
 
-- Completed: repository scaffold, docs baseline, backend skeleton, frontend dashboard shell, Money primitive, accounting domain skeleton, persisted audit primitive, idempotency primitive, V2 domain foundation migration, quality gate verification, initial GitHub push, repository-backed Accounting API, customer/connection API foundation, metering API foundation, tariff engine foundation, billing batch foundation, payment webhook foundation, payment idempotency foundation, receivable aging foundation, posted reporting foundation, ledger materialization from posted journals, controlled invoice issue with receivable/revenue posting, controlled counter payment settlement with cash/bank receivable posting, controlled payment reversal with receivable restoration and reversal journal.
+- Completed: repository scaffold, docs baseline, backend skeleton, frontend dashboard shell, Money primitive, accounting domain skeleton, persisted audit primitive, idempotency primitive, V2 domain foundation migration, quality gate verification, initial GitHub push, repository-backed Accounting API, customer/connection API foundation, metering API foundation, tariff engine foundation, billing batch foundation, payment webhook foundation, payment idempotency foundation, receivable aging foundation, posted reporting foundation, ledger materialization from posted journals, controlled invoice issue with receivable/revenue posting, controlled counter payment settlement with cash/bank receivable posting, controlled payment reversal with receivable restoration and reversal journal, receivable collection action workflow with dunning controls.
 - In progress: none.
 - Blocked: final auth decision, official tariff values, numbering format.
-- Next actions: implement receivable collection action workflow and dunning controls.
+- Next actions: implement frontend receivable collection workspace.
 
 ## Latest Verification Snapshot
 
@@ -156,6 +159,7 @@
 | Controlled Invoice Issue increment | passed: TDD target tests, `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL and Flyway V3 |
 | Controlled Payment Posting increment | passed: TDD target tests, `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL and Flyway V4 |
 | Controlled Payment Reversal increment | passed: TDD target tests, `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL and Flyway V5 |
+| Receivable Collection Action increment | passed: TDD target test, `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL and Flyway V6 |
 
 ## Handoff Instructions
 
