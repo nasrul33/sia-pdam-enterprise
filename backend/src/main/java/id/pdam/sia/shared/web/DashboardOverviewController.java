@@ -18,6 +18,7 @@ public class DashboardOverviewController {
                         new DashboardMetric("Accounting Core", "Ready", "Money, journal balance, and period lock guardrails are implemented.", "success"),
                         new DashboardMetric("Audit Trail", "Persisted", "Sensitive actions write to audit_logs with actor, module, action, and reason.", "success"),
                         new DashboardMetric("Payment Guard", "Idempotent", "Webhook intake is signed and counter settlement is duplicate-safe.", "success"),
+                        new DashboardMetric("Receivable Aging", "Bucketed", "Open receivables are grouped into current, 30, 60, 90, and over-90 day buckets.", "success"),
                         new DashboardMetric("Open Questions", "10", "Business decisions are tracked before customer, billing, and payment go live.", "warning")
                 ),
                 List.of(
@@ -28,6 +29,7 @@ public class DashboardOverviewController {
                         new ModuleHealth("Metering", "MeteringAgent", "ready", "Reading per connection and period is unique and lifecycle-audited."),
                         new ModuleHealth("Billing", "BillingAgent", "in_progress", "Draft billing batch is idempotent; invoice issue must create receivable and correction journal."),
                         new ModuleHealth("Payment", "PaymentAgent", "in_progress", "Counter settlement reserves idempotency, creates receipt/allocation, and skips duplicate writes."),
+                        new ModuleHealth("Receivable", "ReceivableAgent", "ready", "Aging snapshots use open invoice outstanding balances and exclude paid/draft invoices."),
                         new ModuleHealth("Reporting", "ReportingAgent", "planned", "Final reports must read posted ledger entries only.")
                 ),
                 List.of(

@@ -123,6 +123,17 @@ All payment settlement mutation endpoints must send an `Idempotency-Key` header 
 |---|---|---|---|
 | POST | /api/payments/{id}/reverse | reverse settled payment | payment.reverse |
 
+## Receivable Aging
+
+| Method | Endpoint | Purpose | Permission |
+|---|---|---|---|
+| GET | /api/receivable-aging-snapshots | list aging snapshots with pagination | receivable-aging.read |
+| GET | /api/receivable-aging-snapshots/{snapshotId} | aging snapshot detail | receivable-aging.read |
+| GET | /api/receivable-aging-snapshots/by-period/{period} | aging snapshot by `yyyy-MM` period | receivable-aging.read |
+| POST | /api/receivable-aging-snapshots/generate | generate or refresh period aging snapshot | receivable-aging.generate |
+
+`POST /api/receivable-aging-snapshots/generate` requires authentication, `period`, `asOfDate`, and `reason`. Aging uses only open invoices with status `ISSUED` or `PARTIAL_PAID` and positive outstanding amount. Bucket rules are: `current` for not-yet-due or due today, `bucket30` for 1-30 days overdue, `bucket60` for 31-60 days, `bucket90` for 61-90 days, and `bucketOver90` for more than 90 days. This is an operational receivable snapshot; final financial reporting must still use posted ledger entries.
+
 ## Error Contract
 
 All errors should return:

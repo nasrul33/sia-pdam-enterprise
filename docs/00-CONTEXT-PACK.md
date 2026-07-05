@@ -34,6 +34,7 @@
 | BR-PAY-001 | Payment idempotency is enforced in DB | Payment | confirmed |
 | BR-PAY-002 | Payment webhook signature must be validated before persistence | Payment | confirmed |
 | BR-PAY-003 | Counter payment allocation total must equal payment amount and duplicate retry must be no-op | Payment | confirmed |
+| BR-REC-001 | Receivable aging uses open invoice outstanding balance with current, 30, 60, 90, and over-90 day buckets | Receivable | confirmed |
 | BR-AUD-001 | Sensitive actions are audit logged | Shared | confirmed |
 
 ## Requirements Traceability
@@ -51,6 +52,7 @@
 | REQ-BIL-002 | Generate tagihan idempotent | Billing | billing_batches idempotency_key + period/area unique + draft invoices | T-054 | BillingBatchApplicationServiceTest |
 | REQ-PAY-001 | Payment idempotent | Payment | `idempotency_keys` + `payments.idempotency_key` + duplicate no-op result hydration | T-062 | PaymentIdempotencyTest |
 | REQ-PAY-002 | Webhook pembayaran tervalidasi signature | Payment | HMAC SHA-256 `X-Payment-Signature` + `payment_webhook_events` | T-060 | PaymentWebhookApplicationServiceTest |
+| REQ-REC-001 | Aging piutang valid | Receivable | `receivable_aging_snapshots` generated from open `ISSUED/PARTIAL_PAID` invoices | T-070 | AgingServiceTest |
 
 ## Decision Log
 
@@ -73,6 +75,7 @@
 | 2026-07-05 | Add Billing Batch foundation | Revenue generation must be repeat-safe and based on verified readings | Batch generation is idempotent and creates draft invoices without direct journal writes |
 | 2026-07-05 | Add Payment Webhook foundation | External payment callbacks must be authenticated before settlement | HMAC-validated webhook events are stored as `RECEIVED` without settlement journal writes |
 | 2026-07-05 | Add Payment Idempotency foundation | Counter settlement must not duplicate cash receipt or invoice allocation on retry | Payment settlement reserves idempotency, creates receipt/allocation, updates invoice balance, and skips journal posting until controlled accounting workflow |
+| 2026-07-05 | Add Receivable Aging foundation | Collection workflow needs consistent outstanding buckets before reporting and action follow-up | Aging snapshots are generated from open invoice outstanding balances without deriving final financial reports from draft data |
 
 ## Assumptions Register
 
@@ -102,13 +105,14 @@
 | Metering | rute and baca meter | meter_routes, meter_readings | connection, shared |
 | Billing | invoice and tariff | invoices, tariff_versions, tariff_blocks | metering, accounting |
 | Payment | webhook intake and settlement | payment_webhook_events, payments, payment_allocations, payment_receipts | billing, accounting |
+| Receivable | aging and collection | receivable_aging_snapshots, collection_actions | billing, payment |
 
 ## Current Implementation State
 
-- Completed: repository scaffold, docs baseline, backend skeleton, frontend dashboard shell, Money primitive, accounting domain skeleton, persisted audit primitive, idempotency primitive, V2 domain foundation migration, quality gate verification, initial GitHub push, repository-backed Accounting API, customer/connection API foundation, metering API foundation, tariff engine foundation, billing batch foundation, payment webhook foundation, payment idempotency foundation.
+- Completed: repository scaffold, docs baseline, backend skeleton, frontend dashboard shell, Money primitive, accounting domain skeleton, persisted audit primitive, idempotency primitive, V2 domain foundation migration, quality gate verification, initial GitHub push, repository-backed Accounting API, customer/connection API foundation, metering API foundation, tariff engine foundation, billing batch foundation, payment webhook foundation, payment idempotency foundation, receivable aging foundation.
 - In progress: none.
 - Blocked: final auth decision, official tariff values, numbering format.
-- Next actions: implement receivable aging foundation.
+- Next actions: implement posted reporting foundation.
 
 ## Latest Verification Snapshot
 
@@ -130,6 +134,7 @@
 | Billing Batch increment | passed: TDD target test, `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL |
 | Payment Webhook increment | passed: TDD target test, `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL |
 | Payment Idempotency increment | passed: TDD target test, `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL |
+| Receivable Aging increment | passed: TDD target test, `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL |
 
 ## Handoff Instructions
 
