@@ -19,6 +19,7 @@
 | AccountingController | accounting/web | validated REST endpoints with audit reason and server-side authentication |
 | CustomerApplicationService | customer/application | repository-backed customer creation/list/detail with unique number and audit trail |
 | ConnectionApplicationService | connection/application | tariff group, draft connection, and lifecycle control with audit trail |
+| MeteringApplicationService | metering/application | meter route and reading lifecycle with active connection, period uniqueness, usage validation, and audit trail |
 | PageResponse | shared/web | shared pagination contract for API lists |
 
 ## Frontend Primitives

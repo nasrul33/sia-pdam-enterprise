@@ -7,7 +7,7 @@
 | Accounting | CoA, period, journal, ledger | debit=credit, posted immutable, period lock |
 | Customer | master pelanggan and address | unique customer number, active/inactive/blacklisted status |
 | Connection | sambungan and tariff group assignment | unique connection number, active customer validation, lifecycle status |
-| Metering | baca meter | unique connection+period |
+| Metering | rute and baca meter | unique route code, active connection only, unique connection+period, audited reading lifecycle |
 | Billing | tarif and tagihan | idempotent generation, journal posting |
 | Payment | settlement | unique idempotency key |
 | Receivable | aging and collection | posted invoice/payment source |

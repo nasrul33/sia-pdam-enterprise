@@ -26,6 +26,8 @@
 | BR-ACC-003 | Locked period blocks posting | Accounting | confirmed |
 | BR-CUS-001 | Customer number is unique | Customer | confirmed |
 | BR-CON-001 | Connection number is unique and lifecycle-controlled | Connection | confirmed |
+| BR-MTR-001 | Meter route code is unique | Metering | confirmed |
+| BR-MTR-002 | Meter reading is unique per connection and period | Metering | confirmed |
 | BR-PAY-001 | Payment idempotency is enforced in DB | Payment | confirmed |
 | BR-AUD-001 | Sensitive actions are audit logged | Shared | confirmed |
 
@@ -38,6 +40,8 @@
 | REQ-ACC-003 | Posted journal immutable | Accounting | Domain guard + DB trigger | T-024 | PostedJournalImmutableTest |
 | REQ-CUS-001 | Nomor pelanggan unique | Customer | customers table unique customer_number + `/api/customers` | T-030 | CustomerApplicationServiceTest |
 | REQ-CON-001 | Nomor sambungan unique | Connection | connections table unique connection_number + lifecycle endpoints | T-031 | ConnectionApplicationServiceTest |
+| REQ-MTR-001 | Rute baca meter valid | Metering | meter_routes unique route_code + `/api/meter-routes` | T-040 | MeteringApplicationServiceTest |
+| REQ-MTR-002 | Baca meter unique per sambungan dan periode | Metering | meter_readings unique connection_id+period + lifecycle endpoints | T-041 | MeteringApplicationServiceTest |
 | REQ-PAY-001 | Payment idempotent | Payment | unique idempotency key | T-062 | PaymentIdempotencyTest |
 
 ## Decision Log
@@ -56,6 +60,7 @@
 | 2026-07-05 | Remove static Docker container names | Local smoke test conflicted with existing containers | Compose is project-scoped and CI-friendly |
 | 2026-07-05 | Add repository-backed Accounting API | Accounting core needs API boundary before billing/payment integration | CoA, accounting period, draft journal, and journal posting are transactional and audited |
 | 2026-07-05 | Add Customer and Connection API foundation | Metering and billing need controlled customer and connection master data | Customer, address, tariff group, and connection lifecycle are transactional and audited |
+| 2026-07-05 | Add Metering API foundation | Billing needs verified usage per connection and period | Meter routes and meter reading lifecycle are transactional, validated, and audited |
 
 ## Assumptions Register
 
@@ -82,15 +87,16 @@
 | Accounting | CoA, period, journal | accounts, periods, journals | shared |
 | Customer | pelanggan | customers | shared |
 | Connection | sambungan and tariff group assignment | connections, tariff_groups | customer, shared |
+| Metering | rute and baca meter | meter_routes, meter_readings | connection, shared |
 | Billing | invoice and tariff | invoices, tariff_versions | metering, accounting |
 | Payment | settlement | payments, receipts | billing, accounting |
 
 ## Current Implementation State
 
-- Completed: repository scaffold, docs baseline, backend skeleton, frontend dashboard shell, Money primitive, accounting domain skeleton, persisted audit primitive, idempotency primitive, V2 domain foundation migration, quality gate verification, initial GitHub push, repository-backed Accounting API, customer/connection API foundation.
+- Completed: repository scaffold, docs baseline, backend skeleton, frontend dashboard shell, Money primitive, accounting domain skeleton, persisted audit primitive, idempotency primitive, V2 domain foundation migration, quality gate verification, initial GitHub push, repository-backed Accounting API, customer/connection API foundation, metering API foundation.
 - In progress: none.
 - Blocked: final auth decision, tariff formula, numbering format.
-- Next actions: implement metering route and meter reading services.
+- Next actions: implement tariff engine and billing batch foundation.
 
 ## Latest Verification Snapshot
 
@@ -107,6 +113,7 @@
 | Backend smoke test | passed: Flyway applied V1/V2, health endpoint UP, dashboard API returned valid JSON |
 | Accounting API increment | passed: `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL |
 | Customer/Connection API increment | passed: `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL |
+| Metering API increment | passed: `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL |
 
 ## Handoff Instructions
 

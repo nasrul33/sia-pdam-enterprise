@@ -25,7 +25,7 @@ public class DashboardOverviewController {
                         new ModuleHealth("Accounting", "AccountingAgent", "ready", "Posting requires balanced debit-credit and unlocked period."),
                         new ModuleHealth("Customer", "CustomerAgent", "ready", "Customer number is unique and address creation is audited."),
                         new ModuleHealth("Connection", "CustomerAgent", "ready", "Connection number is unique and lifecycle actions are audited."),
-                        new ModuleHealth("Metering", "MeteringAgent", "planned", "Reading per connection and period must be unique."),
+                        new ModuleHealth("Metering", "MeteringAgent", "ready", "Reading per connection and period is unique and lifecycle-audited."),
                         new ModuleHealth("Billing", "BillingAgent", "planned", "Invoice issue must create receivable and correction journal."),
                         new ModuleHealth("Payment", "PaymentAgent", "in_progress", "Every settlement path must reserve an idempotency key."),
                         new ModuleHealth("Reporting", "ReportingAgent", "planned", "Final reports must read posted ledger entries only.")

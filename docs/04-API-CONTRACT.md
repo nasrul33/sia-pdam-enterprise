@@ -55,6 +55,22 @@ Mutation payloads require `reason` so audit trail has justification. Journal pos
 
 Connection creation requires active customer, existing tariff group, unique connection number, and `reason` for audit trail.
 
+## Metering
+
+| Method | Endpoint | Purpose | Permission |
+|---|---|---|---|
+| GET | /api/meter-routes | list meter routes with `areaCode`, pagination | meter-route.read |
+| GET | /api/meter-routes/{id} | meter route detail | meter-route.read |
+| POST | /api/meter-routes | create meter route | meter-route.manage |
+| GET | /api/meter-readings | list readings with `routeId`, `period`, `status`, pagination | meter-reading.read |
+| GET | /api/meter-readings/{id} | meter reading detail | meter-reading.read |
+| POST | /api/meter-readings | create draft meter reading | meter-reading.create |
+| POST | /api/meter-readings/{id}/submit | submit draft/rejected reading | meter-reading.submit |
+| POST | /api/meter-readings/{id}/verify | verify submitted reading | meter-reading.verify |
+| POST | /api/meter-readings/{id}/reject | reject submitted reading | meter-reading.verify |
+
+Meter reading creation requires active connection, existing route, valid `yyyy-MM` period, `currentReading >= previousReading`, unique connection-period, and `reason` for audit trail.
+
 ## Payment Planned
 
 All payment mutation endpoints must send an `Idempotency-Key` header and reserve it through `idempotency_keys` before settlement writes.
