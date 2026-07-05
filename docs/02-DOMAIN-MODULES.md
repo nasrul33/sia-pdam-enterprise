@@ -8,7 +8,7 @@
 | Customer | master pelanggan and address | unique customer number, active/inactive/blacklisted status |
 | Connection | sambungan and tariff group assignment | unique connection number, active customer validation, lifecycle status |
 | Metering | rute and baca meter | unique route code, active connection only, unique connection+period, audited reading lifecycle |
-| Billing | tarif and tagihan | idempotent generation, journal posting |
+| Billing | tarif and tagihan | active effective tariff version, contiguous progressive blocks, idempotent generation, journal posting |
 | Payment | settlement | unique idempotency key |
 | Receivable | aging and collection | posted invoice/payment source |
 | Reporting | reports | posted-ledger-only financial reports |

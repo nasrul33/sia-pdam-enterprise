@@ -28,6 +28,8 @@
 | BR-CON-001 | Connection number is unique and lifecycle-controlled | Connection | confirmed |
 | BR-MTR-001 | Meter route code is unique | Metering | confirmed |
 | BR-MTR-002 | Meter reading is unique per connection and period | Metering | confirmed |
+| BR-BIL-001 | Progressive tariff calculation uses active effective version | Billing | confirmed |
+| BR-BIL-002 | Tariff blocks must be sequential, contiguous, and end with an unbounded block | Billing | confirmed |
 | BR-PAY-001 | Payment idempotency is enforced in DB | Payment | confirmed |
 | BR-AUD-001 | Sensitive actions are audit logged | Shared | confirmed |
 
@@ -42,6 +44,7 @@
 | REQ-CON-001 | Nomor sambungan unique | Connection | connections table unique connection_number + lifecycle endpoints | T-031 | ConnectionApplicationServiceTest |
 | REQ-MTR-001 | Rute baca meter valid | Metering | meter_routes unique route_code + `/api/meter-routes` | T-040 | MeteringApplicationServiceTest |
 | REQ-MTR-002 | Baca meter unique per sambungan dan periode | Metering | meter_readings unique connection_id+period + lifecycle endpoints | T-041 | MeteringApplicationServiceTest |
+| REQ-BIL-001 | Kalkulasi tarif progresif valid | Billing | tariff_versions effective active lookup + tariff_blocks progressive calculation | T-050 | TariffEngineApplicationServiceTest |
 | REQ-PAY-001 | Payment idempotent | Payment | unique idempotency key | T-062 | PaymentIdempotencyTest |
 
 ## Decision Log
@@ -61,6 +64,7 @@
 | 2026-07-05 | Add repository-backed Accounting API | Accounting core needs API boundary before billing/payment integration | CoA, accounting period, draft journal, and journal posting are transactional and audited |
 | 2026-07-05 | Add Customer and Connection API foundation | Metering and billing need controlled customer and connection master data | Customer, address, tariff group, and connection lifecycle are transactional and audited |
 | 2026-07-05 | Add Metering API foundation | Billing needs verified usage per connection and period | Meter routes and meter reading lifecycle are transactional, validated, and audited |
+| 2026-07-05 | Add Tariff Engine foundation | Billing batch must calculate server-side from effective tariff versions | Progressive tariff blocks are versioned, audited, and calculated from active effective version |
 
 ## Assumptions Register
 
@@ -76,7 +80,7 @@
 |---|---|---|---|
 | OQ-001 | Auth: session, JWT, or SSO? | Security architecture | Auth implementation |
 | OQ-002 | Numbering format? | Unique generator | Customer/Billing |
-| OQ-003 | Tariff official blocks? | Tariff engine | Billing |
+| OQ-003 | Official tariff block values? | Billing amount setup | Billing batch |
 | OQ-004 | Bank reconciliation channel? | Integration design | Payment R2 |
 
 ## Module Map
@@ -88,15 +92,15 @@
 | Customer | pelanggan | customers | shared |
 | Connection | sambungan and tariff group assignment | connections, tariff_groups | customer, shared |
 | Metering | rute and baca meter | meter_routes, meter_readings | connection, shared |
-| Billing | invoice and tariff | invoices, tariff_versions | metering, accounting |
+| Billing | invoice and tariff | invoices, tariff_versions, tariff_blocks | metering, accounting |
 | Payment | settlement | payments, receipts | billing, accounting |
 
 ## Current Implementation State
 
-- Completed: repository scaffold, docs baseline, backend skeleton, frontend dashboard shell, Money primitive, accounting domain skeleton, persisted audit primitive, idempotency primitive, V2 domain foundation migration, quality gate verification, initial GitHub push, repository-backed Accounting API, customer/connection API foundation, metering API foundation.
+- Completed: repository scaffold, docs baseline, backend skeleton, frontend dashboard shell, Money primitive, accounting domain skeleton, persisted audit primitive, idempotency primitive, V2 domain foundation migration, quality gate verification, initial GitHub push, repository-backed Accounting API, customer/connection API foundation, metering API foundation, tariff engine foundation.
 - In progress: none.
-- Blocked: final auth decision, tariff formula, numbering format.
-- Next actions: implement tariff engine and billing batch foundation.
+- Blocked: final auth decision, official tariff values, numbering format.
+- Next actions: implement billing batch foundation.
 
 ## Latest Verification Snapshot
 
@@ -114,6 +118,7 @@
 | Accounting API increment | passed: `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL |
 | Customer/Connection API increment | passed: `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL |
 | Metering API increment | passed: `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL |
+| Tariff Engine increment | passed: TDD target test, `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL |
 
 ## Handoff Instructions
 

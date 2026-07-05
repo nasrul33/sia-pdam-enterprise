@@ -71,6 +71,21 @@ Connection creation requires active customer, existing tariff group, unique conn
 
 Meter reading creation requires active connection, existing route, valid `yyyy-MM` period, `currentReading >= previousReading`, unique connection-period, and `reason` for audit trail.
 
+## Billing Tariff
+
+| Method | Endpoint | Purpose | Permission |
+|---|---|---|---|
+| GET | /api/tariff-versions | list tariff versions with `tariffGroupId`, `status`, pagination | tariff.read |
+| GET | /api/tariff-versions/{id} | tariff version detail | tariff.read |
+| POST | /api/tariff-versions | create draft tariff version | tariff.manage |
+| GET | /api/tariff-versions/{id}/blocks | list blocks for a tariff version | tariff.read |
+| POST | /api/tariff-versions/{id}/blocks | add block to draft tariff version | tariff.manage |
+| POST | /api/tariff-versions/{id}/activate | activate a valid draft tariff version | tariff.manage |
+| POST | /api/tariff-versions/{id}/archive | archive tariff version | tariff.manage |
+| POST | /api/tariff-calculations | calculate progressive tariff from active effective version | tariff.calculate |
+
+Tariff activation requires sequential contiguous blocks starting at `0.000` m3 and ending with one unbounded final block. Calculation uses the latest `ACTIVE` tariff version with `effectiveDate <= billingDate`.
+
 ## Payment Planned
 
 All payment mutation endpoints must send an `Idempotency-Key` header and reserve it through `idempotency_keys` before settlement writes.
