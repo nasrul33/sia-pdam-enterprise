@@ -9,4 +9,6 @@ import java.util.UUID;
 
 public interface LedgerEntryRepository extends JpaRepository<LedgerEntry, UUID> {
     List<LedgerEntry> findByPostingDateBetween(LocalDate fromDate, LocalDate toDate);
+
+    boolean existsByJournalEntryId(UUID journalEntryId);
 }

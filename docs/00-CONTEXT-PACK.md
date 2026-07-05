@@ -24,6 +24,7 @@
 | BR-ACC-001 | Debit must equal credit before posting | Accounting | confirmed |
 | BR-ACC-002 | Posted journal is immutable | Accounting | confirmed |
 | BR-ACC-003 | Locked period blocks posting | Accounting | confirmed |
+| BR-ACC-004 | Posted journal must materialize one immutable ledger entry per journal line | Accounting | confirmed |
 | BR-CUS-001 | Customer number is unique | Customer | confirmed |
 | BR-CON-001 | Connection number is unique and lifecycle-controlled | Connection | confirmed |
 | BR-MTR-001 | Meter route code is unique | Metering | confirmed |
@@ -45,6 +46,7 @@
 | REQ-ACC-001 | CoA exists | Accounting | accounts table unique code + `/api/accounts` | T-020 | AccountingApplicationServiceTest |
 | REQ-ACC-002 | Journal must balance | Accounting | PostingService validation + `/api/journals/{id}/post` | T-023 | JournalEntryTest |
 | REQ-ACC-003 | Posted journal immutable | Accounting | Domain guard + DB trigger | T-024 | PostedJournalImmutableTest |
+| REQ-ACC-004 | Ledger terbentuk dari journal posted | Accounting | PostingService calls LedgerEntryMaterializationService after successful post | T-081 | LedgerMaterializationTest |
 | REQ-CUS-001 | Nomor pelanggan unique | Customer | customers table unique customer_number + `/api/customers` | T-030 | CustomerApplicationServiceTest |
 | REQ-CON-001 | Nomor sambungan unique | Connection | connections table unique connection_number + lifecycle endpoints | T-031 | ConnectionApplicationServiceTest |
 | REQ-MTR-001 | Rute baca meter valid | Metering | meter_routes unique route_code + `/api/meter-routes` | T-040 | MeteringApplicationServiceTest |
@@ -79,6 +81,7 @@
 | 2026-07-05 | Add Payment Idempotency foundation | Counter settlement must not duplicate cash receipt or invoice allocation on retry | Payment settlement reserves idempotency, creates receipt/allocation, updates invoice balance, and skips journal posting until controlled accounting workflow |
 | 2026-07-05 | Add Receivable Aging foundation | Collection workflow needs consistent outstanding buckets before reporting and action follow-up | Aging snapshots are generated from open invoice outstanding balances without deriving final financial reports from draft data |
 | 2026-07-05 | Add Posted Reporting foundation | Final financial reports must not read draft invoices or operational payments | Trial balance reads `ledger_entries` only and exposes balanced debit/credit controls |
+| 2026-07-05 | Add Ledger Materialization from posted journals | Trial balance needs controlled ledger rows created only after journal posting succeeds | PostingService now writes one `ledger_entries` row per posted journal line in the same transaction |
 
 ## Assumptions Register
 
@@ -113,10 +116,10 @@
 
 ## Current Implementation State
 
-- Completed: repository scaffold, docs baseline, backend skeleton, frontend dashboard shell, Money primitive, accounting domain skeleton, persisted audit primitive, idempotency primitive, V2 domain foundation migration, quality gate verification, initial GitHub push, repository-backed Accounting API, customer/connection API foundation, metering API foundation, tariff engine foundation, billing batch foundation, payment webhook foundation, payment idempotency foundation, receivable aging foundation, posted reporting foundation.
+- Completed: repository scaffold, docs baseline, backend skeleton, frontend dashboard shell, Money primitive, accounting domain skeleton, persisted audit primitive, idempotency primitive, V2 domain foundation migration, quality gate verification, initial GitHub push, repository-backed Accounting API, customer/connection API foundation, metering API foundation, tariff engine foundation, billing batch foundation, payment webhook foundation, payment idempotency foundation, receivable aging foundation, posted reporting foundation, ledger materialization from posted journals.
 - In progress: none.
 - Blocked: final auth decision, official tariff values, numbering format.
-- Next actions: implement ledger entry materialization from posted journals.
+- Next actions: implement controlled invoice issue and revenue/receivable posting workflow.
 
 ## Latest Verification Snapshot
 
@@ -140,6 +143,7 @@
 | Payment Idempotency increment | passed: TDD target test, `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL |
 | Receivable Aging increment | passed: TDD target test, `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL |
 | Posted Reporting increment | passed: TDD target test, `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL |
+| Ledger Materialization increment | passed: TDD target test, `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL |
 
 ## Handoff Instructions
 

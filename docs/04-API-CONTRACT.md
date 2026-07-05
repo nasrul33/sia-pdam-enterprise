@@ -35,7 +35,7 @@
 | POST | /api/journals/{id}/post | post journal | journal.post |
 | POST | /api/journals/{id}/reverse | reverse journal | journal.reverse |
 
-Mutation payloads require `reason` so audit trail has justification. Journal posting is blocked when debit/credit is not balanced or period is not `OPEN`/`REOPENED`.
+Mutation payloads require `reason` so audit trail has justification. Journal posting is blocked when debit/credit is not balanced or period is not `OPEN`/`REOPENED`. Successful journal posting materializes one `ledger_entries` row per journal line in the same transaction; downstream financial reports read those ledger rows only.
 
 ## Customer and Connection
 

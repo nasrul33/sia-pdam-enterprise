@@ -11,6 +11,7 @@ import id.pdam.sia.accounting.web.CreateAccountRequest;
 import id.pdam.sia.accounting.web.CreateAccountingPeriodRequest;
 import id.pdam.sia.accounting.web.CreateJournalRequest;
 import id.pdam.sia.accounting.web.JournalLineRequest;
+import id.pdam.sia.reporting.application.LedgerEntryMaterializationService;
 import id.pdam.sia.shared.audit.AuditTrailService;
 import id.pdam.sia.shared.exception.BusinessException;
 import org.junit.jupiter.api.Test;
@@ -32,7 +33,8 @@ class AccountingApplicationServiceTest {
     private final AccountingPeriodRepository accountingPeriodRepository = mock(AccountingPeriodRepository.class);
     private final JournalEntryRepository journalEntryRepository = mock(JournalEntryRepository.class);
     private final AuditTrailService auditTrailService = mock(AuditTrailService.class);
-    private final PostingService postingService = new PostingService(auditTrailService);
+    private final LedgerEntryMaterializationService ledgerEntryMaterializationService = mock(LedgerEntryMaterializationService.class);
+    private final PostingService postingService = new PostingService(auditTrailService, ledgerEntryMaterializationService);
 
     private final AccountingApplicationService service = new AccountingApplicationService(
             accountRepository,

@@ -15,7 +15,7 @@ public class DashboardOverviewController {
         return new DashboardOverviewResponse(
                 Instant.now(),
                 List.of(
-                        new DashboardMetric("Accounting Core", "Ready", "Money, journal balance, and period lock guardrails are implemented.", "success"),
+                        new DashboardMetric("Accounting Core", "Ledger", "Posting validates journals and materializes posted ledger entries.", "success"),
                         new DashboardMetric("Audit Trail", "Persisted", "Sensitive actions write to audit_logs with actor, module, action, and reason.", "success"),
                         new DashboardMetric("Payment Guard", "Idempotent", "Webhook intake is signed and counter settlement is duplicate-safe.", "success"),
                         new DashboardMetric("Receivable Aging", "Bucketed", "Open receivables are grouped into current, 30, 60, 90, and over-90 day buckets.", "success"),
@@ -24,7 +24,7 @@ public class DashboardOverviewController {
                 ),
                 List.of(
                         new ModuleHealth("Shared Kernel", "BackendFoundationAgent", "ready", "Money uses BigDecimal and audit trail is persisted."),
-                        new ModuleHealth("Accounting", "AccountingAgent", "ready", "Posting requires balanced debit-credit and unlocked period."),
+                        new ModuleHealth("Accounting", "AccountingAgent", "ready", "Posting requires balanced debit-credit, unlocked period, and ledger materialization."),
                         new ModuleHealth("Customer", "CustomerAgent", "ready", "Customer number is unique and address creation is audited."),
                         new ModuleHealth("Connection", "CustomerAgent", "ready", "Connection number is unique and lifecycle actions are audited."),
                         new ModuleHealth("Metering", "MeteringAgent", "ready", "Reading per connection and period is unique and lifecycle-audited."),

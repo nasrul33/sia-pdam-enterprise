@@ -27,3 +27,4 @@
 | T-062 | PaymentAgent | Payment idempotency | payment | T-060 | counter payment duplicate no-op with receipt and invoice allocation | PaymentIdempotencyTest |
 | T-070 | ReceivableAgent | Aging | receivable | T-062 | current, 30, 60, 90, and over-90 aging buckets valid | AgingServiceTest |
 | T-080 | ReportingAgent | Posted reports | reporting | T-023,T-054,T-062 | trial balance reads posted ledger entries only and excludes draft operational records | ReportPostedOnlyTest |
+| T-081 | AccountingAgent | Ledger materialization | accounting, reporting | T-080 | posted journal writes one ledger row per journal line | LedgerMaterializationTest |
