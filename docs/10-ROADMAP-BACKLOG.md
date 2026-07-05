@@ -24,6 +24,6 @@
 | T-050 | BillingAgent | Tariff engine | billing | T-041 | active effective version, contiguous progressive blocks, tariff calculation valid | TariffEngineApplicationServiceTest |
 | T-054 | BillingAgent | Billing batch | billing | T-050,T-023 | verified readings only, active connection, no duplicate invoice, idempotent draft generation | BillingBatchApplicationServiceTest |
 | T-060 | PaymentAgent | Payment webhook | payment | T-054 | HMAC signature validated before event persistence | PaymentWebhookApplicationServiceTest |
-| T-062 | PaymentAgent | Payment idempotency | payment | T-060 | duplicate no-op | PaymentIdempotencyTest |
+| T-062 | PaymentAgent | Payment idempotency | payment | T-060 | counter payment duplicate no-op with receipt and invoice allocation | PaymentIdempotencyTest |
 | T-070 | ReceivableAgent | Aging | receivable | T-062 | aging bucket valid | AgingServiceTest |
 | T-080 | ReportingAgent | Posted reports | reporting | T-023,T-054,T-062 | report excludes draft | ReportPostedOnlyTest |

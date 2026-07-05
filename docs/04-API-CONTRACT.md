@@ -107,13 +107,20 @@ Tariff activation requires sequential contiguous blocks starting at `0.000` m3 a
 
 `POST /api/payments/webhook` requires `X-Payment-Signature`. The signature is HMAC-SHA256 over canonical payload `provider\nexternalReference\nidempotencyKey\npayload` using `sia.payment.webhook.secret`. This endpoint stores `RECEIVED` events only; settlement allocation, receipt creation, and journal posting are handled by later controlled payment workflow tasks.
 
-## Payment Settlement Planned
+## Payment Settlement
 
 All payment settlement mutation endpoints must send an `Idempotency-Key` header and reserve it through `idempotency_keys` before settlement writes.
 
 | Method | Endpoint | Purpose | Permission |
 |---|---|---|---|
 | POST | /api/payments/counter | counter payment settlement | payment.counter |
+
+`POST /api/payments/counter` requires authentication, `Idempotency-Key`, `amount`, `paidAt`, `allocations[]`, and `reason`. The payment amount must equal the allocation total. Each invoice allocation must target an `ISSUED` or `PARTIAL_PAID` invoice and cannot exceed invoice outstanding amount. A completed retry with the same idempotency key and payload returns the original payment, receipt, and allocations without duplicate writes. This endpoint records operational payment settlement only; kas-bank journal posting is reserved for a later controlled accounting workflow.
+
+## Payment Reversal Planned
+
+| Method | Endpoint | Purpose | Permission |
+|---|---|---|---|
 | POST | /api/payments/{id}/reverse | reverse settled payment | payment.reverse |
 
 ## Error Contract

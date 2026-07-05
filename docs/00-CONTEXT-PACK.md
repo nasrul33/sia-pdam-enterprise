@@ -33,6 +33,7 @@
 | BR-BIL-003 | Billing batch generation is idempotent and creates draft invoices from verified readings | Billing | confirmed |
 | BR-PAY-001 | Payment idempotency is enforced in DB | Payment | confirmed |
 | BR-PAY-002 | Payment webhook signature must be validated before persistence | Payment | confirmed |
+| BR-PAY-003 | Counter payment allocation total must equal payment amount and duplicate retry must be no-op | Payment | confirmed |
 | BR-AUD-001 | Sensitive actions are audit logged | Shared | confirmed |
 
 ## Requirements Traceability
@@ -48,7 +49,7 @@
 | REQ-MTR-002 | Baca meter unique per sambungan dan periode | Metering | meter_readings unique connection_id+period + lifecycle endpoints | T-041 | MeteringApplicationServiceTest |
 | REQ-BIL-001 | Kalkulasi tarif progresif valid | Billing | tariff_versions effective active lookup + tariff_blocks progressive calculation | T-050 | TariffEngineApplicationServiceTest |
 | REQ-BIL-002 | Generate tagihan idempotent | Billing | billing_batches idempotency_key + period/area unique + draft invoices | T-054 | BillingBatchApplicationServiceTest |
-| REQ-PAY-001 | Payment idempotent | Payment | unique idempotency key | T-062 | PaymentIdempotencyTest |
+| REQ-PAY-001 | Payment idempotent | Payment | `idempotency_keys` + `payments.idempotency_key` + duplicate no-op result hydration | T-062 | PaymentIdempotencyTest |
 | REQ-PAY-002 | Webhook pembayaran tervalidasi signature | Payment | HMAC SHA-256 `X-Payment-Signature` + `payment_webhook_events` | T-060 | PaymentWebhookApplicationServiceTest |
 
 ## Decision Log
@@ -71,6 +72,7 @@
 | 2026-07-05 | Add Tariff Engine foundation | Billing batch must calculate server-side from effective tariff versions | Progressive tariff blocks are versioned, audited, and calculated from active effective version |
 | 2026-07-05 | Add Billing Batch foundation | Revenue generation must be repeat-safe and based on verified readings | Batch generation is idempotent and creates draft invoices without direct journal writes |
 | 2026-07-05 | Add Payment Webhook foundation | External payment callbacks must be authenticated before settlement | HMAC-validated webhook events are stored as `RECEIVED` without settlement journal writes |
+| 2026-07-05 | Add Payment Idempotency foundation | Counter settlement must not duplicate cash receipt or invoice allocation on retry | Payment settlement reserves idempotency, creates receipt/allocation, updates invoice balance, and skips journal posting until controlled accounting workflow |
 
 ## Assumptions Register
 
@@ -99,14 +101,14 @@
 | Connection | sambungan and tariff group assignment | connections, tariff_groups | customer, shared |
 | Metering | rute and baca meter | meter_routes, meter_readings | connection, shared |
 | Billing | invoice and tariff | invoices, tariff_versions, tariff_blocks | metering, accounting |
-| Payment | webhook intake and settlement | payment_webhook_events, payments, receipts | billing, accounting |
+| Payment | webhook intake and settlement | payment_webhook_events, payments, payment_allocations, payment_receipts | billing, accounting |
 
 ## Current Implementation State
 
-- Completed: repository scaffold, docs baseline, backend skeleton, frontend dashboard shell, Money primitive, accounting domain skeleton, persisted audit primitive, idempotency primitive, V2 domain foundation migration, quality gate verification, initial GitHub push, repository-backed Accounting API, customer/connection API foundation, metering API foundation, tariff engine foundation, billing batch foundation, payment webhook foundation.
+- Completed: repository scaffold, docs baseline, backend skeleton, frontend dashboard shell, Money primitive, accounting domain skeleton, persisted audit primitive, idempotency primitive, V2 domain foundation migration, quality gate verification, initial GitHub push, repository-backed Accounting API, customer/connection API foundation, metering API foundation, tariff engine foundation, billing batch foundation, payment webhook foundation, payment idempotency foundation.
 - In progress: none.
 - Blocked: final auth decision, official tariff values, numbering format.
-- Next actions: implement payment idempotency settlement controls.
+- Next actions: implement receivable aging foundation.
 
 ## Latest Verification Snapshot
 
@@ -127,6 +129,7 @@
 | Tariff Engine increment | passed: TDD target test, `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL |
 | Billing Batch increment | passed: TDD target test, `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL |
 | Payment Webhook increment | passed: TDD target test, `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL |
+| Payment Idempotency increment | passed: TDD target test, `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL |
 
 ## Handoff Instructions
 

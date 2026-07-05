@@ -80,6 +80,30 @@ public class Invoice extends BaseEntity {
         this.status = InvoiceStatus.DRAFT;
     }
 
+    public void markIssued(Instant issuedAt) {
+        if (issuedAt == null) {
+            throw new BusinessException("INVOICE_ISSUED_AT_REQUIRED", "Invoice issued timestamp is required.");
+        }
+        if (status != InvoiceStatus.DRAFT) {
+            throw new BusinessException("INVOICE_ISSUE_STATUS_INVALID", "Only draft invoice can be issued.");
+        }
+        this.status = InvoiceStatus.ISSUED;
+        this.issuedAt = issuedAt;
+    }
+
+    public void applyPayment(BigDecimal amount) {
+        BigDecimal normalizedAmount = requirePositive(amount, "INVOICE_PAYMENT_AMOUNT_REQUIRED", "Invoice payment amount is required.");
+        if (status != InvoiceStatus.ISSUED && status != InvoiceStatus.PARTIAL_PAID) {
+            throw new BusinessException("INVOICE_PAYMENT_STATUS_INVALID", "Payment can only be applied to issued or partial paid invoice.");
+        }
+        if (normalizedAmount.compareTo(outstandingAmount) > 0) {
+            throw new BusinessException("INVOICE_PAYMENT_OVERPAID", "Payment allocation cannot exceed invoice outstanding amount.");
+        }
+        paidAmount = paidAmount.add(normalizedAmount).setScale(2, java.math.RoundingMode.HALF_UP);
+        outstandingAmount = outstandingAmount.subtract(normalizedAmount).setScale(2, java.math.RoundingMode.HALF_UP);
+        status = outstandingAmount.signum() == 0 ? InvoiceStatus.PAID : InvoiceStatus.PARTIAL_PAID;
+    }
+
     private static String require(String value, String code, String message) {
         if (value == null || value.isBlank()) {
             throw new BusinessException(code, message);
@@ -95,6 +119,14 @@ public class Invoice extends BaseEntity {
             throw new BusinessException("INVOICE_AMOUNT_NEGATIVE", "Invoice amount cannot be negative.");
         }
         return value.setScale(2, java.math.RoundingMode.HALF_UP);
+    }
+
+    private static BigDecimal requirePositive(BigDecimal value, String code, String message) {
+        BigDecimal normalized = requireNonNegative(value, code, message);
+        if (normalized.signum() <= 0) {
+            throw new BusinessException("INVOICE_PAYMENT_AMOUNT_INVALID", "Invoice payment amount must be greater than zero.");
+        }
+        return normalized;
     }
 
     public UUID getBillingBatchId() {
