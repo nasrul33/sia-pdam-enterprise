@@ -43,6 +43,7 @@
 | BR-REC-003 | Invoice-level collection action must verify invoice connection belongs to requested customer | Receivable | confirmed |
 | BR-REP-001 | Financial reports must read posted ledger entries only and exclude draft operational records | Reporting | confirmed |
 | BR-AUD-001 | Sensitive actions are audit logged | Shared | confirmed |
+| BR-SEC-001 | Collection action endpoints require granular backend permissions for read, create, execute, and cancel | Security/Receivable | confirmed |
 | BR-UI-001 | Operational frontend pages expose loading, error, empty, filter, mutation pending, and mutation error states | Frontend | confirmed |
 
 ## Requirements Traceability
@@ -68,6 +69,7 @@
 | REQ-REC-002 | Aksi penagihan piutang terkendali | Receivable | `/api/collection-actions` creates overdue invoice dunning actions, blocks duplicate active action, and controls start/complete/cancel transitions | T-085 | CollectionActionApplicationServiceTest |
 | REQ-REC-003 | Aksi penagihan invoice hanya untuk customer pemilik sambungan | Receivable/Connection | Collection action validates `invoice.connectionId -> connection.customerId` before saving or auditing | T-087 | CollectionActionApplicationServiceTest |
 | REQ-REP-001 | Report keuangan posted-only | Reporting | trial balance generated from `ledger_entries` only | T-080 | ReportPostedOnlyTest |
+| REQ-SEC-001 | Permission granular untuk aksi penagihan | Security/Receivable | Collection action controller uses `hasAuthority` for `collection-action.read/create/execute/cancel` | T-088 | CollectionActionControllerPermissionTest |
 | REQ-UI-001 | Workspace penagihan piutang siap operasional | Frontend | `/receivables/collection-actions` provides typed API integration, filters, create form, workflow actions, loading/error/empty states, and mutation feedback | T-086 | npm lint, typecheck, build |
 
 ## Decision Log
@@ -100,6 +102,7 @@
 | 2026-07-06 | Add Receivable Collection Action controls | Penagihan needs auditable operational workflow after aging identifies overdue receivables | Collection actions now require valid customer context, invoice-level dunning only for overdue open invoices, duplicate active actions are blocked, and state transitions are audited |
 | 2026-07-06 | Add Receivable Collection Workspace | Receivable officers need a usable dashboard surface for collection action execution | Frontend now exposes typed collection-action list, filters, create form, workflow modal, mutation feedback, and full loading/error/empty states |
 | 2026-07-06 | Add Collection Invoice-Customer Ownership validation | Collection action could otherwise attach another customer's overdue invoice to the wrong customer workflow | Invoice-level collection actions now load the invoice connection and reject mismatched customer ownership before persistence and audit |
+| 2026-07-06 | Add Collection Action granular permissions | Collection actions are sensitive operational commands and must not rely on broad authenticated access | Controller method security now requires `collection-action.read`, `collection-action.create`, `collection-action.execute`, and `collection-action.cancel` authorities |
 
 ## Assumptions Register
 
@@ -134,10 +137,10 @@
 
 ## Current Implementation State
 
-- Completed: repository scaffold, docs baseline, backend skeleton, frontend dashboard shell, Money primitive, accounting domain skeleton, persisted audit primitive, idempotency primitive, V2 domain foundation migration, quality gate verification, initial GitHub push, repository-backed Accounting API, customer/connection API foundation, metering API foundation, tariff engine foundation, billing batch foundation, payment webhook foundation, payment idempotency foundation, receivable aging foundation, posted reporting foundation, ledger materialization from posted journals, controlled invoice issue with receivable/revenue posting, controlled counter payment settlement with cash/bank receivable posting, controlled payment reversal with receivable restoration and reversal journal, receivable collection action workflow with dunning controls, frontend receivable collection workspace, collection invoice-customer ownership validation.
+- Completed: repository scaffold, docs baseline, backend skeleton, frontend dashboard shell, Money primitive, accounting domain skeleton, persisted audit primitive, idempotency primitive, V2 domain foundation migration, quality gate verification, initial GitHub push, repository-backed Accounting API, customer/connection API foundation, metering API foundation, tariff engine foundation, billing batch foundation, payment webhook foundation, payment idempotency foundation, receivable aging foundation, posted reporting foundation, ledger materialization from posted journals, controlled invoice issue with receivable/revenue posting, controlled counter payment settlement with cash/bank receivable posting, controlled payment reversal with receivable restoration and reversal journal, receivable collection action workflow with dunning controls, frontend receivable collection workspace, collection invoice-customer ownership validation, collection action granular permission enforcement.
 - In progress: none.
 - Blocked: final auth decision, official tariff values, numbering format.
-- Next actions: implement granular RBAC permission enforcement for collection actions.
+- Next actions: implement database-backed user, role, and permission authentication.
 
 ## Latest Verification Snapshot
 
@@ -168,6 +171,7 @@
 | Receivable Collection Action increment | passed: TDD target test, `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL and Flyway V6 |
 | Receivable Collection Workspace increment | passed: `npm run typecheck`, `npm run lint`, `npm run build` |
 | Collection Invoice-Customer Ownership increment | passed: TDD target test, `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL and Flyway V6 |
+| Collection Action Permission increment | passed: TDD target tests, `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL and Flyway V6 |
 
 ## Handoff Instructions
 

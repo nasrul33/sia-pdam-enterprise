@@ -27,6 +27,15 @@
 | Reverse payment | Kasir/Supervisor | Finance Supervisor | yes |
 | Change permission | Admin Sistem | Super Admin | yes |
 
+## Permission Matrix
+
+| Permission | Endpoint/Action | Intended Role |
+|---|---|---|
+| collection-action.read | `GET /api/collection-actions`, `GET /api/collection-actions/{id}` | Petugas Piutang, Supervisor Piutang, Auditor Internal |
+| collection-action.create | `POST /api/collection-actions` | Petugas Piutang, Supervisor Piutang |
+| collection-action.execute | `POST /api/collection-actions/{id}/start`, `POST /api/collection-actions/{id}/complete` | Petugas Piutang |
+| collection-action.cancel | `POST /api/collection-actions/{id}/cancel` | Supervisor Piutang |
+
 ## Audit Trail Fields
 
 - actor

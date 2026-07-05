@@ -162,6 +162,8 @@ All payment settlement mutation endpoints must send an `Idempotency-Key` header 
 
 `POST /api/collection-actions` requires authentication, `customerId`, `actionType`, `scheduledAt`, and mandatory `reason`. Invoice-level dunning types `REMINDER`, `WARNING_LETTER`, and `DISCONNECTION_NOTICE` require `invoiceId`; the invoice must be `ISSUED` or `PARTIAL_PAID`, have positive outstanding amount, be overdue on the scheduled date, and belong to the requested customer through `invoice.connectionId -> connection.customerId`. The backend blocks duplicate active `OPEN` or `IN_PROGRESS` actions for the same invoice/type and for customer-level actions without invoice. Workflow transitions are audited and limited to `OPEN -> IN_PROGRESS`, `OPEN/IN_PROGRESS -> COMPLETED`, and `OPEN/IN_PROGRESS -> CANCELLED`.
 
+The permission values in the table are enforced server-side through method security using `hasAuthority(...)`.
+
 ## Reporting
 
 | Method | Endpoint | Purpose | Permission |

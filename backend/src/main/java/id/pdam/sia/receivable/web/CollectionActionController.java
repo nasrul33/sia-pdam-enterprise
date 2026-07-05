@@ -2,6 +2,7 @@ package id.pdam.sia.receivable.web;
 
 import id.pdam.sia.receivable.application.CollectionActionApplicationService;
 import id.pdam.sia.receivable.domain.CollectionActionStatus;
+import id.pdam.sia.shared.security.Permissions;
 import id.pdam.sia.shared.web.PageResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -32,6 +33,7 @@ public class CollectionActionController {
     }
 
     @GetMapping
+    @PreAuthorize(Permissions.COLLECTION_ACTION_READ)
     public PageResponse<CollectionActionResponse> listActions(
             @RequestParam(required = false) CollectionActionStatus status,
             @RequestParam(required = false) UUID customerId,
@@ -47,13 +49,14 @@ public class CollectionActionController {
     }
 
     @GetMapping("/{actionId}")
+    @PreAuthorize(Permissions.COLLECTION_ACTION_READ)
     public CollectionActionResponse getAction(@PathVariable UUID actionId) {
         return CollectionActionResponse.from(collectionActionApplicationService.getAction(actionId));
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(Permissions.COLLECTION_ACTION_CREATE)
     public CollectionActionResponse createAction(
             @Valid @RequestBody CreateCollectionActionRequest request,
             Principal principal
@@ -62,7 +65,7 @@ public class CollectionActionController {
     }
 
     @PostMapping("/{actionId}/start")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(Permissions.COLLECTION_ACTION_EXECUTE)
     public CollectionActionResponse startAction(
             @PathVariable UUID actionId,
             @Valid @RequestBody CollectionActionWorkflowRequest request,
@@ -72,7 +75,7 @@ public class CollectionActionController {
     }
 
     @PostMapping("/{actionId}/complete")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(Permissions.COLLECTION_ACTION_EXECUTE)
     public CollectionActionResponse completeAction(
             @PathVariable UUID actionId,
             @Valid @RequestBody CollectionActionWorkflowRequest request,
@@ -82,7 +85,7 @@ public class CollectionActionController {
     }
 
     @PostMapping("/{actionId}/cancel")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(Permissions.COLLECTION_ACTION_CANCEL)
     public CollectionActionResponse cancelAction(
             @PathVariable UUID actionId,
             @Valid @RequestBody CollectionActionWorkflowRequest request,
