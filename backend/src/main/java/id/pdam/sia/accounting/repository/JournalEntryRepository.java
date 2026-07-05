@@ -17,6 +17,8 @@ import java.util.UUID;
 public interface JournalEntryRepository extends JpaRepository<JournalEntry, UUID> {
     Optional<JournalEntry> findByJournalNumber(String journalNumber);
 
+    boolean existsBySourceModuleAndSourceRecordId(String sourceModule, UUID sourceRecordId);
+
     Page<JournalEntry> findByStatus(JournalStatus status, Pageable pageable);
 
     Page<JournalEntry> findByAccountingPeriodId(UUID accountingPeriodId, Pageable pageable);

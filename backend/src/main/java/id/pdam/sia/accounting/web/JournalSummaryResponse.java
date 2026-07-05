@@ -14,6 +14,9 @@ public record JournalSummaryResponse(
         JournalStatus status,
         Instant postedAt,
         String postedBy,
+        String sourceModule,
+        UUID sourceRecordId,
+        String sourceDocumentNumber,
         Instant createdAt,
         Instant updatedAt
 ) {
@@ -26,6 +29,9 @@ public record JournalSummaryResponse(
                 journal.getStatus(),
                 journal.getPostedAt(),
                 journal.getPostedBy(),
+                journal.getSourceModule(),
+                journal.getSourceRecordId(),
+                journal.getSourceDocumentNumber(),
                 journal.getCreatedAt(),
                 journal.getUpdatedAt()
         );

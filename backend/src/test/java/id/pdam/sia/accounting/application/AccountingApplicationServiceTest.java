@@ -4,6 +4,7 @@ import id.pdam.sia.accounting.domain.Account;
 import id.pdam.sia.accounting.domain.AccountType;
 import id.pdam.sia.accounting.domain.AccountingPeriod;
 import id.pdam.sia.accounting.domain.JournalEntry;
+import id.pdam.sia.accounting.domain.JournalStatus;
 import id.pdam.sia.accounting.repository.AccountRepository;
 import id.pdam.sia.accounting.repository.AccountingPeriodRepository;
 import id.pdam.sia.accounting.repository.JournalEntryRepository;
@@ -25,6 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -107,6 +109,77 @@ class AccountingApplicationServiceTest {
                 journal.getId().toString(),
                 "draft manual"
         );
+    }
+
+    @Test
+    void postsBillingInvoiceJournalWithSourceTraceabilityAndLedgerMaterialization() {
+        AccountingPeriod period = new AccountingPeriod("2026-07");
+        Account receivableAccount = new Account("1-130", "Piutang Air", AccountType.ASSET);
+        Account revenueAccount = new Account("4-110", "Pendapatan Air", AccountType.REVENUE);
+        UUID invoiceId = UUID.randomUUID();
+
+        when(accountingPeriodRepository.findByPeriod("2026-07")).thenReturn(Optional.of(period));
+        when(accountRepository.findById(receivableAccount.getId())).thenReturn(Optional.of(receivableAccount));
+        when(accountRepository.findById(revenueAccount.getId())).thenReturn(Optional.of(revenueAccount));
+        when(journalEntryRepository.findByJournalNumber("BIL-INV-202607-SR-0001")).thenReturn(Optional.empty());
+        when(journalEntryRepository.save(any(JournalEntry.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        JournalEntry journal = service.postBillingInvoice(
+                new BillingInvoicePostingCommand(
+                        "INV-202607-SR-0001",
+                        invoiceId,
+                        "2026-07",
+                        new BigDecimal("46250.00"),
+                        receivableAccount.getId(),
+                        revenueAccount.getId(),
+                        "issue invoice"
+                ),
+                "billing.admin"
+        );
+
+        assertThat(journal.getStatus()).isEqualTo(JournalStatus.POSTED);
+        assertThat(journal.getSourceModule()).isEqualTo("BILLING");
+        assertThat(journal.getSourceRecordId()).isEqualTo(invoiceId);
+        assertThat(journal.getSourceDocumentNumber()).isEqualTo("INV-202607-SR-0001");
+        assertThat(journal.getLines()).hasSize(2);
+        assertThat(journal.getLines().get(0).getAccountId()).isEqualTo(receivableAccount.getId());
+        assertThat(journal.getLines().get(0).getDebit()).isEqualByComparingTo("46250.00");
+        assertThat(journal.getLines().get(1).getAccountId()).isEqualTo(revenueAccount.getId());
+        assertThat(journal.getLines().get(1).getCredit()).isEqualByComparingTo("46250.00");
+        verify(ledgerEntryMaterializationService).materializePostedJournal(journal);
+        verify(auditTrailService).record(
+                "billing.admin",
+                "ACCOUNTING",
+                "POST_JOURNAL",
+                journal.getId().toString(),
+                "issue invoice"
+        );
+    }
+
+    @Test
+    void rejectsBillingInvoicePostingWhenSourceInvoiceAlreadyHasJournal() {
+        UUID invoiceId = UUID.randomUUID();
+        UUID receivableAccountId = UUID.randomUUID();
+        UUID revenueAccountId = UUID.randomUUID();
+
+        when(journalEntryRepository.existsBySourceModuleAndSourceRecordId("BILLING", invoiceId)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.postBillingInvoice(
+                new BillingInvoicePostingCommand(
+                        "INV-202607-SR-0001",
+                        invoiceId,
+                        "2026-07",
+                        new BigDecimal("46250.00"),
+                        receivableAccountId,
+                        revenueAccountId,
+                        "retry issue"
+                ),
+                "billing.admin"
+        ))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("already has a billing journal");
+
+        verify(journalEntryRepository, never()).save(any(JournalEntry.class));
     }
 
     @Test

@@ -1,5 +1,8 @@
 package id.pdam.sia.billing.application;
 
+import id.pdam.sia.accounting.application.AccountingApplicationService;
+import id.pdam.sia.accounting.application.BillingInvoicePostingCommand;
+import id.pdam.sia.accounting.domain.JournalEntry;
 import id.pdam.sia.billing.domain.BillingBatch;
 import id.pdam.sia.billing.domain.BillingBatchStatus;
 import id.pdam.sia.billing.domain.Invoice;
@@ -9,6 +12,7 @@ import id.pdam.sia.billing.repository.BillingBatchRepository;
 import id.pdam.sia.billing.repository.InvoiceLineRepository;
 import id.pdam.sia.billing.repository.InvoiceRepository;
 import id.pdam.sia.billing.web.GenerateBillingBatchRequest;
+import id.pdam.sia.billing.web.IssueInvoiceRequest;
 import id.pdam.sia.connection.domain.Connection;
 import id.pdam.sia.connection.repository.ConnectionRepository;
 import id.pdam.sia.metering.domain.MeterReading;
@@ -51,6 +55,7 @@ class BillingBatchApplicationServiceTest {
     private final TariffEngineApplicationService tariffEngineApplicationService = mock(TariffEngineApplicationService.class);
     private final IdempotencyService idempotencyService = mock(IdempotencyService.class);
     private final AuditTrailService auditTrailService = mock(AuditTrailService.class);
+    private final AccountingApplicationService accountingApplicationService = mock(AccountingApplicationService.class);
 
     private final BillingBatchApplicationService service = new BillingBatchApplicationService(
             billingBatchRepository,
@@ -60,7 +65,8 @@ class BillingBatchApplicationServiceTest {
             connectionRepository,
             tariffEngineApplicationService,
             idempotencyService,
-            auditTrailService
+            auditTrailService,
+            accountingApplicationService
     );
 
     @Test
@@ -212,6 +218,79 @@ class BillingBatchApplicationServiceTest {
         ))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("Invoice already exists");
+    }
+
+    @Test
+    void issuesDraftInvoiceThroughAccountingPostingWorkflow() {
+        UUID receivableAccountId = UUID.randomUUID();
+        UUID revenueAccountId = UUID.randomUUID();
+        Invoice invoice = new Invoice(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                "INV-202607-SR-0001",
+                "2026-07",
+                new BigDecimal("46250.00"),
+                DUE_DATE
+        );
+        JournalEntry journal = JournalEntry.draft("BIL-INV-202607-SR-0001", UUID.randomUUID(), "Issue invoice");
+
+        when(invoiceRepository.findById(invoice.getId())).thenReturn(Optional.of(invoice));
+        when(accountingApplicationService.postBillingInvoice(any(BillingInvoicePostingCommand.class), eq("billing.admin")))
+                .thenReturn(journal);
+        when(invoiceRepository.save(any(Invoice.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Invoice result = service.issueInvoice(
+                invoice.getId(),
+                new IssueInvoiceRequest(receivableAccountId, revenueAccountId, "issue invoice"),
+                "billing.admin"
+        );
+
+        assertThat(result.getStatus()).isEqualTo(InvoiceStatus.ISSUED);
+        assertThat(result.getIssueJournalEntryId()).isEqualTo(journal.getId());
+        assertThat(result.getIssuedAt()).isNotNull();
+
+        ArgumentCaptor<BillingInvoicePostingCommand> commandCaptor = ArgumentCaptor.forClass(BillingInvoicePostingCommand.class);
+        verify(accountingApplicationService).postBillingInvoice(commandCaptor.capture(), eq("billing.admin"));
+        assertThat(commandCaptor.getValue().invoiceNumber()).isEqualTo("INV-202607-SR-0001");
+        assertThat(commandCaptor.getValue().invoiceId()).isEqualTo(invoice.getId());
+        assertThat(commandCaptor.getValue().period()).isEqualTo("2026-07");
+        assertThat(commandCaptor.getValue().amount()).isEqualByComparingTo("46250.00");
+        assertThat(commandCaptor.getValue().receivableAccountId()).isEqualTo(receivableAccountId);
+        assertThat(commandCaptor.getValue().revenueAccountId()).isEqualTo(revenueAccountId);
+        verify(auditTrailService).record(
+                "billing.admin",
+                "BILLING",
+                "ISSUE_INVOICE",
+                invoice.getId().toString(),
+                "issue invoice"
+        );
+    }
+
+    @Test
+    void rejectsIssueWhenInvoiceIsNotDraftBeforeAccountingPosting() {
+        UUID receivableAccountId = UUID.randomUUID();
+        UUID revenueAccountId = UUID.randomUUID();
+        Invoice invoice = new Invoice(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                "INV-202607-SR-0002",
+                "2026-07",
+                new BigDecimal("100000.00"),
+                DUE_DATE
+        );
+        invoice.markIssued(Instant.parse("2026-07-31T12:00:00Z"));
+
+        when(invoiceRepository.findById(invoice.getId())).thenReturn(Optional.of(invoice));
+
+        assertThatThrownBy(() -> service.issueInvoice(
+                invoice.getId(),
+                new IssueInvoiceRequest(receivableAccountId, revenueAccountId, "retry issue"),
+                "billing.admin"
+        ))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("Only draft invoice can be issued");
+
+        verify(accountingApplicationService, never()).postBillingInvoice(any(), any());
     }
 
     private static Connection activeConnection(UUID tariffGroupId, String connectionNumber) {

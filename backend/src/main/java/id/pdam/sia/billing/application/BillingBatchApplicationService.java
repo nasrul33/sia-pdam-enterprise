@@ -1,5 +1,8 @@
 package id.pdam.sia.billing.application;
 
+import id.pdam.sia.accounting.application.AccountingApplicationService;
+import id.pdam.sia.accounting.application.BillingInvoicePostingCommand;
+import id.pdam.sia.accounting.domain.JournalEntry;
 import id.pdam.sia.billing.domain.BillingBatch;
 import id.pdam.sia.billing.domain.BillingBatchStatus;
 import id.pdam.sia.billing.domain.Invoice;
@@ -10,6 +13,7 @@ import id.pdam.sia.billing.repository.BillingBatchRepository;
 import id.pdam.sia.billing.repository.InvoiceLineRepository;
 import id.pdam.sia.billing.repository.InvoiceRepository;
 import id.pdam.sia.billing.web.GenerateBillingBatchRequest;
+import id.pdam.sia.billing.web.IssueInvoiceRequest;
 import id.pdam.sia.billing.web.CalculateTariffRequest;
 import id.pdam.sia.connection.domain.Connection;
 import id.pdam.sia.connection.domain.ConnectionStatus;
@@ -58,6 +62,7 @@ public class BillingBatchApplicationService {
     private final TariffEngineApplicationService tariffEngineApplicationService;
     private final IdempotencyService idempotencyService;
     private final AuditTrailService auditTrailService;
+    private final AccountingApplicationService accountingApplicationService;
 
     public BillingBatchApplicationService(
             BillingBatchRepository billingBatchRepository,
@@ -67,7 +72,8 @@ public class BillingBatchApplicationService {
             ConnectionRepository connectionRepository,
             TariffEngineApplicationService tariffEngineApplicationService,
             IdempotencyService idempotencyService,
-            AuditTrailService auditTrailService
+            AuditTrailService auditTrailService,
+            AccountingApplicationService accountingApplicationService
     ) {
         this.billingBatchRepository = billingBatchRepository;
         this.invoiceRepository = invoiceRepository;
@@ -77,6 +83,7 @@ public class BillingBatchApplicationService {
         this.tariffEngineApplicationService = tariffEngineApplicationService;
         this.idempotencyService = idempotencyService;
         this.auditTrailService = auditTrailService;
+        this.accountingApplicationService = accountingApplicationService;
     }
 
     @Transactional(readOnly = true)
@@ -121,6 +128,38 @@ public class BillingBatchApplicationService {
             return invoiceRepository.findByStatus(status, pageable);
         }
         return invoiceRepository.findAll(pageable);
+    }
+
+    @Transactional
+    public Invoice issueInvoice(UUID invoiceId, IssueInvoiceRequest request, String actor) {
+        if (invoiceId == null) {
+            throw new BusinessException("INVOICE_ID_REQUIRED", "Invoice id is required.");
+        }
+        if (request == null) {
+            throw new BusinessException("INVOICE_ISSUE_REQUEST_REQUIRED", "Invoice issue request is required.");
+        }
+
+        Invoice invoice = invoiceRepository.findById(invoiceId)
+                .orElseThrow(() -> new BusinessException("INVOICE_NOT_FOUND", "Invoice was not found."));
+        if (invoice.getStatus() != InvoiceStatus.DRAFT) {
+            throw new BusinessException("INVOICE_ISSUE_STATUS_INVALID", "Only draft invoice can be issued.");
+        }
+        JournalEntry journal = accountingApplicationService.postBillingInvoice(
+                new BillingInvoicePostingCommand(
+                        invoice.getInvoiceNumber(),
+                        invoice.getId(),
+                        invoice.getPeriod(),
+                        invoice.getOutstandingAmount(),
+                        request.receivableAccountId(),
+                        request.revenueAccountId(),
+                        request.reason()
+                ),
+                actor
+        );
+        invoice.markIssued(Instant.now(), journal.getId());
+        Invoice saved = invoiceRepository.save(invoice);
+        auditTrailService.record(actor, "BILLING", "ISSUE_INVOICE", saved.getId().toString(), request.reason());
+        return saved;
     }
 
     @Transactional

@@ -84,6 +84,16 @@ public class BillingBatchController {
         );
     }
 
+    @PostMapping("/invoices/{invoiceId}/issue")
+    @PreAuthorize("isAuthenticated()")
+    public InvoiceResponse issueInvoice(
+            @PathVariable UUID invoiceId,
+            @Valid @RequestBody IssueInvoiceRequest request,
+            Principal principal
+    ) {
+        return InvoiceResponse.from(billingBatchApplicationService.issueInvoice(invoiceId, request, actor(principal)));
+    }
+
     private static String actor(Principal principal) {
         return principal == null ? "system" : principal.getName();
     }

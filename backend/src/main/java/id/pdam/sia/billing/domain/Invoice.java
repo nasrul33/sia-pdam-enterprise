@@ -45,6 +45,8 @@ public class Invoice extends BaseEntity {
 
     private Instant issuedAt;
 
+    private UUID issueJournalEntryId;
+
     @Column(nullable = false)
     private LocalDate dueDate;
 
@@ -89,6 +91,14 @@ public class Invoice extends BaseEntity {
         }
         this.status = InvoiceStatus.ISSUED;
         this.issuedAt = issuedAt;
+    }
+
+    public void markIssued(Instant issuedAt, UUID issueJournalEntryId) {
+        if (issueJournalEntryId == null) {
+            throw new BusinessException("INVOICE_ISSUE_JOURNAL_REQUIRED", "Invoice issue journal is required.");
+        }
+        markIssued(issuedAt);
+        this.issueJournalEntryId = issueJournalEntryId;
     }
 
     public void applyPayment(BigDecimal amount) {
@@ -167,6 +177,10 @@ public class Invoice extends BaseEntity {
 
     public Instant getIssuedAt() {
         return issuedAt;
+    }
+
+    public UUID getIssueJournalEntryId() {
+        return issueJournalEntryId;
     }
 
     public LocalDate getDueDate() {

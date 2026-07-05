@@ -1,6 +1,7 @@
 package id.pdam.sia.accounting.application;
 
 import id.pdam.sia.accounting.domain.Account;
+import id.pdam.sia.accounting.domain.AccountType;
 import id.pdam.sia.accounting.domain.AccountingPeriod;
 import id.pdam.sia.accounting.domain.JournalEntry;
 import id.pdam.sia.accounting.domain.JournalStatus;
@@ -20,7 +21,13 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.HashSet;
+import java.util.HexFormat;
 import java.util.Set;
 import java.util.UUID;
 
@@ -155,6 +162,65 @@ public class AccountingApplicationService {
     }
 
     @Transactional
+    public JournalEntry postBillingInvoice(BillingInvoicePostingCommand command, String actor) {
+        if (command == null) {
+            throw new BusinessException("BILLING_POSTING_COMMAND_REQUIRED", "Billing invoice posting command is required.");
+        }
+        String invoiceNumber = requireNormalize(
+                command.invoiceNumber(),
+                "BILLING_POSTING_INVOICE_NUMBER_REQUIRED",
+                "Billing invoice number is required."
+        );
+        if (command.invoiceId() == null) {
+            throw new BusinessException("BILLING_POSTING_INVOICE_REQUIRED", "Billing invoice id is required.");
+        }
+        String periodValue = normalizeAccountingPeriod(command.period());
+        BigDecimal amount = requirePositiveAmount(command.amount());
+        if (journalEntryRepository.existsBySourceModuleAndSourceRecordId("BILLING", command.invoiceId())) {
+            throw new BusinessException(
+                    "BILLING_INVOICE_JOURNAL_DUPLICATE",
+                    "Invoice already has a billing journal."
+            );
+        }
+        AccountingPeriod period = accountingPeriodRepository.findByPeriod(periodValue)
+                .orElseThrow(() -> new BusinessException("ACCOUNTING_PERIOD_NOT_FOUND", "Accounting period was not found."));
+        Account receivableAccount = findAccount(command.receivableAccountId());
+        Account revenueAccount = findAccount(command.revenueAccountId());
+        requireAccountType(receivableAccount, AccountType.ASSET, "BILLING_RECEIVABLE_ACCOUNT_INVALID", "Billing receivable account must be an asset account.");
+        requireAccountType(revenueAccount, AccountType.REVENUE, "BILLING_REVENUE_ACCOUNT_INVALID", "Billing revenue account must be a revenue account.");
+
+        String journalNumber = billingJournalNumber(invoiceNumber);
+        journalEntryRepository.findByJournalNumber(journalNumber).ifPresent(existing -> {
+            throw new BusinessException("JOURNAL_NUMBER_DUPLICATE", "Journal number already exists.");
+        });
+
+        JournalEntry journal = JournalEntry.draftFromSource(
+                journalNumber,
+                period.getId(),
+                "Issue invoice " + invoiceNumber,
+                "BILLING",
+                command.invoiceId(),
+                invoiceNumber
+        );
+        journal.addLine(
+                receivableAccount.getId(),
+                amount,
+                BigDecimal.ZERO,
+                "Piutang tagihan " + invoiceNumber
+        );
+        journal.addLine(
+                revenueAccount.getId(),
+                BigDecimal.ZERO,
+                amount,
+                "Pendapatan air " + invoiceNumber
+        );
+
+        JournalEntry saved = journalEntryRepository.save(journal);
+        postingService.post(saved, period, actor, command.reason());
+        return saved;
+    }
+
+    @Transactional
     public JournalEntry postJournal(UUID journalId, String reason, String actor) {
         JournalEntry journal = journalEntryRepository.findForPosting(journalId)
                 .orElseThrow(() -> new BusinessException("JOURNAL_NOT_FOUND", "Journal entry was not found."));
@@ -174,6 +240,20 @@ public class AccountingApplicationService {
         }
     }
 
+    private Account findAccount(UUID accountId) {
+        if (accountId == null) {
+            throw new BusinessException("JOURNAL_ACCOUNT_REQUIRED", "Journal account is required.");
+        }
+        return accountRepository.findById(accountId)
+                .orElseThrow(() -> new BusinessException("JOURNAL_ACCOUNT_NOT_FOUND", "Journal account was not found."));
+    }
+
+    private static void requireAccountType(Account account, AccountType expectedType, String code, String message) {
+        if (account.getType() != expectedType) {
+            throw new BusinessException(code, message);
+        }
+    }
+
     private static Pageable pageable(int page, int size, Sort sort) {
         if (page < 0) {
             throw new BusinessException("PAGE_INVALID", "Page must be zero or greater.");
@@ -186,5 +266,49 @@ public class AccountingApplicationService {
 
     private static String normalize(String value) {
         return value == null ? null : value.trim();
+    }
+
+    private static String requireNormalize(String value, String code, String message) {
+        if (value == null || value.isBlank()) {
+            throw new BusinessException(code, message);
+        }
+        return value.trim();
+    }
+
+    private static String normalizeAccountingPeriod(String period) {
+        String normalized = requireNormalize(period, "ACCOUNTING_PERIOD_REQUIRED", "Accounting period is required.");
+        if (!normalized.matches("\\d{4}-\\d{2}")) {
+            throw new BusinessException("PERIOD_INVALID", "Period must use YYYY-MM format.");
+        }
+        return normalized;
+    }
+
+    private static BigDecimal requirePositiveAmount(BigDecimal amount) {
+        if (amount == null) {
+            throw new BusinessException("BILLING_POSTING_AMOUNT_REQUIRED", "Billing invoice posting amount is required.");
+        }
+        BigDecimal normalized = amount.setScale(2, RoundingMode.HALF_UP);
+        if (normalized.signum() <= 0) {
+            throw new BusinessException("BILLING_POSTING_AMOUNT_INVALID", "Billing invoice posting amount must be greater than zero.");
+        }
+        return normalized;
+    }
+
+    private static String billingJournalNumber(String invoiceNumber) {
+        String journalNumber = "BIL-" + invoiceNumber;
+        if (journalNumber.length() <= 64) {
+            return journalNumber;
+        }
+        String digest = sha256(journalNumber).substring(0, 12);
+        return journalNumber.substring(0, 51) + "-" + digest;
+    }
+
+    private static String sha256(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is not available", exception);
+        }
     }
 }

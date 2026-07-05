@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.UUID;
 
 @Service
 public class LedgerEntryMaterializationService {
@@ -33,6 +34,8 @@ public class LedgerEntryMaterializationService {
         }
 
         LocalDate postingDate = LocalDate.ofInstant(journalEntry.getPostedAt(), ZoneOffset.UTC);
+        String sourceModule = journalEntry.getSourceModule() == null ? "ACCOUNTING" : journalEntry.getSourceModule();
+        UUID sourceRecordId = journalEntry.getSourceRecordId() == null ? journalEntry.getId() : journalEntry.getSourceRecordId();
         for (JournalLine line : journalEntry.getLines()) {
             ledgerEntryRepository.save(new LedgerEntry(
                     journalEntry.getId(),
@@ -41,8 +44,8 @@ public class LedgerEntryMaterializationService {
                     postingDate,
                     line.getDebit(),
                     line.getCredit(),
-                    "ACCOUNTING",
-                    journalEntry.getId()
+                    sourceModule,
+                    sourceRecordId
             ));
         }
     }

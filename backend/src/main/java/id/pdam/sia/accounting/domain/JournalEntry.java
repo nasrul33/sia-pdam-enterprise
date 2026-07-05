@@ -38,6 +38,14 @@ public class JournalEntry extends BaseEntity {
     @Column(length = 128)
     private String postedBy;
 
+    @Column(length = 64)
+    private String sourceModule;
+
+    private UUID sourceRecordId;
+
+    @Column(length = 64)
+    private String sourceDocumentNumber;
+
     @OneToMany(mappedBy = "journalEntry", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<JournalLine> lines = new ArrayList<>();
 
@@ -59,6 +67,30 @@ public class JournalEntry extends BaseEntity {
 
     public static JournalEntry draft(String journalNumber, UUID accountingPeriodId, String description) {
         return new JournalEntry(journalNumber, accountingPeriodId, description);
+    }
+
+    public static JournalEntry draftFromSource(
+            String journalNumber,
+            UUID accountingPeriodId,
+            String description,
+            String sourceModule,
+            UUID sourceRecordId,
+            String sourceDocumentNumber
+    ) {
+        if (sourceModule == null || sourceModule.isBlank()) {
+            throw new BusinessException("JOURNAL_SOURCE_MODULE_REQUIRED", "Journal source module is required.");
+        }
+        if (sourceRecordId == null) {
+            throw new BusinessException("JOURNAL_SOURCE_RECORD_REQUIRED", "Journal source record is required.");
+        }
+        if (sourceDocumentNumber == null || sourceDocumentNumber.isBlank()) {
+            throw new BusinessException("JOURNAL_SOURCE_DOCUMENT_REQUIRED", "Journal source document number is required.");
+        }
+        JournalEntry journal = new JournalEntry(journalNumber, accountingPeriodId, description);
+        journal.sourceModule = sourceModule.trim();
+        journal.sourceRecordId = sourceRecordId;
+        journal.sourceDocumentNumber = sourceDocumentNumber.trim();
+        return journal;
     }
 
     public void addLine(UUID accountId, BigDecimal debit, BigDecimal credit, String description) {
@@ -133,6 +165,18 @@ public class JournalEntry extends BaseEntity {
 
     public String getPostedBy() {
         return postedBy;
+    }
+
+    public String getSourceModule() {
+        return sourceModule;
+    }
+
+    public UUID getSourceRecordId() {
+        return sourceRecordId;
+    }
+
+    public String getSourceDocumentNumber() {
+        return sourceDocumentNumber;
     }
 
     public List<JournalLine> getLines() {

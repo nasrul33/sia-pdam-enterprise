@@ -14,6 +14,7 @@
 | Account | accounting/domain | unique code, normal balance |
 | JournalEntry | accounting/domain | DRAFT/POSTED/REVERSED/VOID |
 | JournalLine | accounting/domain | one-sided debit/credit |
+| BillingInvoicePostingCommand | accounting/application | source command for invoice receivable/revenue journal posting |
 | PostingService | accounting/application | debit=credit and period lock |
 | LedgerEntryMaterializationService | reporting/application | creates one posted ledger row per journal line after successful journal posting |
 | AccountingApplicationService | accounting/application | repository-backed CoA, period, journal draft, posting workflow |
@@ -22,7 +23,7 @@
 | ConnectionApplicationService | connection/application | tariff group, draft connection, and lifecycle control with audit trail |
 | MeteringApplicationService | metering/application | meter route and reading lifecycle with active connection, period uniqueness, usage validation, and audit trail |
 | TariffEngineApplicationService | billing/application | versioned progressive tariff calculation from active effective tariff blocks with audit trail |
-| BillingBatchApplicationService | billing/application | idempotent draft invoice generation from verified meter readings without direct journal writes |
+| BillingBatchApplicationService | billing/application | idempotent draft invoice generation and controlled invoice issue through accounting service |
 | PaymentWebhookApplicationService | payment/application | HMAC-validated provider callback persistence without settlement writes |
 | PaymentSettlementApplicationService | payment/application | idempotent counter payment settlement with receipt, invoice allocation, audit trail, and duplicate no-op |
 | ReceivableAgingApplicationService | receivable/application | open-invoice aging snapshot with current, 30, 60, 90, and over-90 buckets |

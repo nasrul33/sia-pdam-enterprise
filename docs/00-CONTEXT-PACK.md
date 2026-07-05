@@ -6,7 +6,7 @@
 - Repository: sia-pdam-enterprise
 - Objective: Rebuild sistem PDAM berbasis Java/Spring Boot dan Next.js
 - Current phase: Bootstrap
-- Last updated: 2026-07-05
+- Last updated: 2026-07-06
 
 ## Immutable Context
 
@@ -32,6 +32,7 @@
 | BR-BIL-001 | Progressive tariff calculation uses active effective version | Billing | confirmed |
 | BR-BIL-002 | Tariff blocks must be sequential, contiguous, and end with an unbounded block | Billing | confirmed |
 | BR-BIL-003 | Billing batch generation is idempotent and creates draft invoices from verified readings | Billing | confirmed |
+| BR-BIL-004 | Invoice issue posts receivable debit and revenue credit through accounting service before status becomes issued | Billing | confirmed |
 | BR-PAY-001 | Payment idempotency is enforced in DB | Payment | confirmed |
 | BR-PAY-002 | Payment webhook signature must be validated before persistence | Payment | confirmed |
 | BR-PAY-003 | Counter payment allocation total must equal payment amount and duplicate retry must be no-op | Payment | confirmed |
@@ -53,6 +54,7 @@
 | REQ-MTR-002 | Baca meter unique per sambungan dan periode | Metering | meter_readings unique connection_id+period + lifecycle endpoints | T-041 | MeteringApplicationServiceTest |
 | REQ-BIL-001 | Kalkulasi tarif progresif valid | Billing | tariff_versions effective active lookup + tariff_blocks progressive calculation | T-050 | TariffEngineApplicationServiceTest |
 | REQ-BIL-002 | Generate tagihan idempotent | Billing | billing_batches idempotency_key + period/area unique + draft invoices | T-054 | BillingBatchApplicationServiceTest |
+| REQ-BIL-003 | Issue invoice menghasilkan jurnal piutang/pendapatan | Billing/Accounting | `/api/invoices/{id}/issue` calls AccountingApplicationService, posts source journal, links invoice to issue journal | T-082 | BillingBatchApplicationServiceTest, AccountingApplicationServiceTest |
 | REQ-PAY-001 | Payment idempotent | Payment | `idempotency_keys` + `payments.idempotency_key` + duplicate no-op result hydration | T-062 | PaymentIdempotencyTest |
 | REQ-PAY-002 | Webhook pembayaran tervalidasi signature | Payment | HMAC SHA-256 `X-Payment-Signature` + `payment_webhook_events` | T-060 | PaymentWebhookApplicationServiceTest |
 | REQ-REC-001 | Aging piutang valid | Receivable | `receivable_aging_snapshots` generated from open `ISSUED/PARTIAL_PAID` invoices | T-070 | AgingServiceTest |
@@ -82,6 +84,7 @@
 | 2026-07-05 | Add Receivable Aging foundation | Collection workflow needs consistent outstanding buckets before reporting and action follow-up | Aging snapshots are generated from open invoice outstanding balances without deriving final financial reports from draft data |
 | 2026-07-05 | Add Posted Reporting foundation | Final financial reports must not read draft invoices or operational payments | Trial balance reads `ledger_entries` only and exposes balanced debit/credit controls |
 | 2026-07-05 | Add Ledger Materialization from posted journals | Trial balance needs controlled ledger rows created only after journal posting succeeds | PostingService now writes one `ledger_entries` row per posted journal line in the same transaction |
+| 2026-07-06 | Add Controlled Invoice Issue posting | Revenue recognition must be posted through accounting, not by billing writing journals directly | Invoice issue creates a source-traceable posted journal: debit receivable, credit revenue, then marks invoice `ISSUED` with issue journal link |
 
 ## Assumptions Register
 
@@ -116,10 +119,10 @@
 
 ## Current Implementation State
 
-- Completed: repository scaffold, docs baseline, backend skeleton, frontend dashboard shell, Money primitive, accounting domain skeleton, persisted audit primitive, idempotency primitive, V2 domain foundation migration, quality gate verification, initial GitHub push, repository-backed Accounting API, customer/connection API foundation, metering API foundation, tariff engine foundation, billing batch foundation, payment webhook foundation, payment idempotency foundation, receivable aging foundation, posted reporting foundation, ledger materialization from posted journals.
+- Completed: repository scaffold, docs baseline, backend skeleton, frontend dashboard shell, Money primitive, accounting domain skeleton, persisted audit primitive, idempotency primitive, V2 domain foundation migration, quality gate verification, initial GitHub push, repository-backed Accounting API, customer/connection API foundation, metering API foundation, tariff engine foundation, billing batch foundation, payment webhook foundation, payment idempotency foundation, receivable aging foundation, posted reporting foundation, ledger materialization from posted journals, controlled invoice issue with receivable/revenue posting.
 - In progress: none.
 - Blocked: final auth decision, official tariff values, numbering format.
-- Next actions: implement controlled invoice issue and revenue/receivable posting workflow.
+- Next actions: implement controlled payment cash/bank journal posting workflow.
 
 ## Latest Verification Snapshot
 
@@ -144,6 +147,7 @@
 | Receivable Aging increment | passed: TDD target test, `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL |
 | Posted Reporting increment | passed: TDD target test, `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL |
 | Ledger Materialization increment | passed: TDD target test, `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL |
+| Controlled Invoice Issue increment | passed: TDD target tests, `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL and Flyway V3 |
 
 ## Handoff Instructions
 
