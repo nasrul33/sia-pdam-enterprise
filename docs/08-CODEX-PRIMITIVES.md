@@ -30,7 +30,7 @@
 | PaymentSettlementApplicationService | payment/application | idempotent counter settlement, controlled reversal, invoice allocation restoration, accounting journal links, and audit trail |
 | CollectionAction | receivable/domain | controlled receivable collection workflow with explicit status and action type |
 | ReceivableAgingApplicationService | receivable/application | open-invoice aging snapshot with current, 30, 60, 90, and over-90 buckets |
-| CollectionActionApplicationService | receivable/application | overdue invoice dunning validation, duplicate active action guard, audited start/complete/cancel workflow |
+| CollectionActionApplicationService | receivable/application | overdue invoice dunning validation, invoice-customer ownership validation, duplicate active action guard, audited start/complete/cancel workflow |
 | PostedLedgerReportApplicationService | reporting/application | trial balance from posted ledger entries only, excluding draft operational records |
 | PageResponse | shared/web | shared pagination contract for API lists |
 

@@ -2,6 +2,8 @@ package id.pdam.sia.receivable.application;
 
 import id.pdam.sia.billing.domain.Invoice;
 import id.pdam.sia.billing.repository.InvoiceRepository;
+import id.pdam.sia.connection.domain.Connection;
+import id.pdam.sia.connection.repository.ConnectionRepository;
 import id.pdam.sia.customer.domain.Customer;
 import id.pdam.sia.customer.repository.CustomerRepository;
 import id.pdam.sia.receivable.domain.CollectionAction;
@@ -31,16 +33,20 @@ import static org.mockito.Mockito.when;
 
 class CollectionActionApplicationServiceTest {
     private static final UUID CUSTOMER_ID = UUID.fromString("00000000-0000-0000-0000-000000010001");
+    private static final UUID OTHER_CUSTOMER_ID = UUID.fromString("00000000-0000-0000-0000-000000010099");
+    private static final UUID CONNECTION_ID = UUID.fromString("00000000-0000-0000-0000-000000011001");
     private static final UUID INVOICE_ID = UUID.fromString("00000000-0000-0000-0000-000000020001");
     private static final Instant SCHEDULED_AT = Instant.parse("2026-07-06T02:00:00Z");
     private static final Instant ISSUED_AT = Instant.parse("2026-06-01T00:00:00Z");
 
     private final CustomerRepository customerRepository = mock(CustomerRepository.class);
+    private final ConnectionRepository connectionRepository = mock(ConnectionRepository.class);
     private final InvoiceRepository invoiceRepository = mock(InvoiceRepository.class);
     private final CollectionActionRepository collectionActionRepository = mock(CollectionActionRepository.class);
     private final AuditTrailService auditTrailService = mock(AuditTrailService.class);
     private final CollectionActionApplicationService service = new CollectionActionApplicationService(
             customerRepository,
+            connectionRepository,
             invoiceRepository,
             collectionActionRepository,
             auditTrailService
@@ -51,6 +57,7 @@ class CollectionActionApplicationServiceTest {
         Invoice invoice = issuedInvoice("INV-OVERDUE", new BigDecimal("125000.00"), LocalDate.of(2026, 6, 1));
         when(customerRepository.findById(CUSTOMER_ID)).thenReturn(Optional.of(activeCustomer()));
         when(invoiceRepository.findById(INVOICE_ID)).thenReturn(Optional.of(invoice));
+        when(connectionRepository.findById(CONNECTION_ID)).thenReturn(Optional.of(connectionForCustomer(CUSTOMER_ID)));
         when(collectionActionRepository.existsByInvoiceIdAndActionTypeAndStatusIn(
                 INVOICE_ID,
                 CollectionActionType.WARNING_LETTER,
@@ -91,6 +98,7 @@ class CollectionActionApplicationServiceTest {
         Invoice invoice = issuedInvoice("INV-DUP", new BigDecimal("100000.00"), LocalDate.of(2026, 6, 1));
         when(customerRepository.findById(CUSTOMER_ID)).thenReturn(Optional.of(activeCustomer()));
         when(invoiceRepository.findById(INVOICE_ID)).thenReturn(Optional.of(invoice));
+        when(connectionRepository.findById(CONNECTION_ID)).thenReturn(Optional.of(connectionForCustomer(CUSTOMER_ID)));
         when(collectionActionRepository.existsByInvoiceIdAndActionTypeAndStatusIn(
                 INVOICE_ID,
                 CollectionActionType.WARNING_LETTER,
@@ -119,6 +127,7 @@ class CollectionActionApplicationServiceTest {
         Invoice invoice = issuedInvoice("INV-CURRENT", new BigDecimal("100000.00"), LocalDate.of(2026, 7, 6));
         when(customerRepository.findById(CUSTOMER_ID)).thenReturn(Optional.of(activeCustomer()));
         when(invoiceRepository.findById(INVOICE_ID)).thenReturn(Optional.of(invoice));
+        when(connectionRepository.findById(CONNECTION_ID)).thenReturn(Optional.of(connectionForCustomer(CUSTOMER_ID)));
 
         assertThatThrownBy(() -> service.createAction(
                 new CreateCollectionActionRequest(
@@ -134,6 +143,30 @@ class CollectionActionApplicationServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("overdue");
         verify(collectionActionRepository, never()).save(any());
+    }
+
+    @Test
+    void rejectsDunningActionWhenInvoiceConnectionBelongsToDifferentCustomer() {
+        Invoice invoice = issuedInvoice("INV-OTHER-CUSTOMER", new BigDecimal("100000.00"), LocalDate.of(2026, 6, 1));
+        when(customerRepository.findById(CUSTOMER_ID)).thenReturn(Optional.of(activeCustomer()));
+        when(invoiceRepository.findById(INVOICE_ID)).thenReturn(Optional.of(invoice));
+        when(connectionRepository.findById(CONNECTION_ID)).thenReturn(Optional.of(connectionForCustomer(OTHER_CUSTOMER_ID)));
+
+        assertThatThrownBy(() -> service.createAction(
+                new CreateCollectionActionRequest(
+                        CUSTOMER_ID,
+                        INVOICE_ID,
+                        CollectionActionType.WARNING_LETTER,
+                        SCHEDULED_AT,
+                        "salah pelanggan",
+                        "validasi ownership"
+                ),
+                "piutang.admin"
+        ))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("customer");
+        verify(collectionActionRepository, never()).save(any());
+        verify(auditTrailService, never()).record(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -227,7 +260,7 @@ class CollectionActionApplicationServiceTest {
     private static Invoice issuedInvoice(String invoiceNumber, BigDecimal amount, LocalDate dueDate) {
         Invoice invoice = new Invoice(
                 UUID.randomUUID(),
-                UUID.randomUUID(),
+                CONNECTION_ID,
                 invoiceNumber,
                 "2026-06",
                 amount,
@@ -239,5 +272,15 @@ class CollectionActionApplicationServiceTest {
 
     private static Customer activeCustomer() {
         return new Customer("C-0001", "Budi Santoso", null, null);
+    }
+
+    private static Connection connectionForCustomer(UUID customerId) {
+        return new Connection(
+                customerId,
+                UUID.randomUUID(),
+                "SAMB-" + customerId.toString().substring(0, 8),
+                "MTR-" + customerId.toString().substring(0, 8),
+                LocalDate.of(2025, 1, 1)
+        );
     }
 }

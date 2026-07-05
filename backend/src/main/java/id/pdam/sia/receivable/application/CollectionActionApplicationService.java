@@ -3,6 +3,8 @@ package id.pdam.sia.receivable.application;
 import id.pdam.sia.billing.domain.Invoice;
 import id.pdam.sia.billing.domain.InvoiceStatus;
 import id.pdam.sia.billing.repository.InvoiceRepository;
+import id.pdam.sia.connection.domain.Connection;
+import id.pdam.sia.connection.repository.ConnectionRepository;
 import id.pdam.sia.customer.domain.Customer;
 import id.pdam.sia.customer.domain.CustomerStatus;
 import id.pdam.sia.customer.repository.CustomerRepository;
@@ -32,17 +34,20 @@ public class CollectionActionApplicationService {
     private static final int MAX_PAGE_SIZE = 100;
 
     private final CustomerRepository customerRepository;
+    private final ConnectionRepository connectionRepository;
     private final InvoiceRepository invoiceRepository;
     private final CollectionActionRepository collectionActionRepository;
     private final AuditTrailService auditTrailService;
 
     public CollectionActionApplicationService(
             CustomerRepository customerRepository,
+            ConnectionRepository connectionRepository,
             InvoiceRepository invoiceRepository,
             CollectionActionRepository collectionActionRepository,
             AuditTrailService auditTrailService
     ) {
         this.customerRepository = customerRepository;
+        this.connectionRepository = connectionRepository;
         this.invoiceRepository = invoiceRepository;
         this.collectionActionRepository = collectionActionRepository;
         this.auditTrailService = auditTrailService;
@@ -99,6 +104,7 @@ public class CollectionActionApplicationService {
         if (invoiceId != null) {
             Invoice invoice = invoiceRepository.findById(invoiceId)
                     .orElseThrow(() -> new BusinessException("COLLECTION_ACTION_INVOICE_NOT_FOUND", "Collection action invoice was not found."));
+            validateInvoiceCustomerOwnership(invoice, customerId);
             validateOverdueOpenInvoice(invoice, scheduledAt);
             ensureNoActiveInvoiceAction(invoiceId, actionType);
         } else {
@@ -176,6 +182,20 @@ public class CollectionActionApplicationService {
             throw new BusinessException(
                     "COLLECTION_ACTION_ACTIVE_DUPLICATE",
                     "Customer already has an active collection action for this type."
+            );
+        }
+    }
+
+    private void validateInvoiceCustomerOwnership(Invoice invoice, UUID customerId) {
+        Connection connection = connectionRepository.findById(invoice.getConnectionId())
+                .orElseThrow(() -> new BusinessException(
+                        "COLLECTION_ACTION_CONNECTION_NOT_FOUND",
+                        "Collection action invoice connection was not found."
+                ));
+        if (!connection.getCustomerId().equals(customerId)) {
+            throw new BusinessException(
+                    "COLLECTION_ACTION_INVOICE_CUSTOMER_MISMATCH",
+                    "Collection action invoice does not belong to the requested customer."
             );
         }
     }
