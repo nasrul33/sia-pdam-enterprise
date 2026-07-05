@@ -63,4 +63,12 @@ public class JournalLine extends BaseEntity {
     public BigDecimal getCredit() {
         return credit;
     }
+
+    public UUID getAccountId() {
+        return accountId;
+    }
+
+    public String getDescription() {
+        return description;
+    }
 }

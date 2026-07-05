@@ -115,6 +115,26 @@ public class JournalEntry extends BaseEntity {
         return status;
     }
 
+    public String getJournalNumber() {
+        return journalNumber;
+    }
+
+    public UUID getAccountingPeriodId() {
+        return accountingPeriodId;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public Instant getPostedAt() {
+        return postedAt;
+    }
+
+    public String getPostedBy() {
+        return postedBy;
+    }
+
     public List<JournalLine> getLines() {
         return Collections.unmodifiableList(lines);
     }

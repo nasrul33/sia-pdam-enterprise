@@ -1,5 +1,6 @@
 package id.pdam.sia.accounting.domain;
 
+import id.pdam.sia.shared.exception.BusinessException;
 import id.pdam.sia.shared.persistence.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -24,8 +25,17 @@ public class Account extends BaseEntity {
     }
 
     public Account(String code, String name, AccountType type) {
-        this.code = code;
-        this.name = name;
+        if (code == null || code.isBlank()) {
+            throw new BusinessException("ACCOUNT_CODE_REQUIRED", "Account code is required.");
+        }
+        if (name == null || name.isBlank()) {
+            throw new BusinessException("ACCOUNT_NAME_REQUIRED", "Account name is required.");
+        }
+        if (type == null) {
+            throw new BusinessException("ACCOUNT_TYPE_REQUIRED", "Account type is required.");
+        }
+        this.code = code.trim();
+        this.name = name.trim();
         this.type = type;
     }
 
@@ -39,5 +49,9 @@ public class Account extends BaseEntity {
 
     public AccountType getType() {
         return type;
+    }
+
+    public NormalBalance getNormalBalance() {
+        return type.normalBalance();
     }
 }

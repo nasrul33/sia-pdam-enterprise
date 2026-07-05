@@ -16,6 +16,7 @@
 | T-022 | AccountingAgent | Journal draft | accounting | T-021 | draft valid | JournalDraftTest |
 | T-023 | AccountingAgent | Posting service | accounting | T-022 | debit=credit enforced | JournalPostingTest |
 | T-024 | DatabaseAgent | Posted immutable | accounting/db | T-023 | posted journal cannot mutate | PostedJournalImmutableTest |
+| T-025 | AccountingAgent | Repository-backed Accounting API | accounting/web, accounting/application | T-024 | CoA, period, journal draft, and posting endpoints are validated, transactional, audited | AccountingApplicationServiceTest |
 | T-030 | CustomerAgent | Customer master | customer | T-014 | customer number unique | CustomerTest |
 | T-031 | CustomerAgent | Connection | connection | T-030 | connection number unique | ConnectionTest |
 | T-040 | MeteringAgent | Meter route | metering | T-031 | route valid | MeterRouteTest |

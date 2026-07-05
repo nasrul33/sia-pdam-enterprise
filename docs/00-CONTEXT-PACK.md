@@ -31,8 +31,8 @@
 
 | Req ID | Requirement | Module | Design Decision | Backlog | Test |
 |---|---|---|---|---|---|
-| REQ-ACC-001 | CoA exists | Accounting | accounts table unique code | T-020 | AccountTest |
-| REQ-ACC-002 | Journal must balance | Accounting | PostingService validation | T-023 | JournalEntryTest |
+| REQ-ACC-001 | CoA exists | Accounting | accounts table unique code + `/api/accounts` | T-020 | AccountingApplicationServiceTest |
+| REQ-ACC-002 | Journal must balance | Accounting | PostingService validation + `/api/journals/{id}/post` | T-023 | JournalEntryTest |
 | REQ-ACC-003 | Posted journal immutable | Accounting | Domain guard + DB trigger | T-024 | PostedJournalImmutableTest |
 | REQ-PAY-001 | Payment idempotent | Payment | unique idempotency key | T-062 | PaymentIdempotencyTest |
 
@@ -50,6 +50,7 @@
 | 2026-07-05 | Add V2 domain foundation migration | Customer through reporting tables need DB constraints before feature services | Domain modules can be implemented incrementally without ad hoc schema |
 | 2026-07-05 | Add Spring Boot Flyway starter | Smoke test showed JPA validation can run before migrations without Boot 4 starter | Flyway V1/V2 now apply before Hibernate validation |
 | 2026-07-05 | Remove static Docker container names | Local smoke test conflicted with existing containers | Compose is project-scoped and CI-friendly |
+| 2026-07-05 | Add repository-backed Accounting API | Accounting core needs API boundary before billing/payment integration | CoA, accounting period, draft journal, and journal posting are transactional and audited |
 
 ## Assumptions Register
 
@@ -80,10 +81,10 @@
 
 ## Current Implementation State
 
-- Completed: repository scaffold, docs baseline, backend skeleton, frontend dashboard shell, Money primitive, accounting domain skeleton, persisted audit primitive, idempotency primitive, V2 domain foundation migration, quality gate verification.
-- In progress: first GitHub push.
+- Completed: repository scaffold, docs baseline, backend skeleton, frontend dashboard shell, Money primitive, accounting domain skeleton, persisted audit primitive, idempotency primitive, V2 domain foundation migration, quality gate verification, initial GitHub push, repository-backed Accounting API.
+- In progress: none.
 - Blocked: final auth decision, tariff formula, numbering format.
-- Next actions: push initial repo, then implement repository-backed accounting services and customer/connection services.
+- Next actions: implement customer/connection services.
 
 ## Latest Verification Snapshot
 
@@ -98,6 +99,7 @@
 | `docker-compose build frontend` | passed |
 | `docker-compose config` | passed |
 | Backend smoke test | passed: Flyway applied V1/V2, health endpoint UP, dashboard API returned valid JSON |
+| Accounting API increment | passed: `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL |
 
 ## Handoff Instructions
 

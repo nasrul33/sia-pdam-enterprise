@@ -15,8 +15,8 @@ public class PostingService {
     }
 
     @Transactional
-    public void post(JournalEntry journalEntry, AccountingPeriod period, String actor) {
+    public void post(JournalEntry journalEntry, AccountingPeriod period, String actor, String reason) {
         journalEntry.post(period, actor);
-        auditTrailService.record(actor, "ACCOUNTING", "POST_JOURNAL", String.valueOf(journalEntry.getId()), "journal posting");
+        auditTrailService.record(actor, "ACCOUNTING", "POST_JOURNAL", String.valueOf(journalEntry.getId()), reason);
     }
 }
