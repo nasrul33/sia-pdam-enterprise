@@ -1,6 +1,7 @@
 package id.pdam.sia.payment.application;
 
 import id.pdam.sia.accounting.application.AccountingApplicationService;
+import id.pdam.sia.accounting.application.PaymentReversalPostingCommand;
 import id.pdam.sia.accounting.application.PaymentSettlementPostingCommand;
 import id.pdam.sia.accounting.domain.JournalEntry;
 import id.pdam.sia.billing.domain.Invoice;
@@ -12,6 +13,7 @@ import id.pdam.sia.payment.repository.PaymentAllocationRepository;
 import id.pdam.sia.payment.repository.PaymentReceiptRepository;
 import id.pdam.sia.payment.repository.PaymentRepository;
 import id.pdam.sia.payment.web.PaymentAllocationRequest;
+import id.pdam.sia.payment.web.ReversePaymentRequest;
 import id.pdam.sia.payment.web.SettleCounterPaymentRequest;
 import id.pdam.sia.shared.audit.AuditTrailService;
 import id.pdam.sia.shared.exception.BusinessException;
@@ -150,6 +152,56 @@ public class PaymentSettlementApplicationService {
         auditTrailService.record(actor, "PAYMENT", "SETTLE_COUNTER_PAYMENT", savedPayment.getId().toString(), reason);
 
         return new PaymentSettlementResult(savedPayment, receipt, savedAllocations);
+    }
+
+    @Transactional
+    public PaymentSettlementResult reversePayment(UUID paymentId, ReversePaymentRequest request, String actor) {
+        if (paymentId == null) {
+            throw new BusinessException("PAYMENT_ID_REQUIRED", "Payment id is required.");
+        }
+        if (request == null) {
+            throw new BusinessException("PAYMENT_REVERSAL_REQUEST_REQUIRED", "Payment reversal request is required.");
+        }
+        UUID cashAccountId = requireUuid(request.cashAccountId(), "PAYMENT_CASH_ACCOUNT_REQUIRED", "Payment cash or bank account is required.");
+        UUID receivableAccountId = requireUuid(request.receivableAccountId(), "PAYMENT_RECEIVABLE_ACCOUNT_REQUIRED", "Payment receivable account is required.");
+        if (cashAccountId.equals(receivableAccountId)) {
+            throw new BusinessException("PAYMENT_REVERSAL_ACCOUNT_DUPLICATE", "Cash/bank account and receivable account must be different.");
+        }
+        String reason = requireNormalize(request.reason(), "PAYMENT_REVERSAL_REASON_REQUIRED", "Payment reversal reason is required.");
+
+        Payment payment = paymentRepository.findById(paymentId)
+                .orElseThrow(() -> new BusinessException("PAYMENT_NOT_FOUND", "Payment was not found."));
+        payment.ensureCanReverse();
+        List<PaymentAllocation> allocations = paymentAllocationRepository.findByPaymentId(payment.getId());
+        if (allocations.isEmpty()) {
+            throw new BusinessException("PAYMENT_ALLOCATIONS_NOT_FOUND", "Payment allocations were not found.");
+        }
+
+        Map<UUID, Invoice> invoices = loadInvoices(allocations.stream()
+                .map(allocation -> new AllocationCommand(allocation.getInvoiceId(), allocation.getAmount()))
+                .toList());
+        for (PaymentAllocation allocation : allocations) {
+            invoices.get(allocation.getInvoiceId()).reversePayment(allocation.getAmount());
+        }
+
+        JournalEntry reversalJournal = accountingApplicationService.postPaymentReversal(
+                new PaymentReversalPostingCommand(
+                        payment.getPaymentNumber(),
+                        payment.getId(),
+                        paymentPeriod(payment.getPaidAt()),
+                        payment.getAmount(),
+                        cashAccountId,
+                        receivableAccountId,
+                        reason
+                ),
+                actor
+        );
+        payment.reverse(Instant.now(), reason, reversalJournal.getId());
+        Payment savedPayment = paymentRepository.save(payment);
+        PaymentReceipt receipt = paymentReceiptRepository.findByPaymentId(payment.getId())
+                .orElseThrow(() -> new BusinessException("PAYMENT_RECEIPT_NOT_FOUND", "Payment receipt was not found."));
+        auditTrailService.record(actor, "PAYMENT", "REVERSE_PAYMENT", savedPayment.getId().toString(), reason);
+        return new PaymentSettlementResult(savedPayment, receipt, allocations);
     }
 
     private PaymentSettlementResult existingResult(IdempotencyRecord idempotencyRecord) {

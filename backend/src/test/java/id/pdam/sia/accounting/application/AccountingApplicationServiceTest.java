@@ -229,6 +229,52 @@ class AccountingApplicationServiceTest {
     }
 
     @Test
+    void postsPaymentReversalJournalWithOppositeReceivableAndCashLines() {
+        AccountingPeriod period = new AccountingPeriod("2026-07");
+        Account cashAccount = new Account("1-110", "Kas Loket", AccountType.ASSET);
+        Account receivableAccount = new Account("1-130", "Piutang Air", AccountType.ASSET);
+        UUID paymentId = UUID.randomUUID();
+
+        when(journalEntryRepository.existsBySourceModuleAndSourceRecordId("PAYMENT_REVERSAL", paymentId)).thenReturn(false);
+        when(accountingPeriodRepository.findByPeriod("2026-07")).thenReturn(Optional.of(period));
+        when(accountRepository.findById(cashAccount.getId())).thenReturn(Optional.of(cashAccount));
+        when(accountRepository.findById(receivableAccount.getId())).thenReturn(Optional.of(receivableAccount));
+        when(journalEntryRepository.findByJournalNumber("REV-PAY-20260731-0001")).thenReturn(Optional.empty());
+        when(journalEntryRepository.save(any(JournalEntry.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        JournalEntry journal = service.postPaymentReversal(
+                new PaymentReversalPostingCommand(
+                        "PAY-20260731-0001",
+                        paymentId,
+                        "2026-07",
+                        new BigDecimal("100000.00"),
+                        cashAccount.getId(),
+                        receivableAccount.getId(),
+                        "salah input pembayaran"
+                ),
+                "finance.supervisor"
+        );
+
+        assertThat(journal.getStatus()).isEqualTo(JournalStatus.POSTED);
+        assertThat(journal.getSourceModule()).isEqualTo("PAYMENT_REVERSAL");
+        assertThat(journal.getSourceRecordId()).isEqualTo(paymentId);
+        assertThat(journal.getSourceDocumentNumber()).isEqualTo("PAY-20260731-0001");
+        assertThat(journal.getLines()).hasSize(2);
+        assertThat(journal.getLines().get(0).getAccountId()).isEqualTo(receivableAccount.getId());
+        assertThat(journal.getLines().get(0).getDebit()).isEqualByComparingTo("100000.00");
+        assertThat(journal.getLines().get(1).getAccountId()).isEqualTo(cashAccount.getId());
+        assertThat(journal.getLines().get(1).getCredit()).isEqualByComparingTo("100000.00");
+        verify(ledgerEntryMaterializationService).materializePostedJournal(journal);
+        verify(auditTrailService).record(
+                "finance.supervisor",
+                "ACCOUNTING",
+                "POST_JOURNAL",
+                journal.getId().toString(),
+                "salah input pembayaran"
+        );
+    }
+
+    @Test
     void rejectsDraftJournalWhenAccountDoesNotExist() {
         AccountingPeriod period = new AccountingPeriod("2026-07");
         UUID missingAccountId = UUID.randomUUID();

@@ -1,6 +1,7 @@
 package id.pdam.sia.payment.application;
 
 import id.pdam.sia.accounting.application.AccountingApplicationService;
+import id.pdam.sia.accounting.application.PaymentReversalPostingCommand;
 import id.pdam.sia.accounting.application.PaymentSettlementPostingCommand;
 import id.pdam.sia.accounting.domain.JournalEntry;
 import id.pdam.sia.billing.domain.Invoice;
@@ -14,6 +15,7 @@ import id.pdam.sia.payment.repository.PaymentAllocationRepository;
 import id.pdam.sia.payment.repository.PaymentReceiptRepository;
 import id.pdam.sia.payment.repository.PaymentRepository;
 import id.pdam.sia.payment.web.PaymentAllocationRequest;
+import id.pdam.sia.payment.web.ReversePaymentRequest;
 import id.pdam.sia.payment.web.SettleCounterPaymentRequest;
 import id.pdam.sia.shared.audit.AuditTrailService;
 import id.pdam.sia.shared.idempotency.IdempotencyRecord;
@@ -29,6 +31,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -161,6 +164,90 @@ class PaymentIdempotencyTest {
         verify(paymentReceiptRepository, never()).save(any());
         verify(accountingApplicationService, never()).postPaymentSettlement(any(), any());
         verify(auditTrailService, never()).record(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void reversesSettledCounterPaymentWithInvoiceRestorationAndAccountingJournal() {
+        Invoice invoice = issuedInvoice("INV-202607-SR-0001", new BigDecimal("100000.00"));
+        invoice.applyPayment(new BigDecimal("100000.00"));
+        Payment payment = new Payment(
+                "PAY-20260731-0001",
+                "pay-counter-0001",
+                "COUNTER",
+                "COUNTER-202607-0001",
+                new BigDecimal("100000.00"),
+                PAID_AT
+        );
+        payment.linkSettlementJournal(UUID.randomUUID());
+        PaymentAllocation allocation = new PaymentAllocation(payment.getId(), invoice.getId(), new BigDecimal("100000.00"));
+        PaymentReceipt receipt = new PaymentReceipt(payment.getId(), "RCT-20260731-0001", PAID_AT);
+        JournalEntry reversalJournal = JournalEntry.draft("REV-PAY-20260731-0001", UUID.randomUUID(), "Payment reversal");
+
+        when(paymentRepository.findById(payment.getId())).thenReturn(Optional.of(payment));
+        when(paymentAllocationRepository.findByPaymentId(payment.getId())).thenReturn(List.of(allocation));
+        when(invoiceRepository.findAllById(List.of(invoice.getId()))).thenReturn(List.of(invoice));
+        when(paymentReceiptRepository.findByPaymentId(payment.getId())).thenReturn(Optional.of(receipt));
+        when(accountingApplicationService.postPaymentReversal(any(PaymentReversalPostingCommand.class), eq("finance.supervisor")))
+                .thenReturn(reversalJournal);
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        PaymentSettlementResult result = service.reversePayment(
+                payment.getId(),
+                new ReversePaymentRequest(CASH_ACCOUNT_ID, RECEIVABLE_ACCOUNT_ID, "salah input pembayaran"),
+                "finance.supervisor"
+        );
+
+        assertThat(result.payment().getStatus()).isEqualTo(PaymentStatus.REVERSED);
+        assertThat(result.payment().getReversedAt()).isNotNull();
+        assertThat(result.payment().getReversalReason()).isEqualTo("salah input pembayaran");
+        assertThat(result.payment().getReversalJournalEntryId()).isEqualTo(reversalJournal.getId());
+        assertThat(invoice.getPaidAmount()).isEqualByComparingTo("0.00");
+        assertThat(invoice.getOutstandingAmount()).isEqualByComparingTo("100000.00");
+        assertThat(invoice.getStatus()).isEqualTo(InvoiceStatus.ISSUED);
+
+        ArgumentCaptor<PaymentReversalPostingCommand> postingCaptor = ArgumentCaptor.forClass(PaymentReversalPostingCommand.class);
+        verify(accountingApplicationService).postPaymentReversal(postingCaptor.capture(), eq("finance.supervisor"));
+        assertThat(postingCaptor.getValue().paymentNumber()).isEqualTo("PAY-20260731-0001");
+        assertThat(postingCaptor.getValue().paymentId()).isEqualTo(payment.getId());
+        assertThat(postingCaptor.getValue().period()).isEqualTo("2026-07");
+        assertThat(postingCaptor.getValue().amount()).isEqualByComparingTo("100000.00");
+        assertThat(postingCaptor.getValue().cashAccountId()).isEqualTo(CASH_ACCOUNT_ID);
+        assertThat(postingCaptor.getValue().receivableAccountId()).isEqualTo(RECEIVABLE_ACCOUNT_ID);
+        verify(auditTrailService).record(
+                "finance.supervisor",
+                "PAYMENT",
+                "REVERSE_PAYMENT",
+                payment.getId().toString(),
+                "salah input pembayaran"
+        );
+    }
+
+    @Test
+    void rejectsPaymentReversalWhenPaymentIsAlreadyReversedBeforeLoadingAllocations() {
+        Payment payment = new Payment(
+                "PAY-20260731-0001",
+                "pay-counter-0001",
+                "COUNTER",
+                "COUNTER-202607-0001",
+                new BigDecimal("100000.00"),
+                PAID_AT
+        );
+        payment.linkSettlementJournal(UUID.randomUUID());
+        payment.reverse(PAID_AT.plusSeconds(60), "sudah dibalik", UUID.randomUUID());
+
+        when(paymentRepository.findById(payment.getId())).thenReturn(Optional.of(payment));
+
+        assertThatThrownBy(() -> service.reversePayment(
+                payment.getId(),
+                new ReversePaymentRequest(CASH_ACCOUNT_ID, RECEIVABLE_ACCOUNT_ID, "retry reversal"),
+                "finance.supervisor"
+        ))
+                .isInstanceOf(id.pdam.sia.shared.exception.BusinessException.class)
+                .hasMessageContaining("Only settled payment can be reversed");
+
+        verify(paymentAllocationRepository, never()).findByPaymentId(any());
+        verify(accountingApplicationService, never()).postPaymentReversal(any(), any());
+        verify(paymentRepository, never()).save(any());
     }
 
     private static SettleCounterPaymentRequest request(UUID invoiceId, String externalReference, String reason) {

@@ -287,6 +287,72 @@ public class AccountingApplicationService {
     }
 
     @Transactional
+    public JournalEntry postPaymentReversal(PaymentReversalPostingCommand command, String actor) {
+        if (command == null) {
+            throw new BusinessException("PAYMENT_REVERSAL_POSTING_COMMAND_REQUIRED", "Payment reversal posting command is required.");
+        }
+        String paymentNumber = requireNormalize(
+                command.paymentNumber(),
+                "PAYMENT_REVERSAL_POSTING_NUMBER_REQUIRED",
+                "Payment number is required."
+        );
+        if (command.paymentId() == null) {
+            throw new BusinessException("PAYMENT_REVERSAL_POSTING_PAYMENT_REQUIRED", "Payment id is required.");
+        }
+        String periodValue = normalizeAccountingPeriod(command.period());
+        BigDecimal amount = requirePositiveAmount(command.amount(), "PAYMENT_REVERSAL_POSTING_AMOUNT_REQUIRED", "Payment reversal posting amount is required.");
+        if (journalEntryRepository.existsBySourceModuleAndSourceRecordId("PAYMENT_REVERSAL", command.paymentId())) {
+            throw new BusinessException(
+                    "PAYMENT_REVERSAL_JOURNAL_DUPLICATE",
+                    "Payment already has a reversal journal."
+            );
+        }
+        if (command.cashAccountId() != null && command.cashAccountId().equals(command.receivableAccountId())) {
+            throw new BusinessException(
+                    "PAYMENT_REVERSAL_ACCOUNT_DUPLICATE",
+                    "Cash/bank account and receivable account must be different."
+            );
+        }
+
+        AccountingPeriod period = accountingPeriodRepository.findByPeriod(periodValue)
+                .orElseThrow(() -> new BusinessException("ACCOUNTING_PERIOD_NOT_FOUND", "Accounting period was not found."));
+        Account cashAccount = findAccount(command.cashAccountId());
+        Account receivableAccount = findAccount(command.receivableAccountId());
+        requireAccountType(cashAccount, AccountType.ASSET, "PAYMENT_CASH_ACCOUNT_INVALID", "Payment cash or bank account must be an asset account.");
+        requireAccountType(receivableAccount, AccountType.ASSET, "PAYMENT_RECEIVABLE_ACCOUNT_INVALID", "Payment receivable account must be an asset account.");
+
+        String journalNumber = paymentReversalJournalNumber(paymentNumber);
+        journalEntryRepository.findByJournalNumber(journalNumber).ifPresent(existing -> {
+            throw new BusinessException("JOURNAL_NUMBER_DUPLICATE", "Journal number already exists.");
+        });
+
+        JournalEntry journal = JournalEntry.draftFromSource(
+                journalNumber,
+                period.getId(),
+                "Reverse payment " + paymentNumber,
+                "PAYMENT_REVERSAL",
+                command.paymentId(),
+                paymentNumber
+        );
+        journal.addLine(
+                receivableAccount.getId(),
+                amount,
+                BigDecimal.ZERO,
+                "Pembalikan piutang " + paymentNumber
+        );
+        journal.addLine(
+                cashAccount.getId(),
+                BigDecimal.ZERO,
+                amount,
+                "Pembalikan kas/bank " + paymentNumber
+        );
+
+        JournalEntry saved = journalEntryRepository.save(journal);
+        postingService.post(saved, period, actor, command.reason());
+        return saved;
+    }
+
+    @Transactional
     public JournalEntry postJournal(UUID journalId, String reason, String actor) {
         JournalEntry journal = journalEntryRepository.findForPosting(journalId)
                 .orElseThrow(() -> new BusinessException("JOURNAL_NOT_FOUND", "Journal entry was not found."));
@@ -370,6 +436,10 @@ public class AccountingApplicationService {
 
     private static String paymentJournalNumber(String paymentNumber) {
         return sourceJournalNumber("PMT-", paymentNumber);
+    }
+
+    private static String paymentReversalJournalNumber(String paymentNumber) {
+        return sourceJournalNumber("REV-", paymentNumber);
     }
 
     private static String sourceJournalNumber(String prefix, String documentNumber) {

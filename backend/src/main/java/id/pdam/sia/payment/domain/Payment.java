@@ -44,6 +44,8 @@ public class Payment extends BaseEntity {
 
     private UUID settlementJournalEntryId;
 
+    private UUID reversalJournalEntryId;
+
     @Column(columnDefinition = "TEXT")
     private String reversalReason;
 
@@ -79,6 +81,32 @@ public class Payment extends BaseEntity {
             throw new BusinessException("PAYMENT_SETTLEMENT_JOURNAL_ALREADY_LINKED", "Payment already has settlement journal.");
         }
         this.settlementJournalEntryId = settlementJournalEntryId;
+    }
+
+    public void ensureCanReverse() {
+        if (status != PaymentStatus.SETTLED) {
+            throw new BusinessException("PAYMENT_REVERSAL_STATUS_INVALID", "Only settled payment can be reversed.");
+        }
+        if (settlementJournalEntryId == null) {
+            throw new BusinessException("PAYMENT_SETTLEMENT_JOURNAL_MISSING", "Payment settlement journal is required before reversal.");
+        }
+    }
+
+    public void reverse(Instant reversedAt, String reversalReason, UUID reversalJournalEntryId) {
+        if (reversedAt == null) {
+            throw new BusinessException("PAYMENT_REVERSED_AT_REQUIRED", "Payment reversed timestamp is required.");
+        }
+        if (reversalReason == null || reversalReason.isBlank()) {
+            throw new BusinessException("PAYMENT_REVERSAL_REASON_REQUIRED", "Payment reversal reason is required.");
+        }
+        if (reversalJournalEntryId == null) {
+            throw new BusinessException("PAYMENT_REVERSAL_JOURNAL_REQUIRED", "Payment reversal journal is required.");
+        }
+        ensureCanReverse();
+        this.status = PaymentStatus.REVERSED;
+        this.reversedAt = reversedAt;
+        this.reversalReason = reversalReason.trim();
+        this.reversalJournalEntryId = reversalJournalEntryId;
     }
 
     private static BigDecimal requirePositive(BigDecimal value, String code, String message) {
@@ -144,6 +172,10 @@ public class Payment extends BaseEntity {
 
     public UUID getSettlementJournalEntryId() {
         return settlementJournalEntryId;
+    }
+
+    public UUID getReversalJournalEntryId() {
+        return reversalJournalEntryId;
     }
 
     public String getReversalReason() {

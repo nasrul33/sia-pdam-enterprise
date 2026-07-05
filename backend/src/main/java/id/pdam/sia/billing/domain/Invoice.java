@@ -114,6 +114,23 @@ public class Invoice extends BaseEntity {
         status = outstandingAmount.signum() == 0 ? InvoiceStatus.PAID : InvoiceStatus.PARTIAL_PAID;
     }
 
+    public void reversePayment(BigDecimal amount) {
+        BigDecimal normalizedAmount = requirePositive(amount, "INVOICE_PAYMENT_REVERSAL_AMOUNT_REQUIRED", "Invoice payment reversal amount is required.");
+        if (status != InvoiceStatus.PAID && status != InvoiceStatus.PARTIAL_PAID) {
+            throw new BusinessException("INVOICE_PAYMENT_REVERSAL_STATUS_INVALID", "Payment reversal can only be applied to paid or partial paid invoice.");
+        }
+        if (normalizedAmount.compareTo(paidAmount) > 0) {
+            throw new BusinessException("INVOICE_PAYMENT_REVERSAL_OVER_AMOUNT", "Payment reversal cannot exceed invoice paid amount.");
+        }
+        paidAmount = paidAmount.subtract(normalizedAmount).setScale(2, java.math.RoundingMode.HALF_UP);
+        outstandingAmount = outstandingAmount.add(normalizedAmount).setScale(2, java.math.RoundingMode.HALF_UP);
+        if (paidAmount.signum() == 0) {
+            status = InvoiceStatus.ISSUED;
+        } else {
+            status = outstandingAmount.signum() == 0 ? InvoiceStatus.PAID : InvoiceStatus.PARTIAL_PAID;
+        }
+    }
+
     private static String require(String value, String code, String message) {
         if (value == null || value.isBlank()) {
             throw new BusinessException(code, message);

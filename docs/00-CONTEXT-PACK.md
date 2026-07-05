@@ -37,6 +37,7 @@
 | BR-PAY-002 | Payment webhook signature must be validated before persistence | Payment | confirmed |
 | BR-PAY-003 | Counter payment allocation total must equal payment amount and duplicate retry must be no-op | Payment | confirmed |
 | BR-PAY-004 | Counter payment settlement posts debit cash/bank and credit receivable through accounting service | Payment | confirmed |
+| BR-PAY-005 | Payment reversal restores invoice outstanding and posts debit receivable credit cash/bank through accounting service | Payment | confirmed |
 | BR-REC-001 | Receivable aging uses open invoice outstanding balance with current, 30, 60, 90, and over-90 day buckets | Receivable | confirmed |
 | BR-REP-001 | Financial reports must read posted ledger entries only and exclude draft operational records | Reporting | confirmed |
 | BR-AUD-001 | Sensitive actions are audit logged | Shared | confirmed |
@@ -59,6 +60,7 @@
 | REQ-PAY-001 | Payment idempotent | Payment | `idempotency_keys` + `payments.idempotency_key` + duplicate no-op result hydration | T-062 | PaymentIdempotencyTest |
 | REQ-PAY-002 | Webhook pembayaran tervalidasi signature | Payment | HMAC SHA-256 `X-Payment-Signature` + `payment_webhook_events` | T-060 | PaymentWebhookApplicationServiceTest |
 | REQ-PAY-003 | Settlement pembayaran posting kas/bank dan piutang | Payment/Accounting | `/api/payments/counter` calls AccountingApplicationService, posts source journal, links payment to settlement journal | T-083 | PaymentIdempotencyTest, AccountingApplicationServiceTest |
+| REQ-PAY-004 | Reversal pembayaran memulihkan piutang dan posting jurnal balik | Payment/Accounting | `/api/payments/{id}/reverse` restores invoice allocation, posts source reversal journal, links payment to reversal journal | T-084 | PaymentIdempotencyTest, AccountingApplicationServiceTest |
 | REQ-REC-001 | Aging piutang valid | Receivable | `receivable_aging_snapshots` generated from open `ISSUED/PARTIAL_PAID` invoices | T-070 | AgingServiceTest |
 | REQ-REP-001 | Report keuangan posted-only | Reporting | trial balance generated from `ledger_entries` only | T-080 | ReportPostedOnlyTest |
 
@@ -88,6 +90,7 @@
 | 2026-07-05 | Add Ledger Materialization from posted journals | Trial balance needs controlled ledger rows created only after journal posting succeeds | PostingService now writes one `ledger_entries` row per posted journal line in the same transaction |
 | 2026-07-06 | Add Controlled Invoice Issue posting | Revenue recognition must be posted through accounting, not by billing writing journals directly | Invoice issue creates a source-traceable posted journal: debit receivable, credit revenue, then marks invoice `ISSUED` with issue journal link |
 | 2026-07-06 | Add Controlled Payment Settlement posting | Cash/bank recognition must be posted through accounting, not by payment writing journals directly | Counter settlement creates a source-traceable posted journal: debit cash/bank, credit receivable, then links payment to settlement journal |
+| 2026-07-06 | Add Controlled Payment Reversal posting | Payment cancellation must restore receivable and reverse cash/bank through accounting | Payment reversal restores invoice outstanding, posts debit receivable and credit cash/bank, then links payment to reversal journal |
 
 ## Assumptions Register
 
@@ -122,10 +125,10 @@
 
 ## Current Implementation State
 
-- Completed: repository scaffold, docs baseline, backend skeleton, frontend dashboard shell, Money primitive, accounting domain skeleton, persisted audit primitive, idempotency primitive, V2 domain foundation migration, quality gate verification, initial GitHub push, repository-backed Accounting API, customer/connection API foundation, metering API foundation, tariff engine foundation, billing batch foundation, payment webhook foundation, payment idempotency foundation, receivable aging foundation, posted reporting foundation, ledger materialization from posted journals, controlled invoice issue with receivable/revenue posting, controlled counter payment settlement with cash/bank receivable posting.
+- Completed: repository scaffold, docs baseline, backend skeleton, frontend dashboard shell, Money primitive, accounting domain skeleton, persisted audit primitive, idempotency primitive, V2 domain foundation migration, quality gate verification, initial GitHub push, repository-backed Accounting API, customer/connection API foundation, metering API foundation, tariff engine foundation, billing batch foundation, payment webhook foundation, payment idempotency foundation, receivable aging foundation, posted reporting foundation, ledger materialization from posted journals, controlled invoice issue with receivable/revenue posting, controlled counter payment settlement with cash/bank receivable posting, controlled payment reversal with receivable restoration and reversal journal.
 - In progress: none.
 - Blocked: final auth decision, official tariff values, numbering format.
-- Next actions: implement payment reversal and accounting reversal workflow.
+- Next actions: implement receivable collection action workflow and dunning controls.
 
 ## Latest Verification Snapshot
 
@@ -152,6 +155,7 @@
 | Ledger Materialization increment | passed: TDD target test, `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL |
 | Controlled Invoice Issue increment | passed: TDD target tests, `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL and Flyway V3 |
 | Controlled Payment Posting increment | passed: TDD target tests, `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL and Flyway V4 |
+| Controlled Payment Reversal increment | passed: TDD target tests, `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL and Flyway V5 |
 
 ## Handoff Instructions
 
