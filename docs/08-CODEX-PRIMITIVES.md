@@ -50,3 +50,4 @@
 | apiClient | lib/api | typed API call foundation with structured errors |
 | queryKeys | lib/query | stable query keys |
 | dashboard schema/hook | features/dashboard | validates backend dashboard response with Zod |
+| collection action schema/hooks/workspace | features/receivables/collection-actions | typed receivable collection list, create, start, complete, cancel workflows with loading/error/empty states |

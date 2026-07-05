@@ -21,17 +21,47 @@ async function readPayload(response: Response): Promise<unknown> {
   return text.length > 0 ? text : null;
 }
 
-export async function apiGet<T>(path: string): Promise<T> {
+function isErrorPayload(payload: unknown): payload is { message?: unknown; code?: unknown } {
+  return typeof payload === "object" && payload !== null;
+}
+
+async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: { "Content-Type": "application/json" },
     credentials: "include",
-    cache: "no-store"
+    cache: "no-store",
+    ...init
   });
 
   if (!response.ok) {
     const payload = await readPayload(response);
-    throw new ApiClientError(`API request failed with status ${response.status}`, response.status, payload);
+    const message =
+      isErrorPayload(payload) && typeof payload.message === "string"
+        ? payload.message
+        : `API request failed with status ${response.status}`;
+    throw new ApiClientError(message, response.status, payload);
   }
 
   return response.json() as Promise<T>;
+}
+
+export async function apiGet<T>(path: string): Promise<T> {
+  return apiRequest<T>(path);
+}
+
+export async function apiPost<TRequest, TResponse>(path: string, body: TRequest): Promise<TResponse> {
+  return apiRequest<TResponse>(path, {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
+}
+
+export function apiErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof ApiClientError) {
+    return error.message;
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return fallback;
 }

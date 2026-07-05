@@ -14,16 +14,16 @@ import {
 } from "lucide-react";
 
 const navItems = [
-  { label: "Dashboard", icon: LayoutDashboard },
-  { label: "Pelanggan", icon: UsersRound },
-  { label: "Sambungan", icon: BadgeCheck },
-  { label: "Baca Meter", icon: Gauge },
-  { label: "Billing", icon: ReceiptText },
-  { label: "Pembayaran", icon: WalletCards },
-  { label: "Piutang", icon: Banknote },
-  { label: "Akuntansi", icon: BookOpenCheck },
-  { label: "Laporan", icon: ClipboardList },
-  { label: "Admin", icon: UserRoundCog }
+  { label: "Dashboard", href: "/", icon: LayoutDashboard },
+  { label: "Pelanggan", href: "/", icon: UsersRound },
+  { label: "Sambungan", href: "/", icon: BadgeCheck },
+  { label: "Baca Meter", href: "/", icon: Gauge },
+  { label: "Billing", href: "/", icon: ReceiptText },
+  { label: "Pembayaran", href: "/", icon: WalletCards },
+  { label: "Piutang", href: "/receivables/collection-actions", icon: Banknote },
+  { label: "Akuntansi", href: "/", icon: BookOpenCheck },
+  { label: "Laporan", href: "/", icon: ClipboardList },
+  { label: "Admin", href: "/", icon: UserRoundCog }
 ] as const;
 
 export function AppShell({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -40,10 +40,10 @@ export function AppShell({ children }: Readonly<{ children: React.ReactNode }>) 
           </div>
         </div>
         <nav className="mt-8 space-y-1">
-          {navItems.map(({ label, icon: Icon }) => (
+          {navItems.map(({ label, href, icon: Icon }) => (
             <Link
               key={label}
-              href="/"
+              href={href}
               className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-950"
             >
               <Icon className="size-4" aria-hidden="true" />

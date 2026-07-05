@@ -4,5 +4,6 @@ export const queryKeys = {
   journals: ["journals"] as const,
   customers: ["customers"] as const,
   invoices: ["invoices"] as const,
-  payments: ["payments"] as const
+  payments: ["payments"] as const,
+  collectionActions: ["collection-actions"] as const
 };
