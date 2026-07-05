@@ -1,0 +1,8 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/sia_pdam_test
+    username: sia
+    password: secret
+  jpa:
+    hibernate:
+      ddl-auto: validate

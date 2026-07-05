@@ -1,0 +1,4 @@
+logging:
+  level:
+    id.pdam.sia: DEBUG
+    org.hibernate.SQL: INFO

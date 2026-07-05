@@ -1,0 +1,35 @@
+spring:
+  application:
+    name: sia-pdam-backend
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:sia_pdam}
+    username: ${DB_USER:sia}
+    password: ${DB_PASSWORD:secret}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+server:
+  port: ${SERVER_PORT:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when_authorized
+
+sia:
+  security:
+    dev-mode: true
+    allowed-origins: ${ALLOWED_ORIGINS:http://localhost:3000}

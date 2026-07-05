@@ -1,0 +1,34 @@
+# Codex Primitives
+
+## Backend Primitives
+
+| Primitive | Location | Acceptance |
+|---|---|---|
+| Money | shared/money | BigDecimal only, allocation preserves total |
+| BaseEntity | shared/persistence | UUID, createdAt, updatedAt, version |
+| BusinessException | shared/exception | stable error code |
+| ApiErrorResponse | shared/web | consistent response |
+| AuditTrailService | shared/audit | persists sensitive actions to audit_logs |
+| IdempotencyService | shared/idempotency | reserves duplicate-safe command keys |
+| AccountingPeriod | accounting/domain | OPEN/CLOSING_REVIEW/LOCKED/REOPENED |
+| Account | accounting/domain | unique code, normal balance |
+| JournalEntry | accounting/domain | DRAFT/POSTED/REVERSED/VOID |
+| JournalLine | accounting/domain | one-sided debit/credit |
+| PostingService | accounting/application | debit=credit and period lock |
+
+## Frontend Primitives
+
+| Primitive | Location | Acceptance |
+|---|---|---|
+| AppShell | components/layout | sidebar and content shell |
+| Providers | app/providers | TanStack Query provider |
+| PageHeader | components/common | consistent title/description |
+| StatusBadge | components/status | clear status indicator |
+| MoneyText | components/format | IDR formatting |
+| EmptyState | components/state | empty state display |
+| ErrorState | components/state | error display |
+| LoadingSkeleton | components/state | loading display |
+| PermissionGate | components/auth | permission-denied state |
+| apiClient | lib/api | typed API call foundation with structured errors |
+| queryKeys | lib/query | stable query keys |
+| dashboard schema/hook | features/dashboard | validates backend dashboard response with Zod |
