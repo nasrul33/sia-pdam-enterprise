@@ -30,6 +30,7 @@
 | BR-MTR-002 | Meter reading is unique per connection and period | Metering | confirmed |
 | BR-BIL-001 | Progressive tariff calculation uses active effective version | Billing | confirmed |
 | BR-BIL-002 | Tariff blocks must be sequential, contiguous, and end with an unbounded block | Billing | confirmed |
+| BR-BIL-003 | Billing batch generation is idempotent and creates draft invoices from verified readings | Billing | confirmed |
 | BR-PAY-001 | Payment idempotency is enforced in DB | Payment | confirmed |
 | BR-AUD-001 | Sensitive actions are audit logged | Shared | confirmed |
 
@@ -45,6 +46,7 @@
 | REQ-MTR-001 | Rute baca meter valid | Metering | meter_routes unique route_code + `/api/meter-routes` | T-040 | MeteringApplicationServiceTest |
 | REQ-MTR-002 | Baca meter unique per sambungan dan periode | Metering | meter_readings unique connection_id+period + lifecycle endpoints | T-041 | MeteringApplicationServiceTest |
 | REQ-BIL-001 | Kalkulasi tarif progresif valid | Billing | tariff_versions effective active lookup + tariff_blocks progressive calculation | T-050 | TariffEngineApplicationServiceTest |
+| REQ-BIL-002 | Generate tagihan idempotent | Billing | billing_batches idempotency_key + period/area unique + draft invoices | T-054 | BillingBatchApplicationServiceTest |
 | REQ-PAY-001 | Payment idempotent | Payment | unique idempotency key | T-062 | PaymentIdempotencyTest |
 
 ## Decision Log
@@ -65,6 +67,7 @@
 | 2026-07-05 | Add Customer and Connection API foundation | Metering and billing need controlled customer and connection master data | Customer, address, tariff group, and connection lifecycle are transactional and audited |
 | 2026-07-05 | Add Metering API foundation | Billing needs verified usage per connection and period | Meter routes and meter reading lifecycle are transactional, validated, and audited |
 | 2026-07-05 | Add Tariff Engine foundation | Billing batch must calculate server-side from effective tariff versions | Progressive tariff blocks are versioned, audited, and calculated from active effective version |
+| 2026-07-05 | Add Billing Batch foundation | Revenue generation must be repeat-safe and based on verified readings | Batch generation is idempotent and creates draft invoices without direct journal writes |
 
 ## Assumptions Register
 
@@ -97,10 +100,10 @@
 
 ## Current Implementation State
 
-- Completed: repository scaffold, docs baseline, backend skeleton, frontend dashboard shell, Money primitive, accounting domain skeleton, persisted audit primitive, idempotency primitive, V2 domain foundation migration, quality gate verification, initial GitHub push, repository-backed Accounting API, customer/connection API foundation, metering API foundation, tariff engine foundation.
+- Completed: repository scaffold, docs baseline, backend skeleton, frontend dashboard shell, Money primitive, accounting domain skeleton, persisted audit primitive, idempotency primitive, V2 domain foundation migration, quality gate verification, initial GitHub push, repository-backed Accounting API, customer/connection API foundation, metering API foundation, tariff engine foundation, billing batch foundation.
 - In progress: none.
 - Blocked: final auth decision, official tariff values, numbering format.
-- Next actions: implement billing batch foundation.
+- Next actions: implement payment webhook foundation.
 
 ## Latest Verification Snapshot
 
@@ -119,6 +122,7 @@
 | Customer/Connection API increment | passed: `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL |
 | Metering API increment | passed: `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL |
 | Tariff Engine increment | passed: TDD target test, `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL |
+| Billing Batch increment | passed: TDD target test, `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL |
 
 ## Handoff Instructions
 

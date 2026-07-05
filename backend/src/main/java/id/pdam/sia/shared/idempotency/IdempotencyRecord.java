@@ -133,4 +133,8 @@ public class IdempotencyRecord {
     public IdempotencyStatus getStatus() {
         return status;
     }
+
+    public String getResponseReference() {
+        return responseReference;
+    }
 }

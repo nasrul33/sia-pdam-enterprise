@@ -26,7 +26,7 @@ public class DashboardOverviewController {
                         new ModuleHealth("Customer", "CustomerAgent", "ready", "Customer number is unique and address creation is audited."),
                         new ModuleHealth("Connection", "CustomerAgent", "ready", "Connection number is unique and lifecycle actions are audited."),
                         new ModuleHealth("Metering", "MeteringAgent", "ready", "Reading per connection and period is unique and lifecycle-audited."),
-                        new ModuleHealth("Billing", "BillingAgent", "in_progress", "Tariff engine is ready; invoice issue must create receivable and correction journal."),
+                        new ModuleHealth("Billing", "BillingAgent", "in_progress", "Draft billing batch is idempotent; invoice issue must create receivable and correction journal."),
                         new ModuleHealth("Payment", "PaymentAgent", "in_progress", "Every settlement path must reserve an idempotency key."),
                         new ModuleHealth("Reporting", "ReportingAgent", "planned", "Final reports must read posted ledger entries only.")
                 ),
@@ -40,7 +40,7 @@ public class DashboardOverviewController {
                 List.of(
                         new RiskItem("OQ-001", "Single PDAM vs multi-unit structure must be confirmed before production data model freeze.", "medium"),
                         new RiskItem("OQ-003", "Official numbering format for customer, connection, invoice, journal, and receipt is still open.", "high"),
-                        new RiskItem("OQ-004", "Official tariff block values must be loaded before billing batch implementation.", "high"),
+                        new RiskItem("OQ-004", "Official tariff block values must be loaded before production billing.", "high"),
                         new RiskItem("OQ-008", "Bank reconciliation channel is not final; payment integration remains generic.", "medium")
                 )
         );

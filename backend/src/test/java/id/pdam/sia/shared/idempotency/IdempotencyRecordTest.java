@@ -49,5 +49,6 @@ class IdempotencyRecordTest {
 
         assertThat(record.isCompleted()).isTrue();
         assertThat(record.getStatus()).isEqualTo(IdempotencyStatus.COMPLETED);
+        assertThat(record.getResponseReference()).isEqualTo("PAY-2026-07-0001");
     }
 }

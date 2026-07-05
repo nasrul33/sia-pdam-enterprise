@@ -22,7 +22,7 @@
 | T-040 | MeteringAgent | Meter route | metering | T-031 | route code unique and audited | MeteringApplicationServiceTest |
 | T-041 | MeteringAgent | Meter reading | metering | T-040 | active connection, valid period, unique connection+period, audited lifecycle | MeteringApplicationServiceTest |
 | T-050 | BillingAgent | Tariff engine | billing | T-041 | active effective version, contiguous progressive blocks, tariff calculation valid | TariffEngineApplicationServiceTest |
-| T-054 | BillingAgent | Billing batch | billing | T-050,T-023 | generation idempotent | BillingBatchTest |
+| T-054 | BillingAgent | Billing batch | billing | T-050,T-023 | verified readings only, active connection, no duplicate invoice, idempotent draft generation | BillingBatchApplicationServiceTest |
 | T-060 | PaymentAgent | Payment webhook | payment | T-054 | signature validated | PaymentWebhookTest |
 | T-062 | PaymentAgent | Payment idempotency | payment | T-060 | duplicate no-op | PaymentIdempotencyTest |
 | T-070 | ReceivableAgent | Aging | receivable | T-062 | aging bucket valid | AgingServiceTest |
