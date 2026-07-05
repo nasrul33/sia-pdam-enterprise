@@ -32,6 +32,7 @@
 | BR-BIL-002 | Tariff blocks must be sequential, contiguous, and end with an unbounded block | Billing | confirmed |
 | BR-BIL-003 | Billing batch generation is idempotent and creates draft invoices from verified readings | Billing | confirmed |
 | BR-PAY-001 | Payment idempotency is enforced in DB | Payment | confirmed |
+| BR-PAY-002 | Payment webhook signature must be validated before persistence | Payment | confirmed |
 | BR-AUD-001 | Sensitive actions are audit logged | Shared | confirmed |
 
 ## Requirements Traceability
@@ -48,6 +49,7 @@
 | REQ-BIL-001 | Kalkulasi tarif progresif valid | Billing | tariff_versions effective active lookup + tariff_blocks progressive calculation | T-050 | TariffEngineApplicationServiceTest |
 | REQ-BIL-002 | Generate tagihan idempotent | Billing | billing_batches idempotency_key + period/area unique + draft invoices | T-054 | BillingBatchApplicationServiceTest |
 | REQ-PAY-001 | Payment idempotent | Payment | unique idempotency key | T-062 | PaymentIdempotencyTest |
+| REQ-PAY-002 | Webhook pembayaran tervalidasi signature | Payment | HMAC SHA-256 `X-Payment-Signature` + `payment_webhook_events` | T-060 | PaymentWebhookApplicationServiceTest |
 
 ## Decision Log
 
@@ -68,6 +70,7 @@
 | 2026-07-05 | Add Metering API foundation | Billing needs verified usage per connection and period | Meter routes and meter reading lifecycle are transactional, validated, and audited |
 | 2026-07-05 | Add Tariff Engine foundation | Billing batch must calculate server-side from effective tariff versions | Progressive tariff blocks are versioned, audited, and calculated from active effective version |
 | 2026-07-05 | Add Billing Batch foundation | Revenue generation must be repeat-safe and based on verified readings | Batch generation is idempotent and creates draft invoices without direct journal writes |
+| 2026-07-05 | Add Payment Webhook foundation | External payment callbacks must be authenticated before settlement | HMAC-validated webhook events are stored as `RECEIVED` without settlement journal writes |
 
 ## Assumptions Register
 
@@ -96,14 +99,14 @@
 | Connection | sambungan and tariff group assignment | connections, tariff_groups | customer, shared |
 | Metering | rute and baca meter | meter_routes, meter_readings | connection, shared |
 | Billing | invoice and tariff | invoices, tariff_versions, tariff_blocks | metering, accounting |
-| Payment | settlement | payments, receipts | billing, accounting |
+| Payment | webhook intake and settlement | payment_webhook_events, payments, receipts | billing, accounting |
 
 ## Current Implementation State
 
-- Completed: repository scaffold, docs baseline, backend skeleton, frontend dashboard shell, Money primitive, accounting domain skeleton, persisted audit primitive, idempotency primitive, V2 domain foundation migration, quality gate verification, initial GitHub push, repository-backed Accounting API, customer/connection API foundation, metering API foundation, tariff engine foundation, billing batch foundation.
+- Completed: repository scaffold, docs baseline, backend skeleton, frontend dashboard shell, Money primitive, accounting domain skeleton, persisted audit primitive, idempotency primitive, V2 domain foundation migration, quality gate verification, initial GitHub push, repository-backed Accounting API, customer/connection API foundation, metering API foundation, tariff engine foundation, billing batch foundation, payment webhook foundation.
 - In progress: none.
 - Blocked: final auth decision, official tariff values, numbering format.
-- Next actions: implement payment webhook foundation.
+- Next actions: implement payment idempotency settlement controls.
 
 ## Latest Verification Snapshot
 
@@ -123,6 +126,7 @@
 | Metering API increment | passed: `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL |
 | Tariff Engine increment | passed: TDD target test, `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL |
 | Billing Batch increment | passed: TDD target test, `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL |
+| Payment Webhook increment | passed: TDD target test, `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL |
 
 ## Handoff Instructions
 

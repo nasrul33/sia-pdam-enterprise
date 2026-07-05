@@ -22,6 +22,7 @@
 | MeteringApplicationService | metering/application | meter route and reading lifecycle with active connection, period uniqueness, usage validation, and audit trail |
 | TariffEngineApplicationService | billing/application | versioned progressive tariff calculation from active effective tariff blocks with audit trail |
 | BillingBatchApplicationService | billing/application | idempotent draft invoice generation from verified meter readings without direct journal writes |
+| PaymentWebhookApplicationService | payment/application | HMAC-validated provider callback persistence without settlement writes |
 | PageResponse | shared/web | shared pagination contract for API lists |
 
 ## Frontend Primitives

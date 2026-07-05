@@ -98,14 +98,22 @@ Tariff activation requires sequential contiguous blocks starting at `0.000` m3 a
 
 `POST /api/billing-batches/generate` requires `Idempotency-Key` header. Generation requires verified meter readings for the requested `period` and `areaCode`, active connections, active effective tariff versions, no existing invoice for connection-period, and `reason` for audit trail. This endpoint creates `DRAFT` invoices only; receivable/revenue posting must be handled by a controlled accounting workflow.
 
-## Payment Planned
+## Payment Webhook
 
-All payment mutation endpoints must send an `Idempotency-Key` header and reserve it through `idempotency_keys` before settlement writes.
+| Method | Endpoint | Purpose | Permission |
+|---|---|---|---|
+| POST | /api/payments/webhook | receive HMAC-validated payment provider webhook | payment.webhook |
+| GET | /api/payment-webhook-events | list webhook events with `provider`, `status`, pagination | payment.webhook.read |
+
+`POST /api/payments/webhook` requires `X-Payment-Signature`. The signature is HMAC-SHA256 over canonical payload `provider\nexternalReference\nidempotencyKey\npayload` using `sia.payment.webhook.secret`. This endpoint stores `RECEIVED` events only; settlement allocation, receipt creation, and journal posting are handled by later controlled payment workflow tasks.
+
+## Payment Settlement Planned
+
+All payment settlement mutation endpoints must send an `Idempotency-Key` header and reserve it through `idempotency_keys` before settlement writes.
 
 | Method | Endpoint | Purpose | Permission |
 |---|---|---|---|
 | POST | /api/payments/counter | counter payment settlement | payment.counter |
-| POST | /api/payments/webhook | payment provider webhook | signature validation |
 | POST | /api/payments/{id}/reverse | reverse settled payment | payment.reverse |
 
 ## Error Contract
