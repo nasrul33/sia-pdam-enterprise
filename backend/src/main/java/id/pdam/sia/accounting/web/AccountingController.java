@@ -2,6 +2,7 @@ package id.pdam.sia.accounting.web;
 
 import id.pdam.sia.accounting.application.AccountingApplicationService;
 import id.pdam.sia.accounting.domain.JournalStatus;
+import id.pdam.sia.shared.web.PageResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;

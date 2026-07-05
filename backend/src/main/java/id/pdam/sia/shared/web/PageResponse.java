@@ -1,4 +1,4 @@
-package id.pdam.sia.accounting.web;
+package id.pdam.sia.shared.web;
 
 import org.springframework.data.domain.Page;
 

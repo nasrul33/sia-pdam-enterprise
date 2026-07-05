@@ -24,6 +24,8 @@
 | BR-ACC-001 | Debit must equal credit before posting | Accounting | confirmed |
 | BR-ACC-002 | Posted journal is immutable | Accounting | confirmed |
 | BR-ACC-003 | Locked period blocks posting | Accounting | confirmed |
+| BR-CUS-001 | Customer number is unique | Customer | confirmed |
+| BR-CON-001 | Connection number is unique and lifecycle-controlled | Connection | confirmed |
 | BR-PAY-001 | Payment idempotency is enforced in DB | Payment | confirmed |
 | BR-AUD-001 | Sensitive actions are audit logged | Shared | confirmed |
 
@@ -34,6 +36,8 @@
 | REQ-ACC-001 | CoA exists | Accounting | accounts table unique code + `/api/accounts` | T-020 | AccountingApplicationServiceTest |
 | REQ-ACC-002 | Journal must balance | Accounting | PostingService validation + `/api/journals/{id}/post` | T-023 | JournalEntryTest |
 | REQ-ACC-003 | Posted journal immutable | Accounting | Domain guard + DB trigger | T-024 | PostedJournalImmutableTest |
+| REQ-CUS-001 | Nomor pelanggan unique | Customer | customers table unique customer_number + `/api/customers` | T-030 | CustomerApplicationServiceTest |
+| REQ-CON-001 | Nomor sambungan unique | Connection | connections table unique connection_number + lifecycle endpoints | T-031 | ConnectionApplicationServiceTest |
 | REQ-PAY-001 | Payment idempotent | Payment | unique idempotency key | T-062 | PaymentIdempotencyTest |
 
 ## Decision Log
@@ -51,6 +55,7 @@
 | 2026-07-05 | Add Spring Boot Flyway starter | Smoke test showed JPA validation can run before migrations without Boot 4 starter | Flyway V1/V2 now apply before Hibernate validation |
 | 2026-07-05 | Remove static Docker container names | Local smoke test conflicted with existing containers | Compose is project-scoped and CI-friendly |
 | 2026-07-05 | Add repository-backed Accounting API | Accounting core needs API boundary before billing/payment integration | CoA, accounting period, draft journal, and journal posting are transactional and audited |
+| 2026-07-05 | Add Customer and Connection API foundation | Metering and billing need controlled customer and connection master data | Customer, address, tariff group, and connection lifecycle are transactional and audited |
 
 ## Assumptions Register
 
@@ -76,15 +81,16 @@
 | Shared | primitives, audit, exceptions | audit_logs | none |
 | Accounting | CoA, period, journal | accounts, periods, journals | shared |
 | Customer | pelanggan | customers | shared |
+| Connection | sambungan and tariff group assignment | connections, tariff_groups | customer, shared |
 | Billing | invoice and tariff | invoices, tariff_versions | metering, accounting |
 | Payment | settlement | payments, receipts | billing, accounting |
 
 ## Current Implementation State
 
-- Completed: repository scaffold, docs baseline, backend skeleton, frontend dashboard shell, Money primitive, accounting domain skeleton, persisted audit primitive, idempotency primitive, V2 domain foundation migration, quality gate verification, initial GitHub push, repository-backed Accounting API.
+- Completed: repository scaffold, docs baseline, backend skeleton, frontend dashboard shell, Money primitive, accounting domain skeleton, persisted audit primitive, idempotency primitive, V2 domain foundation migration, quality gate verification, initial GitHub push, repository-backed Accounting API, customer/connection API foundation.
 - In progress: none.
 - Blocked: final auth decision, tariff formula, numbering format.
-- Next actions: implement customer/connection services.
+- Next actions: implement metering route and meter reading services.
 
 ## Latest Verification Snapshot
 
@@ -100,6 +106,7 @@
 | `docker-compose config` | passed |
 | Backend smoke test | passed: Flyway applied V1/V2, health endpoint UP, dashboard API returned valid JSON |
 | Accounting API increment | passed: `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL |
+| Customer/Connection API increment | passed: `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL |
 
 ## Handoff Instructions
 

@@ -37,6 +37,24 @@
 
 Mutation payloads require `reason` so audit trail has justification. Journal posting is blocked when debit/credit is not balanced or period is not `OPEN`/`REOPENED`.
 
+## Customer and Connection
+
+| Method | Endpoint | Purpose | Permission |
+|---|---|---|---|
+| GET | /api/customers | list customers with `status`, `search`, pagination | customer.read |
+| GET | /api/customers/{id} | customer detail with addresses | customer.read |
+| POST | /api/customers | create customer and primary address | customer.create |
+| GET | /api/tariff-groups | list tariff groups | tariff.read |
+| POST | /api/tariff-groups | create tariff group | tariff.manage |
+| GET | /api/connections | list connections with `customerId`, `status`, pagination | connection.read |
+| GET | /api/connections/{id} | connection detail | connection.read |
+| POST | /api/connections | create draft connection | connection.create |
+| POST | /api/connections/{id}/activate | activate draft/suspended connection | connection.lifecycle |
+| POST | /api/connections/{id}/suspend | suspend active connection | connection.lifecycle |
+| POST | /api/connections/{id}/terminate | terminate active/suspended connection | connection.lifecycle |
+
+Connection creation requires active customer, existing tariff group, unique connection number, and `reason` for audit trail.
+
 ## Payment Planned
 
 All payment mutation endpoints must send an `Idempotency-Key` header and reserve it through `idempotency_keys` before settlement writes.

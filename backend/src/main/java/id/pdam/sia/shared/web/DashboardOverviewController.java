@@ -23,8 +23,8 @@ public class DashboardOverviewController {
                 List.of(
                         new ModuleHealth("Shared Kernel", "BackendFoundationAgent", "ready", "Money uses BigDecimal and audit trail is persisted."),
                         new ModuleHealth("Accounting", "AccountingAgent", "ready", "Posting requires balanced debit-credit and unlocked period."),
-                        new ModuleHealth("Customer", "CustomerAgent", "planned", "Customer number must be unique before billing depends on it."),
-                        new ModuleHealth("Connection", "CustomerAgent", "planned", "Connection lifecycle must be explicit and indexed."),
+                        new ModuleHealth("Customer", "CustomerAgent", "ready", "Customer number is unique and address creation is audited."),
+                        new ModuleHealth("Connection", "CustomerAgent", "ready", "Connection number is unique and lifecycle actions are audited."),
                         new ModuleHealth("Metering", "MeteringAgent", "planned", "Reading per connection and period must be unique."),
                         new ModuleHealth("Billing", "BillingAgent", "planned", "Invoice issue must create receivable and correction journal."),
                         new ModuleHealth("Payment", "PaymentAgent", "in_progress", "Every settlement path must reserve an idempotency key."),

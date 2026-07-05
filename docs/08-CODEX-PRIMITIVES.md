@@ -17,6 +17,9 @@
 | PostingService | accounting/application | debit=credit and period lock |
 | AccountingApplicationService | accounting/application | repository-backed CoA, period, journal draft, posting workflow |
 | AccountingController | accounting/web | validated REST endpoints with audit reason and server-side authentication |
+| CustomerApplicationService | customer/application | repository-backed customer creation/list/detail with unique number and audit trail |
+| ConnectionApplicationService | connection/application | tariff group, draft connection, and lifecycle control with audit trail |
+| PageResponse | shared/web | shared pagination contract for API lists |
 
 ## Frontend Primitives
 
