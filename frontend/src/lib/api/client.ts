@@ -26,11 +26,16 @@ function isErrorPayload(payload: unknown): payload is { message?: unknown; code?
 }
 
 async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers = new Headers(init?.headers);
+  if (!headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: { "Content-Type": "application/json" },
+    ...init,
+    headers,
     credentials: "include",
-    cache: "no-store",
-    ...init
+    cache: "no-store"
   });
 
   if (!response.ok) {
@@ -49,8 +54,9 @@ export async function apiGet<T>(path: string): Promise<T> {
   return apiRequest<T>(path);
 }
 
-export async function apiPost<TRequest, TResponse>(path: string, body: TRequest): Promise<TResponse> {
+export async function apiPost<TRequest, TResponse>(path: string, body: TRequest, init?: RequestInit): Promise<TResponse> {
   return apiRequest<TResponse>(path, {
+    ...init,
     method: "POST",
     body: JSON.stringify(body)
   });

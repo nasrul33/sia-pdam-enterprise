@@ -18,7 +18,7 @@ const navItems = [
   { label: "Pelanggan", href: "/", icon: UsersRound },
   { label: "Sambungan", href: "/", icon: BadgeCheck },
   { label: "Baca Meter", href: "/", icon: Gauge },
-  { label: "Billing", href: "/", icon: ReceiptText },
+  { label: "Billing", href: "/billing", icon: ReceiptText },
   { label: "Pembayaran", href: "/", icon: WalletCards },
   { label: "Piutang", href: "/receivables/collection-actions", icon: Banknote },
   { label: "Akuntansi", href: "/accounting", icon: BookOpenCheck },
