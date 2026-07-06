@@ -47,5 +47,6 @@
 | V4__payment_settlement_accounting_trace.sql | payment settlement accounting traceability | payment-to-settlement-journal link and unique settlement journal reference |
 | V5__payment_reversal_accounting_trace.sql | payment reversal accounting traceability | payment-to-reversal-journal link and unique reversal journal reference |
 | V6__collection_action_controls.sql | receivable collection workflow controls | action type check, completed state check, active duplicate prevention by invoice/type or customer/type, scheduled status index |
+| V7__rbac_seed.sql | RBAC role and permission catalog | idempotent role, permission, and role-permission grants without default user credentials |
 
 Smoke test on PostgreSQL 16 confirms migrations apply from an empty schema and Hibernate validation passes afterward.

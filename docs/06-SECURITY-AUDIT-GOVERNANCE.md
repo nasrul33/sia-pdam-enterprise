@@ -14,6 +14,8 @@
 - Finance Supervisor
 - Auditor Internal
 - Direksi/Manajemen
+- Petugas Piutang
+- Supervisor Piutang
 
 ## Approval Matrix
 
@@ -35,6 +37,19 @@
 | collection-action.create | `POST /api/collection-actions` | Petugas Piutang, Supervisor Piutang |
 | collection-action.execute | `POST /api/collection-actions/{id}/start`, `POST /api/collection-actions/{id}/complete` | Petugas Piutang |
 | collection-action.cancel | `POST /api/collection-actions/{id}/cancel` | Supervisor Piutang |
+
+## Seeded RBAC Catalog
+
+- Flyway V7 seeds role and permission catalog only.
+- No default user or default password is seeded by migration.
+- Initial user provisioning must use a controlled operational/admin process with a prefixed password hash, preferably `{bcrypt}`.
+
+| Role | Seeded Permissions |
+|---|---|
+| super-admin | collection-action.read, collection-action.create, collection-action.execute, collection-action.cancel |
+| petugas-piutang | collection-action.read, collection-action.create, collection-action.execute |
+| supervisor-piutang | collection-action.read, collection-action.create, collection-action.cancel |
+| auditor-internal | collection-action.read |
 
 ## Authentication Source
 
