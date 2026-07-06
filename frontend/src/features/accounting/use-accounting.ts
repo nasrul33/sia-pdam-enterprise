@@ -4,6 +4,7 @@ import {
   createAccountingPeriod,
   createAccount,
   createJournal,
+  getJournal,
   listAccountingPeriods,
   listAccounts,
   listJournals,
@@ -41,6 +42,14 @@ export function useJournals(filters: JournalFilters, enabled = true) {
     queryKey: [...queryKeys.journals, "list", filters],
     queryFn: () => listJournals(filters),
     enabled
+  });
+}
+
+export function useJournal(journalId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: [...queryKeys.journals, "detail", journalId],
+    queryFn: () => getJournal(journalId ?? ""),
+    enabled: enabled && Boolean(journalId)
   });
 }
 

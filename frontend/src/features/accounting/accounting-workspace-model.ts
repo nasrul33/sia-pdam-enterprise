@@ -56,6 +56,19 @@ export type ManualJournalDraftSummary = {
   hasValidLineAmounts: boolean;
 };
 
+export type JournalDetailLineSubject = {
+  debit: number;
+  credit: number;
+};
+
+export type JournalDetailLineSummary = {
+  lineCount: number;
+  totalDebit: number;
+  totalCredit: number;
+  isBalanced: boolean;
+  hasOneSidedLines: boolean;
+};
+
 export function summarizeAccountingWorkspace(input: {
   accounts: readonly AccountSummarySubject[];
   periods: readonly PeriodSummarySubject[];
@@ -182,4 +195,17 @@ export function manualJournalDraftErrors(input: ManualJournalDraftInput): string
   }
 
   return errors;
+}
+
+export function summarizeJournalDetailLines(lines: readonly JournalDetailLineSubject[]): JournalDetailLineSummary {
+  const totalDebit = lines.reduce((total, line) => total + line.debit, 0);
+  const totalCredit = lines.reduce((total, line) => total + line.credit, 0);
+
+  return {
+    lineCount: lines.length,
+    totalDebit,
+    totalCredit,
+    isBalanced: totalDebit > 0 && totalDebit === totalCredit,
+    hasOneSidedLines: lines.every((line) => (line.debit > 0 && line.credit === 0) || (line.credit > 0 && line.debit === 0))
+  };
 }

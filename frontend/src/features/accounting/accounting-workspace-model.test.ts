@@ -5,6 +5,7 @@ import {
   allowedAccountingJournalWorkflows,
   allowedAccountingPeriodWorkflows,
   manualJournalDraftErrors,
+  summarizeJournalDetailLines,
   summarizeManualJournalDraft,
   summarizeAccountingWorkspace
 } from "./accounting-workspace-model.ts";
@@ -126,5 +127,36 @@ test("manualJournalDraftErrors blocks incomplete or unbalanced manual journals",
       "Setiap baris wajib memilih salah satu sisi debit atau kredit saja.",
       "Total debit wajib sama dengan total kredit dan lebih dari nol."
     ]
+  );
+});
+
+test("summarizeJournalDetailLines validates posted journal detail integrity", () => {
+  assert.deepEqual(
+    summarizeJournalDetailLines([
+      { debit: 125000, credit: 0 },
+      { debit: 0, credit: 100000 },
+      { debit: 0, credit: 25000 }
+    ]),
+    {
+      lineCount: 3,
+      totalDebit: 125000,
+      totalCredit: 125000,
+      isBalanced: true,
+      hasOneSidedLines: true
+    }
+  );
+
+  assert.deepEqual(
+    summarizeJournalDetailLines([
+      { debit: 1000, credit: 1000 },
+      { debit: 0, credit: 500 }
+    ]),
+    {
+      lineCount: 2,
+      totalDebit: 1000,
+      totalCredit: 1500,
+      isBalanced: false,
+      hasOneSidedLines: false
+    }
   );
 });

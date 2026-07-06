@@ -45,6 +45,11 @@ export async function listJournals(filters: JournalFilters) {
   return journalSummaryPageSchema.parse(payload);
 }
 
+export async function getJournal(journalId: string) {
+  const payload = await apiGet<unknown>(`/api/journals/${journalId}`);
+  return journalSchema.parse(payload);
+}
+
 export async function createAccount(payload: CreateAccountPayload) {
   const response = await apiPost<CreateAccountPayload, unknown>("/api/accounts", payload);
   return accountSchema.parse(response);

@@ -6,6 +6,7 @@ import {
   CalendarDays,
   CheckCircle2,
   CirclePlus,
+  Eye,
   FileText,
   Loader2,
   LockKeyhole,
@@ -32,6 +33,7 @@ import {
   allowedAccountingPeriodWorkflows,
   manualJournalDraftErrors,
   summarizeAccountingWorkspace,
+  summarizeJournalDetailLines,
   summarizeManualJournalDraft
 } from "./accounting-workspace-model";
 import type {
@@ -40,6 +42,7 @@ import type {
   AccountingPeriodWorkflow,
   AccountType,
   CreateJournalLinePayload,
+  Journal,
   JournalStatus,
   JournalSummary
 } from "./accounting-schema";
@@ -51,6 +54,7 @@ import {
   useCreateAccountingPeriod,
   useCreateAccount,
   useCreateJournal,
+  useJournal,
   useJournals,
   usePostJournal
 } from "./use-accounting";
@@ -217,6 +221,11 @@ function shortId(value: string | null): string {
     return "-";
   }
   return value.length <= 13 ? value : `${value.slice(0, 8)}...${value.slice(-4)}`;
+}
+
+function accountDisplay(accountId: string, accountById: ReadonlyMap<string, Account>): string {
+  const account = accountById.get(accountId);
+  return account ? `${account.code} - ${account.name}` : shortId(accountId);
 }
 
 function InlineMessage({ type, message }: Readonly<{ type: FeedbackType; message: string }>) {
@@ -866,7 +875,7 @@ function PeriodTable({ periods, permissions }: Readonly<{ periods: AccountingPer
               <th className="px-5 py-3 text-left font-bold text-slate-700">Periode</th>
               <th className="px-5 py-3 text-left font-bold text-slate-700">Status</th>
               <th className="px-5 py-3 text-left font-bold text-slate-700">Posting</th>
-              <th className="px-5 py-3 text-left font-bold text-slate-700">Command</th>
+              <th className="px-5 py-3 text-left font-bold text-slate-700">Aksi</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 bg-white">
@@ -950,16 +959,214 @@ function PeriodTable({ periods, permissions }: Readonly<{ periods: AccountingPer
   );
 }
 
+function JournalDetailDrawer({
+  journalId,
+  accounts,
+  periods,
+  enabled,
+  onClose
+}: Readonly<{
+  journalId: string | null;
+  accounts: Account[];
+  periods: AccountingPeriod[];
+  enabled: boolean;
+  onClose: () => void;
+}>) {
+  const journalQuery = useJournal(journalId, enabled);
+  const accountById = useMemo(() => new Map(accounts.map((account) => [account.id, account])), [accounts]);
+  const periodById = useMemo(() => new Map(periods.map((period) => [period.id, period])), [periods]);
+
+  if (!journalId) {
+    return null;
+  }
+
+  const journal = journalQuery.data;
+  const detailSummary = journal ? summarizeJournalDetailLines(journal.lines) : null;
+  const period = journal ? periodById.get(journal.accountingPeriodId) : null;
+
+  return (
+    <div className="fixed inset-0 z-40 bg-slate-950/30">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Detail jurnal"
+        className="ml-auto flex h-full w-full max-w-5xl flex-col overflow-hidden bg-white shadow-2xl"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <FileText className="size-5 text-sky-700" aria-hidden="true" />
+              <h2 className="text-lg font-bold text-slate-950">Detail Jurnal</h2>
+            </div>
+            <p className="mt-1 text-sm font-semibold text-slate-600">
+              {journal?.journalNumber ?? "Memuat detail jurnal"}
+            </p>
+          </div>
+          <button type="button" className={secondaryButtonClass} onClick={onClose}>
+            <X className="size-4" aria-hidden="true" />
+            Tutup
+          </button>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto p-5">
+          {journalQuery.isLoading ? <LoadingSkeleton /> : null}
+
+          {journalQuery.isError ? (
+            <div className="space-y-3">
+              <ErrorState message={apiErrorMessage(journalQuery.error, "Detail jurnal tidak tersedia.")} />
+              <button type="button" className={secondaryButtonClass} onClick={() => void journalQuery.refetch()}>
+                <RotateCcw className="size-4" aria-hidden="true" />
+                Muat Ulang
+              </button>
+            </div>
+          ) : null}
+
+          {!journalQuery.isLoading && !journalQuery.isError && journal ? (
+            <div className="space-y-5">
+              <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <SummaryCard
+                  label="Total Debit"
+                  value={amountFormatter.format(journal.totalDebit)}
+                  helper={`${detailSummary?.lineCount ?? 0} baris jurnal.`}
+                  tone="info"
+                />
+                <SummaryCard
+                  label="Total Kredit"
+                  value={amountFormatter.format(journal.totalCredit)}
+                  helper="Nilai dari backend detail."
+                  tone="neutral"
+                />
+                <SummaryCard
+                  label="Balance"
+                  value={journal.balanced ? "Balance" : "Tidak Balance"}
+                  helper={
+                    detailSummary?.isBalanced
+                      ? "Line detail sesuai debit-kredit."
+                      : "Line detail perlu review kontrol."
+                  }
+                  tone={journal.balanced ? "success" : "warning"}
+                />
+                <SummaryCard
+                  label="One-sided Lines"
+                  value={detailSummary?.hasOneSidedLines ? "Valid" : "Review"}
+                  helper="Tidak ada baris debit dan kredit sekaligus."
+                  tone={detailSummary?.hasOneSidedLines ? "success" : "warning"}
+                />
+              </section>
+
+              <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
+                <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
+                  <FieldValue label="Nomor" value={journal.journalNumber} />
+                  <FieldValue label="Status" value={<StatusBadge label={journalStatusLabels[journal.status]} tone={journalStatusTones[journal.status]} />} />
+                  <FieldValue label="Periode" value={period?.period ?? shortId(journal.accountingPeriodId)} />
+                  <FieldValue label="Source Module" value={journal.sourceModule ?? "MANUAL"} />
+                  <FieldValue label="Source Document" value={journal.sourceDocumentNumber ?? shortId(journal.sourceRecordId)} />
+                  <FieldValue label="Posted" value={formatDateTime(journal.postedAt)} />
+                  <FieldValue label="Posted By" value={journal.postedBy ?? "-"} />
+                  <FieldValue label="Created" value={formatDateTime(journal.createdAt)} />
+                  <FieldValue label="Updated" value={formatDateTime(journal.updatedAt)} />
+                </div>
+                <div className="border-t border-slate-200 px-5 py-4">
+                  <p className="text-xs font-bold uppercase text-slate-600">Deskripsi</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-950">{journal.description || "-"}</p>
+                </div>
+              </section>
+
+              <JournalLineTable journal={journal} accountById={accountById} />
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FieldValue({ label, value }: Readonly<{ label: string; value: ReactNode }>) {
+  return (
+    <div>
+      <p className="text-xs font-bold uppercase text-slate-600">{label}</p>
+      <div className="mt-1 text-sm font-semibold text-slate-950">{value}</div>
+    </div>
+  );
+}
+
+function JournalLineTable({
+  journal,
+  accountById
+}: Readonly<{ journal: Journal; accountById: ReadonlyMap<string, Account> }>) {
+  if (journal.lines.length === 0) {
+    return <EmptyState title="Baris jurnal belum tersedia" description="Detail jurnal tidak memiliki line item." />;
+  }
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+      <SectionTitle icon={<BookOpenCheck className="size-5 text-slate-700" aria-hidden="true" />} title="Baris Jurnal" />
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-slate-200 text-sm">
+          <thead className="bg-slate-50">
+            <tr>
+              <th className="px-5 py-3 text-left font-bold text-slate-700">Akun</th>
+              <th className="px-5 py-3 text-left font-bold text-slate-700">Normal</th>
+              <th className="px-5 py-3 text-right font-bold text-slate-700">Debit</th>
+              <th className="px-5 py-3 text-right font-bold text-slate-700">Kredit</th>
+              <th className="px-5 py-3 text-left font-bold text-slate-700">Memo</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 bg-white">
+            {journal.lines.map((line) => {
+              const account = accountById.get(line.accountId);
+              return (
+                <tr key={line.id} className="hover:bg-slate-50">
+                  <td className="min-w-72 px-5 py-4 font-semibold text-slate-950">
+                    {accountDisplay(line.accountId, accountById)}
+                  </td>
+                  <td className="whitespace-nowrap px-5 py-4">
+                    <StatusBadge
+                      label={account ? normalBalanceLabels[account.normalBalance] : "Unknown"}
+                      tone="neutral"
+                    />
+                  </td>
+                  <td className="whitespace-nowrap px-5 py-4 text-right font-bold text-slate-950">
+                    {amountFormatter.format(line.debit)}
+                  </td>
+                  <td className="whitespace-nowrap px-5 py-4 text-right font-bold text-slate-950">
+                    {amountFormatter.format(line.credit)}
+                  </td>
+                  <td className="min-w-64 px-5 py-4 text-slate-700">{line.description || "-"}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+          <tfoot className="border-t border-slate-200 bg-slate-50">
+            <tr>
+              <td className="px-5 py-3 text-sm font-bold text-slate-950" colSpan={2}>
+                Total
+              </td>
+              <td className="px-5 py-3 text-right text-sm font-bold text-slate-950">{amountFormatter.format(journal.totalDebit)}</td>
+              <td className="px-5 py-3 text-right text-sm font-bold text-slate-950">{amountFormatter.format(journal.totalCredit)}</td>
+              <td className="px-5 py-3">
+                <StatusBadge label={journal.balanced ? "Balance" : "Tidak Balance"} tone={journal.balanced ? "success" : "danger"} />
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function JournalTable({
   journals,
   periods,
   permissions,
-  isFetching
+  isFetching,
+  onSelectJournal
 }: Readonly<{
   journals: JournalSummary[];
   periods: AccountingPeriod[];
   permissions: AccountingPermissions;
   isFetching: boolean;
+  onSelectJournal: (journalId: string) => void;
 }>) {
   const postJournalMutation = usePostJournal();
   const [draft, setDraft] = useState<JournalPostDraft | null>(null);
@@ -1056,6 +1263,11 @@ function JournalTable({
                   </td>
                   <td className="whitespace-nowrap px-5 py-4 text-slate-700">{formatDateTime(journal.postedAt)}</td>
                   <td className="whitespace-nowrap px-5 py-4">
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" className={secondaryButtonClass} onClick={() => onSelectJournal(journal.id)}>
+                        <Eye className="size-4" aria-hidden="true" />
+                        Detail
+                      </button>
                     <button
                       type="button"
                       className={dangerButtonClass}
@@ -1065,6 +1277,7 @@ function JournalTable({
                       <Send className="size-4" aria-hidden="true" />
                       Posting
                     </button>
+                    </div>
                   </td>
                 </tr>
               );
@@ -1145,6 +1358,7 @@ function JournalFilterToolbar({
 
 export function AccountingWorkspace() {
   const [journalStatus, setJournalStatus] = useState<JournalStatusFilter>("ALL");
+  const [selectedJournalId, setSelectedJournalId] = useState<string | null>(null);
   const currentUserQuery = useCurrentUser();
   const queryEnabled = currentUserQuery.isSuccess;
   const permissions = useMemo(
@@ -1152,7 +1366,7 @@ export function AccountingWorkspace() {
     [currentUserQuery.data?.authorities]
   );
 
-  const accountsQuery = useAccounts({ page: 0, size: 25 }, queryEnabled);
+  const accountsQuery = useAccounts({ page: 0, size: 100 }, queryEnabled);
   const periodsQuery = useAccountingPeriods({ page: 0, size: 25 }, queryEnabled);
   const journalsQuery = useJournals(
     {
@@ -1232,7 +1446,13 @@ export function AccountingWorkspace() {
               <AccountTable accounts={accounts} />
               <PeriodTable periods={periods} permissions={permissions} />
               <JournalFilterToolbar status={journalStatus} onStatusChange={setJournalStatus} onReset={() => setJournalStatus("ALL")} />
-              <JournalTable journals={journals} periods={periods} permissions={permissions} isFetching={journalsQuery.isFetching} />
+              <JournalTable
+                journals={journals}
+                periods={periods}
+                permissions={permissions}
+                isFetching={journalsQuery.isFetching}
+                onSelectJournal={setSelectedJournalId}
+              />
             </div>
             <div className="space-y-4">
               <AccountingCommandPanel permissions={permissions} />
@@ -1248,6 +1468,14 @@ export function AccountingWorkspace() {
               </div>
             </div>
           </section>
+
+          <JournalDetailDrawer
+            journalId={selectedJournalId}
+            accounts={accounts}
+            periods={periods}
+            enabled={queryEnabled}
+            onClose={() => setSelectedJournalId(null)}
+          />
         </>
       ) : null}
     </main>

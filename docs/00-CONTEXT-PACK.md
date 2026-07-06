@@ -54,6 +54,7 @@
 | BR-UI-004 | Accounting workspace must present CoA, period, and journal control states without bypassing backend posting governance | Frontend/Accounting | confirmed |
 | BR-UI-005 | Accounting workspace mutations must require matching command permission, audit reason, confirmation for high-risk workflows, and backend revalidation | Frontend/Accounting | confirmed |
 | BR-UI-006 | Billing workspace must use idempotency for batch generation and require controlled invoice issue with receivable/revenue accounts | Frontend/Billing | confirmed |
+| BR-UI-007 | Accounting journal detail must expose debit-credit lines, source traceability, posting metadata, and balance status without adding edit paths | Frontend/Accounting | confirmed |
 | BR-UI-001 | Operational frontend pages expose loading, error, empty, filter, mutation pending, and mutation error states | Frontend | confirmed |
 
 ## Requirements Traceability
@@ -91,6 +92,7 @@
 | REQ-UI-004 | Workspace akuntansi fondasi | Frontend/Accounting | `/accounting` lists CoA, accounting periods, and journals with typed API schemas, summary cards, status badges, journal filter, loading/error/empty states, and permission-aware command availability | T-095 | accounting-workspace-model.test.ts, npm test:permissions, npm typecheck/lint/build |
 | REQ-UI-005 | Workflow command akuntansi | Frontend/Accounting | `/accounting` supports permission-gated CoA creation, accounting period creation, period closing-review/lock confirmation, manual journal draft creation with debit-credit validation, and journal posting confirmation with audit reason | T-096 | accounting-workspace-model.test.ts, npm test:permissions, npm typecheck/lint/build |
 | REQ-UI-006 | Workspace billing fondasi | Frontend/Billing | `/billing` lists billing batches and invoices with typed schemas/hooks, period/status filters, summary cards, idempotent batch generation, draft invoice issue confirmation, account validation, loading/error/empty states, and permission-aware commands | T-097 | billing-workspace-model.test.ts, npm test:permissions, npm typecheck/lint/build |
+| REQ-UI-007 | Detail baca jurnal akuntansi | Frontend/Accounting | `/accounting` opens a read-only journal detail drawer from the journal table, fetches `/api/journals/{journalId}`, shows source traceability, posted metadata, totals, balanced status, and debit-credit lines with account labels | T-098 | accounting-workspace-model.test.ts, npm test:permissions, npm typecheck/lint/build |
 
 ## Decision Log
 
@@ -133,6 +135,7 @@
 | 2026-07-06 | Add Accounting workspace foundation | Finance users need a single operational surface for CoA, periods, and journal control before mutation forms are expanded | `/accounting` now reads typed backend accounting endpoints, summarizes control state, shows command availability from authorities, and keeps posting/period actions non-mutating until workflow forms are implemented |
 | 2026-07-06 | Add Accounting command workflows | Finance users need controlled write workflows without bypassing backend posting governance | `/accounting` now submits CoA, period, manual journal, period close, period lock, and journal post commands through typed TanStack mutations with audit reason, local journal balance validation, permission gates, and query invalidation |
 | 2026-07-06 | Add Billing workspace foundation | Billing users need a controlled surface for batch generation and invoice issue before receivable settlement expansion | `/billing` now reads typed billing batch and invoice endpoints, generates batches with idempotency keys, issues draft invoices with receivable/revenue account selection, and gates commands by backend authorities |
+| 2026-07-07 | Add Accounting journal detail drawer | Finance users need source-to-ledger traceability without leaving the accounting workspace | `/accounting` now fetches full journal details on demand, presents source document, posting metadata, backend totals, line-level debit-credit values, and local line integrity summary in a read-only drawer |
 
 ## Assumptions Register
 
@@ -167,10 +170,10 @@
 
 ## Current Implementation State
 
-- Completed: repository scaffold, docs baseline, backend skeleton, frontend dashboard shell, Money primitive, accounting domain skeleton, persisted audit primitive, idempotency primitive, V2 domain foundation migration, quality gate verification, initial GitHub push, repository-backed Accounting API, customer/connection API foundation, metering API foundation, tariff engine foundation, billing batch foundation, payment webhook foundation, payment idempotency foundation, receivable aging foundation, posted reporting foundation, ledger materialization from posted journals, controlled invoice issue with receivable/revenue posting, controlled counter payment settlement with cash/bank receivable posting, controlled payment reversal with receivable restoration and reversal journal, receivable collection action workflow with dunning controls, frontend receivable collection workspace, collection invoice-customer ownership validation, collection action granular permission enforcement, database-backed user/role/permission authentication, RBAC role/permission seed catalog, secure bootstrap admin provisioning, permission-aware collection action frontend visibility, payment granular permission enforcement and seed catalog, accounting and billing command permission enforcement and seed catalog, permission-aware financial command dashboard visibility, accounting workspace foundation, accounting command workflows, billing workspace foundation.
+- Completed: repository scaffold, docs baseline, backend skeleton, frontend dashboard shell, Money primitive, accounting domain skeleton, persisted audit primitive, idempotency primitive, V2 domain foundation migration, quality gate verification, initial GitHub push, repository-backed Accounting API, customer/connection API foundation, metering API foundation, tariff engine foundation, billing batch foundation, payment webhook foundation, payment idempotency foundation, receivable aging foundation, posted reporting foundation, ledger materialization from posted journals, controlled invoice issue with receivable/revenue posting, controlled counter payment settlement with cash/bank receivable posting, controlled payment reversal with receivable restoration and reversal journal, receivable collection action workflow with dunning controls, frontend receivable collection workspace, collection invoice-customer ownership validation, collection action granular permission enforcement, database-backed user/role/permission authentication, RBAC role/permission seed catalog, secure bootstrap admin provisioning, permission-aware collection action frontend visibility, payment granular permission enforcement and seed catalog, accounting and billing command permission enforcement and seed catalog, permission-aware financial command dashboard visibility, accounting workspace foundation, accounting command workflows, billing workspace foundation, accounting journal detail drawer.
 - In progress: none.
 - Blocked: official tariff values, numbering format, final production auth mechanism decision beyond Basic auth.
-- Next actions: add journal detail/read drawer for accounting, then build payment settlement workspace visibility.
+- Next actions: build payment settlement workspace visibility, then add billing batch invoice drill-down by batch.
 
 ## Latest Verification Snapshot
 
@@ -212,6 +215,7 @@
 | Accounting Workspace Foundation increment | passed: RED/GREEN accounting workspace model test, `npm run test:permissions`, `npm run typecheck`, `npm run lint`, `npm run build` |
 | Accounting Command Workflow increment | passed: RED/GREEN accounting workspace model tests, `npm run test:permissions`, `npm run typecheck`, `npm run lint`, `npm run build` |
 | Billing Workspace Foundation increment | passed: RED/GREEN billing workspace model tests, `npm run test:permissions`, `npm run typecheck`, `npm run lint`, `npm run build` |
+| Accounting Journal Detail Drawer increment | passed: RED/GREEN accounting detail line summary test, `npm run test:permissions`, `npm run typecheck`, `npm run lint`, `npm run build` |
 
 ## Handoff Instructions
 
