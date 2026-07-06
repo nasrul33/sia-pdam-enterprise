@@ -36,6 +36,14 @@
 | collection-action.execute | `POST /api/collection-actions/{id}/start`, `POST /api/collection-actions/{id}/complete` | Petugas Piutang |
 | collection-action.cancel | `POST /api/collection-actions/{id}/cancel` | Supervisor Piutang |
 
+## Authentication Source
+
+- HTTP Basic is backed by `users.password_hash`.
+- Stored password values use Spring Security password encoder prefixes such as `{bcrypt}` for production hashes.
+- User authorities are derived from assigned role permissions in `role_permissions`.
+- Role authorities are exposed as `ROLE_<ROLE_CODE>` with uppercase and hyphen-to-underscore normalization.
+- Disabled users are rejected by Spring Security.
+
 ## Audit Trail Fields
 
 - actor

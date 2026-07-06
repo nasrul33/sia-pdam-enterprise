@@ -32,6 +32,7 @@
 | ReceivableAgingApplicationService | receivable/application | open-invoice aging snapshot with current, 30, 60, 90, and over-90 buckets |
 | CollectionActionApplicationService | receivable/application | overdue invoice dunning validation, invoice-customer ownership validation, duplicate active action guard, audited start/complete/cancel workflow |
 | Permissions | shared/security | central `@PreAuthorize` expressions for granular backend permissions |
+| DatabaseUserDetailsService | shared/security | loads enabled DB users plus role and permission authorities for Spring Security |
 | PostedLedgerReportApplicationService | reporting/application | trial balance from posted ledger entries only, excluding draft operational records |
 | PageResponse | shared/web | shared pagination contract for API lists |
 
