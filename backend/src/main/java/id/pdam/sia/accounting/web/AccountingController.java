@@ -2,6 +2,7 @@ package id.pdam.sia.accounting.web;
 
 import id.pdam.sia.accounting.application.AccountingApplicationService;
 import id.pdam.sia.accounting.domain.JournalStatus;
+import id.pdam.sia.shared.security.Permissions;
 import id.pdam.sia.shared.web.PageResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -41,7 +42,7 @@ public class AccountingController {
 
     @PostMapping("/accounts")
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(Permissions.ACCOUNT_MANAGE)
     public AccountResponse createAccount(@Valid @RequestBody CreateAccountRequest request, Principal principal) {
         return AccountResponse.from(accountingApplicationService.createAccount(request, actor(principal)));
     }
@@ -58,7 +59,7 @@ public class AccountingController {
 
     @PostMapping("/accounting-periods")
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(Permissions.PERIOD_MANAGE)
     public AccountingPeriodResponse createAccountingPeriod(
             @Valid @RequestBody CreateAccountingPeriodRequest request,
             Principal principal
@@ -67,7 +68,7 @@ public class AccountingController {
     }
 
     @PostMapping("/accounting-periods/{periodId}/start-closing-review")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(Permissions.PERIOD_CLOSE)
     public AccountingPeriodResponse startClosingReview(
             @PathVariable UUID periodId,
             @Valid @RequestBody WorkflowReasonRequest request,
@@ -79,7 +80,7 @@ public class AccountingController {
     }
 
     @PostMapping("/accounting-periods/{periodId}/lock")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(Permissions.PERIOD_CLOSE)
     public AccountingPeriodResponse lockPeriod(
             @PathVariable UUID periodId,
             @Valid @RequestBody WorkflowReasonRequest request,
@@ -107,13 +108,13 @@ public class AccountingController {
 
     @PostMapping("/journals")
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(Permissions.JOURNAL_CREATE)
     public JournalResponse createJournal(@Valid @RequestBody CreateJournalRequest request, Principal principal) {
         return JournalResponse.from(accountingApplicationService.createJournal(request, actor(principal)));
     }
 
     @PostMapping("/journals/{journalId}/post")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(Permissions.JOURNAL_POST)
     public JournalResponse postJournal(
             @PathVariable UUID journalId,
             @Valid @RequestBody PostJournalRequest request,

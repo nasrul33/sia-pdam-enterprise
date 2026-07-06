@@ -3,6 +3,7 @@ package id.pdam.sia.billing.web;
 import id.pdam.sia.billing.application.BillingBatchApplicationService;
 import id.pdam.sia.billing.domain.BillingBatchStatus;
 import id.pdam.sia.billing.domain.InvoiceStatus;
+import id.pdam.sia.shared.security.Permissions;
 import id.pdam.sia.shared.web.PageResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -61,7 +62,7 @@ public class BillingBatchController {
 
     @PostMapping("/billing-batches/generate")
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(Permissions.BILLING_GENERATE)
     public BillingBatchGenerationResponse generateBatch(
             @RequestHeader("Idempotency-Key") String idempotencyKey,
             @Valid @RequestBody GenerateBillingBatchRequest request,
@@ -85,7 +86,7 @@ public class BillingBatchController {
     }
 
     @PostMapping("/invoices/{invoiceId}/issue")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(Permissions.INVOICE_ISSUE)
     public InvoiceResponse issueInvoice(
             @PathVariable UUID invoiceId,
             @Valid @RequestBody IssueInvoiceRequest request,

@@ -32,7 +32,7 @@
 
 This endpoint is for UI visibility only. Backend permission checks remain authoritative on command endpoints.
 
-## Accounting Planned
+## Accounting
 
 | Method | Endpoint | Purpose | Permission |
 |---|---|---|---|
@@ -49,6 +49,8 @@ This endpoint is for UI visibility only. Backend permission checks remain author
 | POST | /api/journals/{id}/reverse | reverse journal | journal.reverse |
 
 Mutation payloads require `reason` so audit trail has justification. Journal posting is blocked when debit/credit is not balanced or period is not `OPEN`/`REOPENED`. Successful journal posting materializes one `ledger_entries` row per journal line in the same transaction; downstream financial reports read those ledger rows only.
+
+Accounting command endpoints are enforced server-side through method security for `account.manage`, `period.manage`, `period.close`, `journal.create`, and `journal.post`. Read permission enforcement remains a separate rollout.
 
 ## Customer and Connection
 
@@ -110,9 +112,9 @@ Tariff activation requires sequential contiguous blocks starting at `0.000` m3 a
 | GET | /api/invoices | list invoices with `period`, `status`, pagination | invoice.read |
 | POST | /api/invoices/{invoiceId}/issue | issue draft invoice and post receivable/revenue journal | invoice.issue |
 
-`POST /api/billing-batches/generate` requires `Idempotency-Key` header. Generation requires verified meter readings for the requested `period` and `areaCode`, active connections, active effective tariff versions, no existing invoice for connection-period, and `reason` for audit trail. This endpoint creates `DRAFT` invoices only.
+`POST /api/billing-batches/generate` requires `billing.generate` authority and `Idempotency-Key` header. Generation requires verified meter readings for the requested `period` and `areaCode`, active connections, active effective tariff versions, no existing invoice for connection-period, and `reason` for audit trail. This endpoint creates `DRAFT` invoices only.
 
-`POST /api/invoices/{invoiceId}/issue` requires authentication and payload:
+`POST /api/invoices/{invoiceId}/issue` requires `invoice.issue` authority and payload:
 
 ```json
 {

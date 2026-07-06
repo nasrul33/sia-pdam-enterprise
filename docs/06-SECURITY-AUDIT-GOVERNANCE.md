@@ -40,21 +40,32 @@
 | payment.counter | `POST /api/payments/counter` | Kasir |
 | payment.reverse | `POST /api/payments/{id}/reverse` | Finance Supervisor |
 | payment.webhook.read | `GET /api/payment-webhook-events` | Finance Supervisor, Auditor Internal |
+| account.manage | `POST /api/accounts` | Finance Supervisor |
+| period.manage | `POST /api/accounting-periods` | Finance Supervisor |
+| period.close | `POST /api/accounting-periods/{id}/start-closing-review`, `POST /api/accounting-periods/{id}/lock` | Finance Supervisor |
+| journal.create | `POST /api/journals` | Finance Staff, Finance Supervisor |
+| journal.post | `POST /api/journals/{id}/post` | Finance Supervisor |
+| billing.generate | `POST /api/billing-batches/generate` | Billing Officer, Billing Supervisor |
+| invoice.issue | `POST /api/invoices/{id}/issue` | Billing Supervisor |
 
 ## Seeded RBAC Catalog
 
 - Flyway V7 seeds operational roles and collection action permissions.
 - Flyway V8 seeds payment permissions and role grants.
+- Flyway V9 seeds accounting and billing command permissions and role grants.
 - No default user or default password is seeded by migration.
 - Initial user provisioning must use a controlled operational/admin process with a prefixed password hash, preferably `{bcrypt}`.
 
 | Role | Seeded Permissions |
 |---|---|
-| super-admin | collection-action.read, collection-action.create, collection-action.execute, collection-action.cancel, payment.counter, payment.reverse, payment.webhook.read |
+| super-admin | collection-action.read, collection-action.create, collection-action.execute, collection-action.cancel, payment.counter, payment.reverse, payment.webhook.read, account.manage, period.manage, period.close, journal.create, journal.post, billing.generate, invoice.issue |
 | petugas-piutang | collection-action.read, collection-action.create, collection-action.execute |
 | supervisor-piutang | collection-action.read, collection-action.create, collection-action.cancel |
 | kasir | payment.counter |
-| finance-supervisor | payment.reverse, payment.webhook.read |
+| finance-staff | journal.create |
+| finance-supervisor | payment.reverse, payment.webhook.read, account.manage, period.manage, period.close, journal.create, journal.post |
+| billing-officer | billing.generate |
+| billing-supervisor | billing.generate, invoice.issue |
 | auditor-internal | collection-action.read, payment.webhook.read |
 
 ## Authentication Source
