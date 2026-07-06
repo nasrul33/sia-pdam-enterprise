@@ -52,6 +52,7 @@
 | BR-UI-002 | Collection action frontend visibility follows backend-provided authorities | Frontend/Security | confirmed |
 | BR-UI-003 | Financial command frontend visibility follows backend-provided accounting and billing authorities | Frontend/Security | confirmed |
 | BR-UI-004 | Accounting workspace must present CoA, period, and journal control states without bypassing backend posting governance | Frontend/Accounting | confirmed |
+| BR-UI-005 | Accounting workspace mutations must require matching command permission, audit reason, confirmation for high-risk workflows, and backend revalidation | Frontend/Accounting | confirmed |
 | BR-UI-001 | Operational frontend pages expose loading, error, empty, filter, mutation pending, and mutation error states | Frontend | confirmed |
 
 ## Requirements Traceability
@@ -87,6 +88,7 @@
 | REQ-UI-002 | Visibility aksi penagihan permission-aware | Frontend/Security | Frontend reads `/api/auth/me`, gates list/create/execute/cancel controls by `collection-action.*` authorities, and keeps backend enforcement authoritative | T-091 | AuthControllerTest, collection-action-permissions.test.ts |
 | REQ-UI-003 | Visibility command finansial permission-aware | Frontend/Security | Dashboard reads `/api/auth/me` and shows accounting/billing command access from `account.manage`, `period.manage`, `period.close`, `journal.create`, `journal.post`, `billing.generate`, and `invoice.issue` authorities | T-094 | financial-command-permissions.test.ts, npm test:permissions, npm typecheck/lint/build |
 | REQ-UI-004 | Workspace akuntansi fondasi | Frontend/Accounting | `/accounting` lists CoA, accounting periods, and journals with typed API schemas, summary cards, status badges, journal filter, loading/error/empty states, and permission-aware command availability | T-095 | accounting-workspace-model.test.ts, npm test:permissions, npm typecheck/lint/build |
+| REQ-UI-005 | Workflow command akuntansi | Frontend/Accounting | `/accounting` supports permission-gated CoA creation, accounting period creation, period closing-review/lock confirmation, manual journal draft creation with debit-credit validation, and journal posting confirmation with audit reason | T-096 | accounting-workspace-model.test.ts, npm test:permissions, npm typecheck/lint/build |
 
 ## Decision Log
 
@@ -127,6 +129,7 @@
 | 2026-07-06 | Add Accounting and Billing command permissions | Posting, period lock, billing generation, and invoice issue create financial impact and must not rely on broad authentication | Backend now requires granular authorities for account manage, period manage/close, journal create/post, billing generate, and invoice issue; Flyway V9 seeds grants without default credentials |
 | 2026-07-06 | Add Financial Command Access dashboard panel | Users need visible command availability before full accounting/billing workspaces are built | Dashboard now maps backend-provided accounting/billing authorities into active/locked command states with loading, error, and empty handling |
 | 2026-07-06 | Add Accounting workspace foundation | Finance users need a single operational surface for CoA, periods, and journal control before mutation forms are expanded | `/accounting` now reads typed backend accounting endpoints, summarizes control state, shows command availability from authorities, and keeps posting/period actions non-mutating until workflow forms are implemented |
+| 2026-07-06 | Add Accounting command workflows | Finance users need controlled write workflows without bypassing backend posting governance | `/accounting` now submits CoA, period, manual journal, period close, period lock, and journal post commands through typed TanStack mutations with audit reason, local journal balance validation, permission gates, and query invalidation |
 
 ## Assumptions Register
 
@@ -161,10 +164,10 @@
 
 ## Current Implementation State
 
-- Completed: repository scaffold, docs baseline, backend skeleton, frontend dashboard shell, Money primitive, accounting domain skeleton, persisted audit primitive, idempotency primitive, V2 domain foundation migration, quality gate verification, initial GitHub push, repository-backed Accounting API, customer/connection API foundation, metering API foundation, tariff engine foundation, billing batch foundation, payment webhook foundation, payment idempotency foundation, receivable aging foundation, posted reporting foundation, ledger materialization from posted journals, controlled invoice issue with receivable/revenue posting, controlled counter payment settlement with cash/bank receivable posting, controlled payment reversal with receivable restoration and reversal journal, receivable collection action workflow with dunning controls, frontend receivable collection workspace, collection invoice-customer ownership validation, collection action granular permission enforcement, database-backed user/role/permission authentication, RBAC role/permission seed catalog, secure bootstrap admin provisioning, permission-aware collection action frontend visibility, payment granular permission enforcement and seed catalog, accounting and billing command permission enforcement and seed catalog, permission-aware financial command dashboard visibility, accounting workspace foundation.
+- Completed: repository scaffold, docs baseline, backend skeleton, frontend dashboard shell, Money primitive, accounting domain skeleton, persisted audit primitive, idempotency primitive, V2 domain foundation migration, quality gate verification, initial GitHub push, repository-backed Accounting API, customer/connection API foundation, metering API foundation, tariff engine foundation, billing batch foundation, payment webhook foundation, payment idempotency foundation, receivable aging foundation, posted reporting foundation, ledger materialization from posted journals, controlled invoice issue with receivable/revenue posting, controlled counter payment settlement with cash/bank receivable posting, controlled payment reversal with receivable restoration and reversal journal, receivable collection action workflow with dunning controls, frontend receivable collection workspace, collection invoice-customer ownership validation, collection action granular permission enforcement, database-backed user/role/permission authentication, RBAC role/permission seed catalog, secure bootstrap admin provisioning, permission-aware collection action frontend visibility, payment granular permission enforcement and seed catalog, accounting and billing command permission enforcement and seed catalog, permission-aware financial command dashboard visibility, accounting workspace foundation, accounting command workflows.
 - In progress: none.
 - Blocked: official tariff values, numbering format, final production auth mechanism decision beyond Basic auth.
-- Next actions: add accounting mutation workflows for CoA/period/journal commands with confirmation and audit reason, then build billing workspace foundation.
+- Next actions: build billing workspace foundation with billing batch and invoice issue commands, then add journal detail/read drawer for accounting.
 
 ## Latest Verification Snapshot
 
@@ -204,6 +207,7 @@
 | Accounting Billing Permission increment | passed: RED/GREEN controller/migration tests, `gradle clean test bootJar`, backend Docker build, smoke health, Flyway version 9, 7 accounting/billing command permissions, 16 command grants, `/api/auth/me` exposes new super-admin authorities, anonymous journal command `401`, authenticated invalid journal command `422` |
 | Permission-aware Financial Command Frontend increment | passed: RED/GREEN financial permission helper test, `npm run test:permissions`, `npm run typecheck`, `npm run lint`, `npm run build` |
 | Accounting Workspace Foundation increment | passed: RED/GREEN accounting workspace model test, `npm run test:permissions`, `npm run typecheck`, `npm run lint`, `npm run build` |
+| Accounting Command Workflow increment | passed: RED/GREEN accounting workspace model tests, `npm run test:permissions`, `npm run typecheck`, `npm run lint`, `npm run build` |
 
 ## Handoff Instructions
 

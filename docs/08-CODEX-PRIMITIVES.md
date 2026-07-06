@@ -61,3 +61,4 @@
 | current user hook and collection action permissions | features/auth, features/receivables/collection-actions | `/api/auth/me` authority lookup and permission-gated collection action controls |
 | financial command access panel and permissions | features/security, app dashboard | `/api/auth/me` authority lookup and accounting/billing command access visibility with loading/error/empty states |
 | accounting schema/hooks/workspace | features/accounting, app/accounting | typed CoA, period, and journal lists with summary cards, status badges, filters, and permission-aware command availability |
+| accounting mutation hooks and command validation | features/accounting | typed CoA, period, manual journal, period workflow, and journal posting mutations with audit reason handling and local debit-credit validation |

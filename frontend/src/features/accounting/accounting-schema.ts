@@ -53,6 +53,34 @@ export const accountPageSchema = z.object({
   totalPages: z.number().int().nonnegative()
 });
 
+export const journalLineSchema = z.object({
+  id: z.string().uuid(),
+  accountId: z.string().uuid(),
+  debit: z.coerce.number().nonnegative(),
+  credit: z.coerce.number().nonnegative(),
+  description: z.string().nullable()
+});
+
+export const journalSchema = z.object({
+  id: z.string().uuid(),
+  journalNumber: z.string().min(1),
+  accountingPeriodId: z.string().uuid(),
+  description: z.string(),
+  status: journalStatusSchema,
+  totalDebit: z.coerce.number().nonnegative(),
+  totalCredit: z.coerce.number().nonnegative(),
+  balanced: z.boolean(),
+  postedAt: z.string().min(1).nullable(),
+  postedBy: z.string().nullable(),
+  sourceModule: z.string().nullable(),
+  sourceRecordId: z.string().uuid().nullable(),
+  sourceDocumentNumber: z.string().nullable(),
+  lines: z.array(journalLineSchema),
+  availableActions: z.array(z.string().min(1)),
+  createdAt: z.string().min(1),
+  updatedAt: z.string().min(1)
+});
+
 export const accountingPeriodPageSchema = z.object({
   items: z.array(accountingPeriodSchema),
   page: z.number().int().nonnegative(),
@@ -76,6 +104,8 @@ export type JournalStatus = z.infer<typeof journalStatusSchema>;
 export type Account = z.infer<typeof accountSchema>;
 export type AccountingPeriod = z.infer<typeof accountingPeriodSchema>;
 export type JournalSummary = z.infer<typeof journalSummarySchema>;
+export type JournalLine = z.infer<typeof journalLineSchema>;
+export type Journal = z.infer<typeof journalSchema>;
 export type AccountPage = z.infer<typeof accountPageSchema>;
 export type AccountingPeriodPage = z.infer<typeof accountingPeriodPageSchema>;
 export type JournalSummaryPage = z.infer<typeof journalSummaryPageSchema>;
@@ -89,3 +119,33 @@ export type JournalFilters = PageFilters & {
   status?: JournalStatus;
   accountingPeriodId?: string;
 };
+
+export type WorkflowReasonPayload = {
+  reason: string;
+};
+
+export type CreateAccountPayload = WorkflowReasonPayload & {
+  code: string;
+  name: string;
+  type: AccountType;
+};
+
+export type CreateAccountingPeriodPayload = WorkflowReasonPayload & {
+  period: string;
+};
+
+export type CreateJournalLinePayload = {
+  accountId: string;
+  debit: number;
+  credit: number;
+  description: string;
+};
+
+export type CreateJournalPayload = WorkflowReasonPayload & {
+  journalNumber: string;
+  accountingPeriodId: string;
+  description: string;
+  lines: CreateJournalLinePayload[];
+};
+
+export type AccountingPeriodWorkflow = "start-closing-review" | "lock";

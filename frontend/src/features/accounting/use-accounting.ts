@@ -1,7 +1,24 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query/query-keys";
-import { listAccountingPeriods, listAccounts, listJournals } from "./accounting-api";
-import type { JournalFilters, PageFilters } from "./accounting-schema";
+import {
+  createAccountingPeriod,
+  createAccount,
+  createJournal,
+  listAccountingPeriods,
+  listAccounts,
+  listJournals,
+  postJournal,
+  submitAccountingPeriodWorkflow
+} from "./accounting-api";
+import type {
+  AccountingPeriodWorkflow,
+  CreateAccountingPeriodPayload,
+  CreateAccountPayload,
+  CreateJournalPayload,
+  JournalFilters,
+  PageFilters,
+  WorkflowReasonPayload
+} from "./accounting-schema";
 
 export function useAccounts(filters: PageFilters, enabled = true) {
   return useQuery({
@@ -24,5 +41,60 @@ export function useJournals(filters: JournalFilters, enabled = true) {
     queryKey: [...queryKeys.journals, "list", filters],
     queryFn: () => listJournals(filters),
     enabled
+  });
+}
+
+export function useCreateAccount() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CreateAccountPayload) => createAccount(payload),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
+    }
+  });
+}
+
+export function useCreateAccountingPeriod() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CreateAccountingPeriodPayload) => createAccountingPeriod(payload),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.accountingPeriods });
+    }
+  });
+}
+
+export function useAccountingPeriodWorkflow() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      periodId: string;
+      workflow: AccountingPeriodWorkflow;
+      payload: WorkflowReasonPayload;
+    }) => submitAccountingPeriodWorkflow(input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.accountingPeriods });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.journals });
+    }
+  });
+}
+
+export function useCreateJournal() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CreateJournalPayload) => createJournal(payload),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.journals });
+    }
+  });
+}
+
+export function usePostJournal() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { journalId: string; payload: WorkflowReasonPayload }) => postJournal(input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.journals });
+    }
   });
 }
