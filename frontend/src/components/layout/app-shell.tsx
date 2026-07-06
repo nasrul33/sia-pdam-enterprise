@@ -21,7 +21,7 @@ const navItems = [
   { label: "Billing", href: "/", icon: ReceiptText },
   { label: "Pembayaran", href: "/", icon: WalletCards },
   { label: "Piutang", href: "/receivables/collection-actions", icon: Banknote },
-  { label: "Akuntansi", href: "/", icon: BookOpenCheck },
+  { label: "Akuntansi", href: "/accounting", icon: BookOpenCheck },
   { label: "Laporan", href: "/", icon: ClipboardList },
   { label: "Admin", href: "/", icon: UserRoundCog }
 ] as const;

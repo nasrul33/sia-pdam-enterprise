@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test:permissions": "node --test --experimental-strip-types src/features/receivables/collection-actions/collection-action-permissions.test.ts src/features/security/financial-command-permissions.test.ts",
+    "test:permissions": "node --test --experimental-strip-types src/features/receivables/collection-actions/collection-action-permissions.test.ts src/features/security/financial-command-permissions.test.ts src/features/accounting/accounting-workspace-model.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
