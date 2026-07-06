@@ -76,6 +76,13 @@
 - Role authorities are exposed as `ROLE_<ROLE_CODE>` with uppercase and hyphen-to-underscore normalization.
 - Disabled users are rejected by Spring Security.
 
+## Frontend Permission Visibility
+
+- Frontend reads `/api/auth/me` for visibility and disabled/locked states only.
+- Collection action UI is gated by `collection-action.*` authorities.
+- Dashboard financial command panel is gated by accounting and billing command authorities.
+- Backend method security remains authoritative for every financial command.
+
 ## Bootstrap Admin Provisioning
 
 - No bootstrap user is created unless all three env vars are provided: `SIA_BOOTSTRAP_ADMIN_USERNAME`, `SIA_BOOTSTRAP_ADMIN_EMAIL`, and `SIA_BOOTSTRAP_ADMIN_PASSWORD`.

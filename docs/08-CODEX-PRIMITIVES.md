@@ -59,3 +59,4 @@
 | dashboard schema/hook | features/dashboard | validates backend dashboard response with Zod |
 | collection action schema/hooks/workspace | features/receivables/collection-actions | typed receivable collection list, create, start, complete, cancel workflows with loading/error/empty states |
 | current user hook and collection action permissions | features/auth, features/receivables/collection-actions | `/api/auth/me` authority lookup and permission-gated collection action controls |
+| financial command access panel and permissions | features/security, app dashboard | `/api/auth/me` authority lookup and accounting/billing command access visibility with loading/error/empty states |

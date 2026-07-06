@@ -50,6 +50,7 @@
 | BR-SEC-005 | Payment settlement, reversal, and webhook event read endpoints require granular backend permissions while provider webhook remains HMAC-authenticated | Security/Payment | confirmed |
 | BR-SEC-006 | Accounting and billing financial command endpoints require granular backend permissions | Security/Accounting/Billing | confirmed |
 | BR-UI-002 | Collection action frontend visibility follows backend-provided authorities | Frontend/Security | confirmed |
+| BR-UI-003 | Financial command frontend visibility follows backend-provided accounting and billing authorities | Frontend/Security | confirmed |
 | BR-UI-001 | Operational frontend pages expose loading, error, empty, filter, mutation pending, and mutation error states | Frontend | confirmed |
 
 ## Requirements Traceability
@@ -83,6 +84,7 @@
 | REQ-SEC-006 | Permission granular command akuntansi dan billing | Security/Accounting/Billing | Account manage, period manage/close, journal create/post, billing generate, and invoice issue use `account.manage`, `period.manage`, `period.close`, `journal.create`, `journal.post`, `billing.generate`, and `invoice.issue` authorities | T-093 | AccountingControllerPermissionTest, BillingControllerPermissionTest, AccountingBillingPermissionSeedMigrationTest |
 | REQ-UI-001 | Workspace penagihan piutang siap operasional | Frontend | `/receivables/collection-actions` provides typed API integration, filters, create form, workflow actions, loading/error/empty states, and mutation feedback | T-086 | npm lint, typecheck, build |
 | REQ-UI-002 | Visibility aksi penagihan permission-aware | Frontend/Security | Frontend reads `/api/auth/me`, gates list/create/execute/cancel controls by `collection-action.*` authorities, and keeps backend enforcement authoritative | T-091 | AuthControllerTest, collection-action-permissions.test.ts |
+| REQ-UI-003 | Visibility command finansial permission-aware | Frontend/Security | Dashboard reads `/api/auth/me` and shows accounting/billing command access from `account.manage`, `period.manage`, `period.close`, `journal.create`, `journal.post`, `billing.generate`, and `invoice.issue` authorities | T-094 | financial-command-permissions.test.ts, npm test:permissions, npm typecheck/lint/build |
 
 ## Decision Log
 
@@ -121,6 +123,7 @@
 | 2026-07-06 | Add permission-aware collection action frontend | Sensitive collection actions should not be visible to users without matching authorities | Frontend now loads current user authorities from `/api/auth/me` and gates read/create/execute/cancel controls while backend permissions remain authoritative |
 | 2026-07-06 | Add Payment granular permissions | Cash settlement, reversal, and webhook monitoring are sensitive payment operations | Backend now requires `payment.counter`, `payment.reverse`, and `payment.webhook.read`; Flyway V8 seeds payment grants; provider webhook stays public at filter chain but HMAC-validated in application service |
 | 2026-07-06 | Add Accounting and Billing command permissions | Posting, period lock, billing generation, and invoice issue create financial impact and must not rely on broad authentication | Backend now requires granular authorities for account manage, period manage/close, journal create/post, billing generate, and invoice issue; Flyway V9 seeds grants without default credentials |
+| 2026-07-06 | Add Financial Command Access dashboard panel | Users need visible command availability before full accounting/billing workspaces are built | Dashboard now maps backend-provided accounting/billing authorities into active/locked command states with loading, error, and empty handling |
 
 ## Assumptions Register
 
@@ -155,10 +158,10 @@
 
 ## Current Implementation State
 
-- Completed: repository scaffold, docs baseline, backend skeleton, frontend dashboard shell, Money primitive, accounting domain skeleton, persisted audit primitive, idempotency primitive, V2 domain foundation migration, quality gate verification, initial GitHub push, repository-backed Accounting API, customer/connection API foundation, metering API foundation, tariff engine foundation, billing batch foundation, payment webhook foundation, payment idempotency foundation, receivable aging foundation, posted reporting foundation, ledger materialization from posted journals, controlled invoice issue with receivable/revenue posting, controlled counter payment settlement with cash/bank receivable posting, controlled payment reversal with receivable restoration and reversal journal, receivable collection action workflow with dunning controls, frontend receivable collection workspace, collection invoice-customer ownership validation, collection action granular permission enforcement, database-backed user/role/permission authentication, RBAC role/permission seed catalog, secure bootstrap admin provisioning, permission-aware collection action frontend visibility, payment granular permission enforcement and seed catalog, accounting and billing command permission enforcement and seed catalog.
+- Completed: repository scaffold, docs baseline, backend skeleton, frontend dashboard shell, Money primitive, accounting domain skeleton, persisted audit primitive, idempotency primitive, V2 domain foundation migration, quality gate verification, initial GitHub push, repository-backed Accounting API, customer/connection API foundation, metering API foundation, tariff engine foundation, billing batch foundation, payment webhook foundation, payment idempotency foundation, receivable aging foundation, posted reporting foundation, ledger materialization from posted journals, controlled invoice issue with receivable/revenue posting, controlled counter payment settlement with cash/bank receivable posting, controlled payment reversal with receivable restoration and reversal journal, receivable collection action workflow with dunning controls, frontend receivable collection workspace, collection invoice-customer ownership validation, collection action granular permission enforcement, database-backed user/role/permission authentication, RBAC role/permission seed catalog, secure bootstrap admin provisioning, permission-aware collection action frontend visibility, payment granular permission enforcement and seed catalog, accounting and billing command permission enforcement and seed catalog, permission-aware financial command dashboard visibility.
 - In progress: none.
 - Blocked: official tariff values, numbering format, final production auth mechanism decision beyond Basic auth.
-- Next actions: add permission-aware frontend controls for accounting and billing command actions, then expand granular read permissions across master data modules.
+- Next actions: build full accounting/billing workspaces around the existing command permissions, then expand granular read permissions across master data modules.
 
 ## Latest Verification Snapshot
 
@@ -196,6 +199,7 @@
 | Permission-aware Collection Frontend increment | passed: RED/GREEN AuthController test, RED/GREEN frontend permission helper test, `gradle clean test bootJar`, `npm run typecheck`, `npm run lint`, `npm run build`, backend/frontend Docker build, `/api/auth/me` smoke with authorities, protected endpoint `200`, anonymous `401` |
 | Payment Permission increment | passed: RED/GREEN controller/security/migration tests, `gradle clean test bootJar`, backend Docker build, smoke health, Flyway version 8, 3 payment permissions, 7 payment grants, `GET /api/payment-webhook-events` authenticated `200` and anonymous `401`, provider webhook HMAC callback without Basic auth `202` |
 | Accounting Billing Permission increment | passed: RED/GREEN controller/migration tests, `gradle clean test bootJar`, backend Docker build, smoke health, Flyway version 9, 7 accounting/billing command permissions, 16 command grants, `/api/auth/me` exposes new super-admin authorities, anonymous journal command `401`, authenticated invalid journal command `422` |
+| Permission-aware Financial Command Frontend increment | passed: RED/GREEN financial permission helper test, `npm run test:permissions`, `npm run typecheck`, `npm run lint`, `npm run build` |
 
 ## Handoff Instructions
 

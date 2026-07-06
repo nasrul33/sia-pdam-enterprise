@@ -4,7 +4,7 @@ import {
   allowedCollectionActionWorkflows,
   collectionActionPermissions,
   resolveCollectionActionPermissions
-} from "./collection-action-permissions";
+} from "./collection-action-permissions.ts";
 
 test("resolveCollectionActionPermissions maps authorities to collection action controls", () => {
   assert.deepEqual(

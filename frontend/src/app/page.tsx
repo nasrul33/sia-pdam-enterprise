@@ -8,6 +8,7 @@ import { LoadingSkeleton } from "@/components/state/loading-skeleton";
 import { StatusBadge } from "@/components/status/status-badge";
 import { useDashboardOverview } from "@/features/dashboard/use-dashboard-overview";
 import type { DashboardMetric, ModuleHealth, QualityGate, RiskItem } from "@/features/dashboard/dashboard-schema";
+import { FinancialCommandAccessPanel } from "@/features/security/financial-command-access-panel";
 
 const moduleStatusLabel: Record<ModuleHealth["status"], string> = {
   ready: "Ready",
@@ -185,6 +186,7 @@ export default function HomePage() {
       <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
         <ModuleTable modules={data.modules} />
         <div className="space-y-4">
+          <FinancialCommandAccessPanel />
           <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center gap-2">
               <ShieldCheck className="size-5 text-sky-700" aria-hidden="true" />
