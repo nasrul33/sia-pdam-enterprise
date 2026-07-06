@@ -128,10 +128,12 @@ Invoice issue is allowed only from `DRAFT`, and `reason` is mandatory for audit 
 
 | Method | Endpoint | Purpose | Permission |
 |---|---|---|---|
-| POST | /api/payments/webhook | receive HMAC-validated payment provider webhook | payment.webhook |
+| POST | /api/payments/webhook | receive HMAC-validated payment provider webhook | HMAC signature |
 | GET | /api/payment-webhook-events | list webhook events with `provider`, `status`, pagination | payment.webhook.read |
 
-`POST /api/payments/webhook` requires `X-Payment-Signature`. The signature is HMAC-SHA256 over canonical payload `provider\nexternalReference\nidempotencyKey\npayload` using `sia.payment.webhook.secret`. This endpoint stores `RECEIVED` events only; settlement allocation, receipt creation, and journal posting are handled by later controlled payment workflow tasks.
+`POST /api/payments/webhook` requires `X-Payment-Signature`. The signature is HMAC-SHA256 over canonical payload `provider\nexternalReference\nidempotencyKey\npayload` using `sia.payment.webhook.secret`. This endpoint is not protected by user Basic auth because provider callbacks are authenticated by signature. It stores `RECEIVED` events only; settlement allocation, receipt creation, and journal posting are handled by later controlled payment workflow tasks.
+
+`GET /api/payment-webhook-events` requires `payment.webhook.read` authority.
 
 ## Payment Settlement
 
@@ -141,7 +143,7 @@ All payment settlement mutation endpoints must send an `Idempotency-Key` header 
 |---|---|---|---|
 | POST | /api/payments/counter | counter payment settlement | payment.counter |
 
-`POST /api/payments/counter` requires authentication, `Idempotency-Key`, `amount`, `paidAt`, `allocations[]`, `cashAccountId`, `receivableAccountId`, and `reason`. The payment amount must equal the allocation total. Each invoice allocation must target an `ISSUED` or `PARTIAL_PAID` invoice and cannot exceed invoice outstanding amount. Accounting period is derived from `paidAt` using UTC `yyyy-MM`; the period must exist and allow posting. Accounting validates cash/bank and receivable accounts as `ASSET`, blocks duplicate source journals, posts debit cash/bank and credit receivable through `PostingService`, materializes ledger entries, then links `payments.settlement_journal_entry_id`. A completed retry with the same idempotency key and payload returns the original payment, receipt, and allocations without duplicate writes or duplicate journal posting.
+`POST /api/payments/counter` requires `payment.counter` authority, `Idempotency-Key`, `amount`, `paidAt`, `allocations[]`, `cashAccountId`, `receivableAccountId`, and `reason`. The payment amount must equal the allocation total. Each invoice allocation must target an `ISSUED` or `PARTIAL_PAID` invoice and cannot exceed invoice outstanding amount. Accounting period is derived from `paidAt` using UTC `yyyy-MM`; the period must exist and allow posting. Accounting validates cash/bank and receivable accounts as `ASSET`, blocks duplicate source journals, posts debit cash/bank and credit receivable through `PostingService`, materializes ledger entries, then links `payments.settlement_journal_entry_id`. A completed retry with the same idempotency key and payload returns the original payment, receipt, and allocations without duplicate writes or duplicate journal posting.
 
 ## Payment Reversal
 
@@ -149,7 +151,7 @@ All payment settlement mutation endpoints must send an `Idempotency-Key` header 
 |---|---|---|---|
 | POST | /api/payments/{id}/reverse | reverse settled payment | payment.reverse |
 
-`POST /api/payments/{id}/reverse` requires authentication, `cashAccountId`, `receivableAccountId`, and mandatory `reason`. Reversal is allowed only for `SETTLED` payments with an existing settlement journal. It restores each payment allocation back to invoice outstanding, marks the payment `REVERSED`, posts a source-traceable reversal journal (`sourceModule=PAYMENT_REVERSAL`) through `PostingService`, materializes ledger entries, and links `payments.reversal_journal_entry_id`. The reversal journal debits receivable and credits cash/bank.
+`POST /api/payments/{id}/reverse` requires `payment.reverse` authority, `cashAccountId`, `receivableAccountId`, and mandatory `reason`. Reversal is allowed only for `SETTLED` payments with an existing settlement journal. It restores each payment allocation back to invoice outstanding, marks the payment `REVERSED`, posts a source-traceable reversal journal (`sourceModule=PAYMENT_REVERSAL`) through `PostingService`, materializes ledger entries, and links `payments.reversal_journal_entry_id`. The reversal journal debits receivable and credits cash/bank.
 
 ## Receivable Aging
 

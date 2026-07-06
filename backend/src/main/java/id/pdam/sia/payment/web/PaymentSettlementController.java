@@ -1,6 +1,7 @@
 package id.pdam.sia.payment.web;
 
 import id.pdam.sia.payment.application.PaymentSettlementApplicationService;
+import id.pdam.sia.shared.security.Permissions;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -26,7 +27,7 @@ public class PaymentSettlementController {
 
     @PostMapping("/payments/counter")
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(Permissions.PAYMENT_COUNTER)
     public PaymentSettlementResponse settleCounterPayment(
             @RequestHeader("Idempotency-Key") String idempotencyKey,
             @Valid @RequestBody SettleCounterPaymentRequest request,
@@ -38,7 +39,7 @@ public class PaymentSettlementController {
     }
 
     @PostMapping("/payments/{paymentId}/reverse")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(Permissions.PAYMENT_REVERSE)
     public PaymentSettlementResponse reversePayment(
             @PathVariable UUID paymentId,
             @Valid @RequestBody ReversePaymentRequest request,

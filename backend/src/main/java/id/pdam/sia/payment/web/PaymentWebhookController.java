@@ -2,11 +2,13 @@ package id.pdam.sia.payment.web;
 
 import id.pdam.sia.payment.application.PaymentWebhookApplicationService;
 import id.pdam.sia.payment.domain.PaymentWebhookStatus;
+import id.pdam.sia.shared.security.Permissions;
 import id.pdam.sia.shared.web.PageResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -39,6 +41,7 @@ public class PaymentWebhookController {
     }
 
     @GetMapping("/payment-webhook-events")
+    @PreAuthorize(Permissions.PAYMENT_WEBHOOK_READ)
     public PageResponse<PaymentWebhookResponse> listEvents(
             @RequestParam(required = false) String provider,
             @RequestParam(required = false) PaymentWebhookStatus status,

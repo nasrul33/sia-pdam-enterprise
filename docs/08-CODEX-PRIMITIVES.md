@@ -34,6 +34,7 @@
 | Permissions | shared/security | central `@PreAuthorize` expressions for granular backend permissions |
 | DatabaseUserDetailsService | shared/security | loads enabled DB users plus role and permission authorities for Spring Security |
 | RBAC Seed Migration | db/migration | idempotent operational role, permission, and grant catalog without default credentials |
+| Payment Permission Seed Migration | db/migration | idempotent payment permission and role grant catalog without default credentials |
 | BootstrapAdminUserService | shared/security | opt-in initial admin provisioning from explicit env vars with encoded password and idempotent super-admin grant |
 | AuthController | auth | exposes authenticated username and authorities for frontend permission visibility |
 | PostedLedgerReportApplicationService | reporting/application | trial balance from posted ledger entries only, excluding draft operational records |

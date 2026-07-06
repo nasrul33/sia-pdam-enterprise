@@ -37,19 +37,25 @@
 | collection-action.create | `POST /api/collection-actions` | Petugas Piutang, Supervisor Piutang |
 | collection-action.execute | `POST /api/collection-actions/{id}/start`, `POST /api/collection-actions/{id}/complete` | Petugas Piutang |
 | collection-action.cancel | `POST /api/collection-actions/{id}/cancel` | Supervisor Piutang |
+| payment.counter | `POST /api/payments/counter` | Kasir |
+| payment.reverse | `POST /api/payments/{id}/reverse` | Finance Supervisor |
+| payment.webhook.read | `GET /api/payment-webhook-events` | Finance Supervisor, Auditor Internal |
 
 ## Seeded RBAC Catalog
 
-- Flyway V7 seeds role and permission catalog only.
+- Flyway V7 seeds operational roles and collection action permissions.
+- Flyway V8 seeds payment permissions and role grants.
 - No default user or default password is seeded by migration.
 - Initial user provisioning must use a controlled operational/admin process with a prefixed password hash, preferably `{bcrypt}`.
 
 | Role | Seeded Permissions |
 |---|---|
-| super-admin | collection-action.read, collection-action.create, collection-action.execute, collection-action.cancel |
+| super-admin | collection-action.read, collection-action.create, collection-action.execute, collection-action.cancel, payment.counter, payment.reverse, payment.webhook.read |
 | petugas-piutang | collection-action.read, collection-action.create, collection-action.execute |
 | supervisor-piutang | collection-action.read, collection-action.create, collection-action.cancel |
-| auditor-internal | collection-action.read |
+| kasir | payment.counter |
+| finance-supervisor | payment.reverse, payment.webhook.read |
+| auditor-internal | collection-action.read, payment.webhook.read |
 
 ## Authentication Source
 
