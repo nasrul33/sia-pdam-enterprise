@@ -1,5 +1,6 @@
 export const queryKeys = {
   status: ["status"] as const,
+  currentUser: ["current-user"] as const,
   accounts: ["accounts"] as const,
   journals: ["journals"] as const,
   customers: ["customers"] as const,

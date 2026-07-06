@@ -6,6 +6,7 @@
 |---|---|---|---|
 | GET | /api/status | service status | public/dev |
 | GET | /api/dashboard/overview | bootstrap dashboard overview | public/dev read-only |
+| GET | /api/auth/me | current authenticated user and authorities for frontend permission visibility | authenticated |
 
 `/api/dashboard/overview` returns:
 
@@ -18,6 +19,18 @@
   "risks": []
 }
 ```
+
+`/api/auth/me` returns:
+
+```json
+{
+  "username": "bootstrap.admin",
+  "authenticated": true,
+  "authorities": ["ROLE_SUPER_ADMIN", "collection-action.read"]
+}
+```
+
+This endpoint is for UI visibility only. Backend permission checks remain authoritative on command endpoints.
 
 ## Accounting Planned
 

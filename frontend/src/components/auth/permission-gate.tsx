@@ -1,8 +1,12 @@
-export function PermissionGate({ allowed, children }: Readonly<{ allowed: boolean; children: React.ReactNode }>) {
+export function PermissionGate({
+  allowed,
+  children,
+  message = "Anda tidak memiliki izin untuk mengakses aksi ini."
+}: Readonly<{ allowed: boolean; children?: React.ReactNode; message?: string }>) {
   if (!allowed) {
     return (
-      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-        Anda tidak memiliki izin untuk mengakses aksi ini.
+      <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
+        {message}
       </div>
     );
   }

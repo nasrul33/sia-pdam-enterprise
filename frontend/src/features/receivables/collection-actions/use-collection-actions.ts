@@ -12,10 +12,11 @@ import type {
   CreateCollectionActionPayload
 } from "./collection-action-schema";
 
-export function useCollectionActions(filters: CollectionActionFilters) {
+export function useCollectionActions(filters: CollectionActionFilters, enabled = true) {
   return useQuery({
     queryKey: [...queryKeys.collectionActions, "list", filters],
-    queryFn: () => listCollectionActions(filters)
+    queryFn: () => listCollectionActions(filters),
+    enabled
   });
 }
 

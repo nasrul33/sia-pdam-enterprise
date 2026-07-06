@@ -13,13 +13,20 @@ import {
   XCircle
 } from "lucide-react";
 import { type FormEvent, useMemo, useState } from "react";
+import { PermissionGate } from "@/components/auth/permission-gate";
 import { PageHeader } from "@/components/common/page-header";
 import { EmptyState } from "@/components/state/empty-state";
 import { ErrorState } from "@/components/state/error-state";
 import { LoadingSkeleton } from "@/components/state/loading-skeleton";
 import { StatusBadge } from "@/components/status/status-badge";
+import { useCurrentUser } from "@/features/auth/use-current-user";
 import { apiErrorMessage } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
+import {
+  allowedCollectionActionWorkflows,
+  resolveCollectionActionPermissions,
+  type CollectionActionPermissionState
+} from "./collection-action-permissions";
 import {
   collectionActionStatusValues,
   collectionActionTypeValues,
@@ -128,18 +135,6 @@ function shortId(value: string | null): string {
     return "-";
   }
   return value.length <= 13 ? value : `${value.slice(0, 8)}...${value.slice(-4)}`;
-}
-
-function canStart(action: CollectionAction): boolean {
-  return action.status === "OPEN";
-}
-
-function canComplete(action: CollectionAction): boolean {
-  return action.status === "OPEN" || action.status === "IN_PROGRESS";
-}
-
-function canCancel(action: CollectionAction): boolean {
-  return action.status === "OPEN" || action.status === "IN_PROGRESS";
 }
 
 function SummaryCard({
@@ -446,10 +441,12 @@ function WorkflowButton({
 function CollectionActionTable({
   actions,
   isFetching,
+  permissions,
   onWorkflow
 }: Readonly<{
   actions: CollectionAction[];
   isFetching: boolean;
+  permissions: CollectionActionPermissionState;
   onWorkflow: (draft: WorkflowDraft) => void;
 }>) {
   if (actions.length === 0) {
@@ -489,58 +486,77 @@ function CollectionActionTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 bg-white">
-            {actions.map((action) => (
-              <tr key={action.id} className="hover:bg-slate-50">
-                <td className="whitespace-nowrap px-5 py-4">
-                  <StatusBadge label={statusLabels[action.status]} tone={statusTones[action.status]} />
-                </td>
-                <td className="whitespace-nowrap px-5 py-4 font-semibold text-slate-950">
-                  {actionTypeLabels[action.actionType]}
-                </td>
-                <td className="whitespace-nowrap px-5 py-4 text-slate-700">{formatDateTime(action.scheduledAt)}</td>
-                <td className="px-5 py-4">
-                  <span title={action.customerId} className="font-mono text-xs font-bold text-slate-700">
-                    {shortId(action.customerId)}
-                  </span>
-                </td>
-                <td className="px-5 py-4">
-                  <span title={action.invoiceId ?? undefined} className="font-mono text-xs font-bold text-slate-700">
-                    {shortId(action.invoiceId)}
-                  </span>
-                </td>
-                <td className="min-w-72 px-5 py-4 text-slate-700">{action.notes ?? "-"}</td>
-                <td className="px-5 py-4">
-                  <div className="flex justify-end gap-2">
-                    <WorkflowButton
-                      disabled={!canStart(action)}
-                      tone="primary"
-                      icon={<Play className="size-4" aria-hidden="true" />}
-                      onClick={() => onWorkflow({ action: "start", actionId: action.id, notes: action.notes ?? "", reason: "" })}
-                    >
-                      Mulai
-                    </WorkflowButton>
-                    <WorkflowButton
-                      disabled={!canComplete(action)}
-                      tone="success"
-                      icon={<CheckCircle2 className="size-4" aria-hidden="true" />}
-                      onClick={() =>
-                        onWorkflow({ action: "complete", actionId: action.id, notes: action.notes ?? "", reason: "" })
-                      }
-                    >
-                      Selesai
-                    </WorkflowButton>
-                    <WorkflowButton
-                      disabled={!canCancel(action)}
-                      tone="danger"
-                      icon={<XCircle className="size-4" aria-hidden="true" />}
-                      onClick={() => onWorkflow({ action: "cancel", actionId: action.id, notes: action.notes ?? "", reason: "" })}
-                    >
-                      Batal
-                    </WorkflowButton>
-                  </div>
-                </td>
-              </tr>
-            ))}
+            {actions.map((action) => {
+              const workflows = allowedCollectionActionWorkflows(action, permissions);
+              const hasVisibleWorkflow = permissions.canExecute || permissions.canCancel;
+
+              return (
+                <tr key={action.id} className="hover:bg-slate-50">
+                  <td className="whitespace-nowrap px-5 py-4">
+                    <StatusBadge label={statusLabels[action.status]} tone={statusTones[action.status]} />
+                  </td>
+                  <td className="whitespace-nowrap px-5 py-4 font-semibold text-slate-950">
+                    {actionTypeLabels[action.actionType]}
+                  </td>
+                  <td className="whitespace-nowrap px-5 py-4 text-slate-700">{formatDateTime(action.scheduledAt)}</td>
+                  <td className="px-5 py-4">
+                    <span title={action.customerId} className="font-mono text-xs font-bold text-slate-700">
+                      {shortId(action.customerId)}
+                    </span>
+                  </td>
+                  <td className="px-5 py-4">
+                    <span title={action.invoiceId ?? undefined} className="font-mono text-xs font-bold text-slate-700">
+                      {shortId(action.invoiceId)}
+                    </span>
+                  </td>
+                  <td className="min-w-72 px-5 py-4 text-slate-700">{action.notes ?? "-"}</td>
+                  <td className="px-5 py-4">
+                    {hasVisibleWorkflow ? (
+                      <div className="flex justify-end gap-2">
+                        {permissions.canExecute ? (
+                          <>
+                            <WorkflowButton
+                              disabled={!workflows.start}
+                              tone="primary"
+                              icon={<Play className="size-4" aria-hidden="true" />}
+                              onClick={() =>
+                                onWorkflow({ action: "start", actionId: action.id, notes: action.notes ?? "", reason: "" })
+                              }
+                            >
+                              Mulai
+                            </WorkflowButton>
+                            <WorkflowButton
+                              disabled={!workflows.complete}
+                              tone="success"
+                              icon={<CheckCircle2 className="size-4" aria-hidden="true" />}
+                              onClick={() =>
+                                onWorkflow({ action: "complete", actionId: action.id, notes: action.notes ?? "", reason: "" })
+                              }
+                            >
+                              Selesai
+                            </WorkflowButton>
+                          </>
+                        ) : null}
+                        {permissions.canCancel ? (
+                          <WorkflowButton
+                            disabled={!workflows.cancel}
+                            tone="danger"
+                            icon={<XCircle className="size-4" aria-hidden="true" />}
+                            onClick={() =>
+                              onWorkflow({ action: "cancel", actionId: action.id, notes: action.notes ?? "", reason: "" })
+                            }
+                          >
+                            Batal
+                          </WorkflowButton>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <p className="text-right text-xs font-bold text-slate-500">Tidak tersedia</p>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -687,6 +703,12 @@ export function CollectionActionWorkspace() {
   });
   const [workflowDraft, setWorkflowDraft] = useState<WorkflowDraft | null>(null);
   const [workflowLocalError, setWorkflowLocalError] = useState<string | null>(null);
+  const currentUserQuery = useCurrentUser();
+
+  const permissions = useMemo(
+    () => resolveCollectionActionPermissions(currentUserQuery.data?.authorities ?? []),
+    [currentUserQuery.data?.authorities]
+  );
 
   const queryFilters = useMemo<CollectionActionFilters>(
     () => ({
@@ -699,7 +721,7 @@ export function CollectionActionWorkspace() {
     [filters]
   );
 
-  const actionsQuery = useCollectionActions(queryFilters);
+  const actionsQuery = useCollectionActions(queryFilters, currentUserQuery.isSuccess && permissions.canRead);
   const workflowMutation = useCollectionActionWorkflow();
   const actions = useMemo(() => actionsQuery.data?.items ?? [], [actionsQuery.data?.items]);
 
@@ -753,93 +775,111 @@ export function CollectionActionWorkspace() {
         </div>
       </div>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard
-          label="Total Terfilter"
-          value={String(actionsQuery.data?.totalItems ?? 0)}
-          helper="Jumlah data sesuai filter aktif."
-          tone="neutral"
-        />
-        <SummaryCard label="Terbuka" value={String(summary.open)} helper="Aksi menunggu eksekusi di halaman ini." tone="warning" />
-        <SummaryCard label="Berjalan" value={String(summary.progress)} helper="Aksi sedang diproses petugas." tone="info" />
-        <SummaryCard label="Selesai" value={String(summary.completed)} helper="Aksi sudah ditutup di halaman ini." tone="success" />
-      </section>
+      {currentUserQuery.isLoading ? <LoadingSkeleton /> : null}
+      {currentUserQuery.isError ? (
+        <ErrorState message={apiErrorMessage(currentUserQuery.error, "Sesi atau otorisasi pengguna tidak tersedia.")} />
+      ) : null}
+      {currentUserQuery.isSuccess && !permissions.canRead ? (
+        <PermissionGate allowed={false} message="Anda tidak memiliki izin membaca aksi penagihan." />
+      ) : null}
 
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <div className="space-y-4">
-          <FilterToolbar filters={filters} onChange={setFilters} />
+      {currentUserQuery.isSuccess && permissions.canRead ? (
+        <>
+          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <SummaryCard
+              label="Total Terfilter"
+              value={String(actionsQuery.data?.totalItems ?? 0)}
+              helper="Jumlah data sesuai filter aktif."
+              tone="neutral"
+            />
+            <SummaryCard
+              label="Terbuka"
+              value={String(summary.open)}
+              helper="Aksi menunggu eksekusi di halaman ini."
+              tone="warning"
+            />
+            <SummaryCard label="Berjalan" value={String(summary.progress)} helper="Aksi sedang diproses petugas." tone="info" />
+            <SummaryCard label="Selesai" value={String(summary.completed)} helper="Aksi sudah ditutup di halaman ini." tone="success" />
+          </section>
 
-          {actionsQuery.isLoading ? <LoadingSkeleton /> : null}
-          {actionsQuery.isError ? (
-            <div className="space-y-3">
-              <ErrorState
-                message={apiErrorMessage(actionsQuery.error, "Daftar aksi penagihan tidak tersedia.")}
-              />
-              <button
-                type="button"
-                onClick={() => void actionsQuery.refetch()}
-                className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800 hover:bg-slate-50"
-              >
-                <RotateCcw className="size-4" aria-hidden="true" />
-                Muat Ulang
-              </button>
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+            <div className="space-y-4">
+              <FilterToolbar filters={filters} onChange={setFilters} />
+
+              {actionsQuery.isLoading ? <LoadingSkeleton /> : null}
+              {actionsQuery.isError ? (
+                <div className="space-y-3">
+                  <ErrorState message={apiErrorMessage(actionsQuery.error, "Daftar aksi penagihan tidak tersedia.")} />
+                  <button
+                    type="button"
+                    onClick={() => void actionsQuery.refetch()}
+                    className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800 hover:bg-slate-50"
+                  >
+                    <RotateCcw className="size-4" aria-hidden="true" />
+                    Muat Ulang
+                  </button>
+                </div>
+              ) : null}
+              {actionsQuery.data ? (
+                <>
+                  <CollectionActionTable
+                    actions={actions}
+                    isFetching={actionsQuery.isFetching}
+                    permissions={permissions}
+                    onWorkflow={(draft) => {
+                      workflowMutation.reset();
+                      setWorkflowLocalError(null);
+                      setWorkflowDraft(draft);
+                    }}
+                  />
+                  <PaginationBar
+                    page={actionsQuery.data.page}
+                    size={actionsQuery.data.size}
+                    totalItems={actionsQuery.data.totalItems}
+                    totalPages={actionsQuery.data.totalPages}
+                    onPageChange={(page) => setFilters((current) => ({ ...current, page }))}
+                  />
+                </>
+              ) : null}
             </div>
-          ) : null}
-          {actionsQuery.data ? (
-            <>
-              <CollectionActionTable
-                actions={actions}
-                isFetching={actionsQuery.isFetching}
-                onWorkflow={(draft) => {
-                  workflowMutation.reset();
-                  setWorkflowLocalError(null);
-                  setWorkflowDraft(draft);
-                }}
-              />
-              <PaginationBar
-                page={actionsQuery.data.page}
-                size={actionsQuery.data.size}
-                totalItems={actionsQuery.data.totalItems}
-                totalPages={actionsQuery.data.totalPages}
-                onPageChange={(page) => setFilters((current) => ({ ...current, page }))}
-              />
-            </>
-          ) : null}
-        </div>
 
-        <div className="space-y-4">
-          <CollectionActionForm />
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-            <div className="flex items-center gap-2 text-sm font-bold text-amber-900">
-              <AlertCircle className="size-4" aria-hidden="true" />
-              Guardrail
+            <div className="space-y-4">
+              <PermissionGate allowed={permissions.canCreate} message="Anda tidak memiliki izin membuat aksi penagihan.">
+                <CollectionActionForm />
+              </PermissionGate>
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                <div className="flex items-center gap-2 text-sm font-bold text-amber-900">
+                  <AlertCircle className="size-4" aria-hidden="true" />
+                  Guardrail
+                </div>
+                <p className="mt-2 text-sm leading-6 text-amber-900">
+                  Backend menolak customer nonaktif, invoice yang belum overdue, dan duplicate action aktif untuk invoice
+                  dan tipe aksi yang sama.
+                </p>
+              </div>
             </div>
-            <p className="mt-2 text-sm leading-6 text-amber-900">
-              Backend menolak customer nonaktif, invoice yang belum overdue, dan duplicate action aktif untuk invoice
-              dan tipe aksi yang sama.
-            </p>
-          </div>
-        </div>
-      </section>
+          </section>
 
-      {workflowDraft ? (
-        <WorkflowModal
-          draft={workflowDraft}
-          onChange={setWorkflowDraft}
-          onClose={() => {
-            if (!workflowMutation.isPending) {
-              setWorkflowDraft(null);
-            }
-          }}
-          onSubmit={submitWorkflow}
-          isPending={workflowMutation.isPending}
-          error={
-            workflowLocalError ??
-            (workflowMutation.isError
-              ? apiErrorMessage(workflowMutation.error, "Workflow aksi penagihan gagal diproses.")
-              : null)
-          }
-        />
+          {workflowDraft ? (
+            <WorkflowModal
+              draft={workflowDraft}
+              onChange={setWorkflowDraft}
+              onClose={() => {
+                if (!workflowMutation.isPending) {
+                  setWorkflowDraft(null);
+                }
+              }}
+              onSubmit={submitWorkflow}
+              isPending={workflowMutation.isPending}
+              error={
+                workflowLocalError ??
+                (workflowMutation.isError
+                  ? apiErrorMessage(workflowMutation.error, "Workflow aksi penagihan gagal diproses.")
+                  : null)
+              }
+            />
+          ) : null}
+        </>
       ) : null}
     </main>
   );

@@ -35,6 +35,7 @@
 | DatabaseUserDetailsService | shared/security | loads enabled DB users plus role and permission authorities for Spring Security |
 | RBAC Seed Migration | db/migration | idempotent operational role, permission, and grant catalog without default credentials |
 | BootstrapAdminUserService | shared/security | opt-in initial admin provisioning from explicit env vars with encoded password and idempotent super-admin grant |
+| AuthController | auth | exposes authenticated username and authorities for frontend permission visibility |
 | PostedLedgerReportApplicationService | reporting/application | trial balance from posted ledger entries only, excluding draft operational records |
 | PageResponse | shared/web | shared pagination contract for API lists |
 
@@ -55,3 +56,4 @@
 | queryKeys | lib/query | stable query keys |
 | dashboard schema/hook | features/dashboard | validates backend dashboard response with Zod |
 | collection action schema/hooks/workspace | features/receivables/collection-actions | typed receivable collection list, create, start, complete, cancel workflows with loading/error/empty states |
+| current user hook and collection action permissions | features/auth, features/receivables/collection-actions | `/api/auth/me` authority lookup and permission-gated collection action controls |
