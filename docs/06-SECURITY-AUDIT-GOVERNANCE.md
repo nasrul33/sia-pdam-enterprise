@@ -59,6 +59,14 @@
 - Role authorities are exposed as `ROLE_<ROLE_CODE>` with uppercase and hyphen-to-underscore normalization.
 - Disabled users are rejected by Spring Security.
 
+## Bootstrap Admin Provisioning
+
+- No bootstrap user is created unless all three env vars are provided: `SIA_BOOTSTRAP_ADMIN_USERNAME`, `SIA_BOOTSTRAP_ADMIN_EMAIL`, and `SIA_BOOTSTRAP_ADMIN_PASSWORD`.
+- Bootstrap password must contain at least 12 characters and is encoded with the configured Spring Security `PasswordEncoder`.
+- Bootstrap requires the seeded `super-admin` role.
+- If the username already exists, startup only grants the `super-admin` role and does not overwrite the existing password.
+- Partial bootstrap configuration fails startup so insecure or incomplete first-access setup is visible immediately.
+
 ## Audit Trail Fields
 
 - actor

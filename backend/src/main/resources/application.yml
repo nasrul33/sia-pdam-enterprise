@@ -33,3 +33,7 @@ sia:
   security:
     dev-mode: true
     allowed-origins: ${ALLOWED_ORIGINS:http://localhost:3000}
+    bootstrap-admin:
+      username: ${SIA_BOOTSTRAP_ADMIN_USERNAME:}
+      email: ${SIA_BOOTSTRAP_ADMIN_EMAIL:}
+      password: ${SIA_BOOTSTRAP_ADMIN_PASSWORD:}

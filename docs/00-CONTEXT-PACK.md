@@ -46,6 +46,7 @@
 | BR-SEC-001 | Collection action endpoints require granular backend permissions for read, create, execute, and cancel | Security/Receivable | confirmed |
 | BR-SEC-002 | Backend authentication loads enabled users and authorities from RBAC tables | Security | confirmed |
 | BR-SEC-003 | RBAC role and permission catalog is seeded without default user credentials | Security | confirmed |
+| BR-SEC-004 | Bootstrap admin user is provisioned only from explicit operator-supplied credentials | Security | confirmed |
 | BR-UI-001 | Operational frontend pages expose loading, error, empty, filter, mutation pending, and mutation error states | Frontend | confirmed |
 
 ## Requirements Traceability
@@ -74,6 +75,7 @@
 | REQ-SEC-001 | Permission granular untuk aksi penagihan | Security/Receivable | Collection action controller uses `hasAuthority` for `collection-action.read/create/execute/cancel` | T-088 | CollectionActionControllerPermissionTest |
 | REQ-SEC-002 | Auth source database-backed | Security | Spring Security loads users, role authorities, and permission authorities from RBAC tables | T-089 | DatabaseUserDetailsServiceTest |
 | REQ-SEC-003 | Katalog RBAC awal tersedia | Security | Flyway V7 seeds operational roles, collection-action permissions, and grants without seeding default passwords | T-090A | RbacSeedMigrationTest |
+| REQ-SEC-004 | Bootstrap admin aman | Security | Startup bootstrap creates or grants `super-admin` only when `SIA_BOOTSTRAP_ADMIN_*` values are complete and valid | T-090B | BootstrapAdminUserServiceTest |
 | REQ-UI-001 | Workspace penagihan piutang siap operasional | Frontend | `/receivables/collection-actions` provides typed API integration, filters, create form, workflow actions, loading/error/empty states, and mutation feedback | T-086 | npm lint, typecheck, build |
 
 ## Decision Log
@@ -109,6 +111,7 @@
 | 2026-07-06 | Add Collection Action granular permissions | Collection actions are sensitive operational commands and must not rely on broad authenticated access | Controller method security now requires `collection-action.read`, `collection-action.create`, `collection-action.execute`, and `collection-action.cancel` authorities |
 | 2026-07-06 | Add Database-backed RBAC authentication | Generated development users cannot support auditable production permissions | HTTP Basic now authenticates against `users.password_hash` and derives authorities from `roles`, `permissions`, `user_roles`, and `role_permissions` |
 | 2026-07-06 | Add RBAC catalog seed migration | Empty RBAC tables make permission checks unusable after migration | Flyway V7 seeds operational roles, collection-action permissions, and role grants while avoiding default user credentials |
+| 2026-07-06 | Add secure bootstrap admin provisioning | Production cannot depend on manual SQL or default credentials for first administrator access | Startup creates or grants an initial `super-admin` only when operator-supplied env values are complete, strong enough, and explicit |
 
 ## Assumptions Register
 
@@ -143,10 +146,10 @@
 
 ## Current Implementation State
 
-- Completed: repository scaffold, docs baseline, backend skeleton, frontend dashboard shell, Money primitive, accounting domain skeleton, persisted audit primitive, idempotency primitive, V2 domain foundation migration, quality gate verification, initial GitHub push, repository-backed Accounting API, customer/connection API foundation, metering API foundation, tariff engine foundation, billing batch foundation, payment webhook foundation, payment idempotency foundation, receivable aging foundation, posted reporting foundation, ledger materialization from posted journals, controlled invoice issue with receivable/revenue posting, controlled counter payment settlement with cash/bank receivable posting, controlled payment reversal with receivable restoration and reversal journal, receivable collection action workflow with dunning controls, frontend receivable collection workspace, collection invoice-customer ownership validation, collection action granular permission enforcement, database-backed user/role/permission authentication, RBAC role/permission seed catalog.
+- Completed: repository scaffold, docs baseline, backend skeleton, frontend dashboard shell, Money primitive, accounting domain skeleton, persisted audit primitive, idempotency primitive, V2 domain foundation migration, quality gate verification, initial GitHub push, repository-backed Accounting API, customer/connection API foundation, metering API foundation, tariff engine foundation, billing batch foundation, payment webhook foundation, payment idempotency foundation, receivable aging foundation, posted reporting foundation, ledger materialization from posted journals, controlled invoice issue with receivable/revenue posting, controlled counter payment settlement with cash/bank receivable posting, controlled payment reversal with receivable restoration and reversal journal, receivable collection action workflow with dunning controls, frontend receivable collection workspace, collection invoice-customer ownership validation, collection action granular permission enforcement, database-backed user/role/permission authentication, RBAC role/permission seed catalog, secure bootstrap admin provisioning.
 - In progress: none.
 - Blocked: official tariff values, numbering format, final production auth mechanism decision beyond Basic auth.
-- Next actions: implement secure admin user provisioning and permission-aware frontend action visibility.
+- Next actions: implement permission-aware frontend action visibility.
 
 ## Latest Verification Snapshot
 
@@ -180,6 +183,7 @@
 | Collection Action Permission increment | passed: TDD target tests, `gradle clean test bootJar`, backend Docker build, smoke health with PostgreSQL and Flyway V6 |
 | Database-backed RBAC Authentication increment | passed: RED/GREEN target test, `gradle clean test bootJar`, backend Docker build, smoke health, DB-backed Basic auth `200`, anonymous `401` |
 | RBAC Catalog Seed increment | passed: RED/GREEN target seed test, `gradle clean test bootJar`, backend Docker build, smoke health, Flyway V7, 14 roles, 4 permissions, 11 grants, 0 default users |
+| Secure Bootstrap Admin increment | passed: RED/GREEN target service test, `gradle clean test bootJar`, backend Docker build, smoke health, Flyway V7, bootstrap admin created with bcrypt hash, super-admin grant, protected endpoint `200`, anonymous `401` |
 
 ## Handoff Instructions
 

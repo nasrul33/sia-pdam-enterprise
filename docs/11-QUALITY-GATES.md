@@ -37,10 +37,19 @@ gradle flywayValidate
 gradle flywayMigrate
 ```
 
-Current smoke verification also starts backend with PostgreSQL and confirms Flyway applies V1/V2 before Hibernate validation:
+Current smoke verification also starts backend with PostgreSQL and confirms Flyway applies V1-V7 before Hibernate validation:
 
 ```bash
 POSTGRES_PORT=15432 REDIS_PORT=16379 MINIO_PORT=19000 MINIO_CONSOLE_PORT=19001 BACKEND_PORT=18080 \
+docker-compose up -d postgres redis minio backend
+```
+
+To verify first-admin provisioning without default credentials, pass explicit bootstrap values:
+
+```bash
+SIA_BOOTSTRAP_ADMIN_USERNAME=admin \
+SIA_BOOTSTRAP_ADMIN_EMAIL=admin@example.test \
+SIA_BOOTSTRAP_ADMIN_PASSWORD='<operator-supplied-strong-password>' \
 docker-compose up -d postgres redis minio backend
 ```
 
