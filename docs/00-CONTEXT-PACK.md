@@ -56,6 +56,7 @@
 | BR-UI-006 | Billing workspace must use idempotency for batch generation and require controlled invoice issue with receivable/revenue accounts | Frontend/Billing | confirmed |
 | BR-UI-007 | Accounting journal detail must expose debit-credit lines, source traceability, posting metadata, and balance status without adding edit paths | Frontend/Accounting | confirmed |
 | BR-UI-008 | Payment workspace must use backend payment command contracts, idempotency, account validation, audit reason, and permission-aware visibility | Frontend/Payment | confirmed |
+| BR-UI-009 | Billing workspace batch drill-down must use backend batch invoice contract and preserve invoice issue controls | Frontend/Billing | confirmed |
 | BR-UI-001 | Operational frontend pages expose loading, error, empty, filter, mutation pending, and mutation error states | Frontend | confirmed |
 
 ## Requirements Traceability
@@ -95,6 +96,7 @@
 | REQ-UI-006 | Workspace billing fondasi | Frontend/Billing | `/billing` lists billing batches and invoices with typed schemas/hooks, period/status filters, summary cards, idempotent batch generation, draft invoice issue confirmation, account validation, loading/error/empty states, and permission-aware commands | T-097 | billing-workspace-model.test.ts, npm test:permissions, npm typecheck/lint/build |
 | REQ-UI-007 | Detail baca jurnal akuntansi | Frontend/Accounting | `/accounting` opens a read-only journal detail drawer from the journal table, fetches `/api/journals/{journalId}`, shows source traceability, posted metadata, totals, balanced status, and debit-credit lines with account labels | T-098 | accounting-workspace-model.test.ts, npm test:permissions, npm typecheck/lint/build |
 | REQ-UI-008 | Workspace pembayaran settlement | Frontend/Payment | `/payments` reads payment webhook events when authorized, submits counter settlement with idempotency key, submits payment reversal with audit reason, validates asset cash/receivable accounts and allocation totals locally, and keeps backend permissions authoritative | T-099 | payment-workspace-model.test.ts, npm test:permissions, npm typecheck/lint/build |
+| REQ-UI-009 | Drill-down invoice batch billing | Frontend/Billing | `/billing` can select a billing batch, fetch `/api/billing-batches/{batchId}/invoices`, filter selected-batch invoices by invoice status locally, clear scope back to global invoices, and keep invoice issue permission/account validation unchanged | T-100 | billing-workspace-model.test.ts, npm test:permissions, npm typecheck/lint/build |
 
 ## Decision Log
 
@@ -139,6 +141,7 @@
 | 2026-07-06 | Add Billing workspace foundation | Billing users need a controlled surface for batch generation and invoice issue before receivable settlement expansion | `/billing` now reads typed billing batch and invoice endpoints, generates batches with idempotency keys, issues draft invoices with receivable/revenue account selection, and gates commands by backend authorities |
 | 2026-07-07 | Add Accounting journal detail drawer | Finance users need source-to-ledger traceability without leaving the accounting workspace | `/accounting` now fetches full journal details on demand, presents source document, posting metadata, backend totals, line-level debit-credit values, and local line integrity summary in a read-only drawer |
 | 2026-07-07 | Add Payment settlement workspace visibility | Payment operators need a controlled surface for loket settlement, reversal, and webhook monitoring without inventing unsupported payment list contracts | `/payments` now uses existing backend payment contracts, idempotency key submission, asset account validation, allocation-total checks, permission-aware event visibility, and mutation feedback |
+| 2026-07-07 | Add Billing batch invoice drill-down | Billing users need to inspect invoices created by a specific batch without losing issue controls or global invoice filters | `/billing` now uses the backend batch invoice endpoint, highlights the selected batch, scopes the invoice surface to the batch, and allows clearing back to global invoices |
 
 ## Assumptions Register
 
@@ -173,10 +176,10 @@
 
 ## Current Implementation State
 
-- Completed: repository scaffold, docs baseline, backend skeleton, frontend dashboard shell, Money primitive, accounting domain skeleton, persisted audit primitive, idempotency primitive, V2 domain foundation migration, quality gate verification, initial GitHub push, repository-backed Accounting API, customer/connection API foundation, metering API foundation, billing batch foundation, payment webhook foundation, payment idempotency foundation, receivable aging foundation, posted reporting foundation, ledger materialization from posted journals, controlled invoice issue with receivable/revenue posting, controlled counter payment settlement with cash/bank receivable posting, controlled payment reversal with receivable restoration and reversal journal, receivable collection action workflow with dunning controls, frontend receivable collection workspace, collection invoice-customer ownership validation, collection action granular permission enforcement, database-backed user/role/permission authentication, RBAC role/permission seed catalog, secure bootstrap admin provisioning, permission-aware collection action frontend visibility, payment granular permission enforcement and seed catalog, accounting and billing command permission enforcement and seed catalog, permission-aware financial command dashboard visibility, accounting workspace foundation, accounting command workflows, billing workspace foundation, accounting journal detail drawer, payment settlement workspace visibility.
+- Completed: repository scaffold, docs baseline, backend skeleton, frontend dashboard shell, Money primitive, accounting domain skeleton, persisted audit primitive, idempotency primitive, V2 domain foundation migration, quality gate verification, initial GitHub push, repository-backed Accounting API, customer/connection API foundation, metering API foundation, billing batch foundation, payment webhook foundation, payment idempotency foundation, receivable aging foundation, posted reporting foundation, ledger materialization from posted journals, controlled invoice issue with receivable/revenue posting, controlled counter payment settlement with cash/bank receivable posting, controlled payment reversal with receivable restoration and reversal journal, receivable collection action workflow with dunning controls, frontend receivable collection workspace, collection invoice-customer ownership validation, collection action granular permission enforcement, database-backed user/role/permission authentication, RBAC role/permission seed catalog, secure bootstrap admin provisioning, permission-aware collection action frontend visibility, payment granular permission enforcement and seed catalog, accounting and billing command permission enforcement and seed catalog, permission-aware financial command dashboard visibility, accounting workspace foundation, accounting command workflows, billing workspace foundation, accounting journal detail drawer, payment settlement workspace visibility, billing batch invoice drill-down.
 - In progress: none.
 - Blocked: official tariff values, numbering format, final production auth mechanism decision beyond Basic auth.
-- Next actions: add billing batch invoice drill-down by batch, then add payment list/detail endpoint if operational reconciliation requires browsing settled payments directly.
+- Next actions: add payment list/detail endpoint and payment reconciliation surface if operational reconciliation requires browsing settled payments directly.
 
 ## Latest Verification Snapshot
 
@@ -220,6 +223,7 @@
 | Billing Workspace Foundation increment | passed: RED/GREEN billing workspace model tests, `npm run test:permissions`, `npm run typecheck`, `npm run lint`, `npm run build` |
 | Accounting Journal Detail Drawer increment | passed: RED/GREEN accounting detail line summary test, `npm run test:permissions`, `npm run typecheck`, `npm run lint`, `npm run build` |
 | Payment Settlement Workspace increment | passed: RED/GREEN payment workspace model tests, `npm run test:permissions`, `npm run typecheck`, `npm run lint`, `npm run build`, local `/payments` smoke `200` |
+| Billing Batch Invoice Drill-down increment | passed: RED/GREEN billing workspace model tests, `npm run test:permissions`, `npm run typecheck`, `npm run lint`, `npm run build`, local `/billing` smoke `200` |
 
 ## Handoff Instructions
 

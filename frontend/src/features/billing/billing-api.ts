@@ -1,5 +1,6 @@
 import { apiGet, apiPost } from "@/lib/api/client";
 import {
+  batchInvoiceListSchema,
   billingBatchGenerationSchema,
   billingBatchPageSchema,
   invoicePageSchema,
@@ -33,6 +34,11 @@ export async function listBillingBatches(filters: BillingBatchFilters) {
 export async function listInvoices(filters: InvoiceFilters) {
   const payload = await apiGet<unknown>(`/api/invoices?${pageParams(filters).toString()}`);
   return invoicePageSchema.parse(payload);
+}
+
+export async function listBatchInvoices(batchId: string) {
+  const payload = await apiGet<unknown>(`/api/billing-batches/${batchId}/invoices`);
+  return batchInvoiceListSchema.parse(payload);
 }
 
 export async function generateBillingBatch(input: {

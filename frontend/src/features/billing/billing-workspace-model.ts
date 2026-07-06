@@ -1,6 +1,6 @@
 import type { BillingCommandPermissionState } from "@/features/security/financial-command-permissions";
 import type { Account } from "@/features/accounting/accounting-schema";
-import type { BillingBatchStatus, Invoice, InvoiceStatus } from "./billing-schema";
+import type { BillingBatch, BillingBatchStatus, Invoice, InvoiceStatus } from "./billing-schema";
 
 type BatchSummarySubject = {
   status: BillingBatchStatus;
@@ -48,6 +48,21 @@ export function summarizeBillingWorkspace(input: {
 
 export function canIssueInvoice(invoice: Pick<Invoice, "status">, permissions: BillingCommandPermissionState): boolean {
   return permissions.canIssueInvoices && invoice.status === "DRAFT";
+}
+
+export function filterInvoicesByStatus<TInvoice extends Pick<Invoice, "status">>(
+  invoices: readonly TInvoice[],
+  status?: InvoiceStatus
+): TInvoice[] {
+  if (!status) {
+    return [...invoices];
+  }
+
+  return invoices.filter((invoice) => invoice.status === status);
+}
+
+export function invoiceScopeTitle(selectedBatch: Pick<BillingBatch, "batchNumber"> | null): string {
+  return selectedBatch ? `Invoice Batch ${selectedBatch.batchNumber}` : "Invoice";
 }
 
 export function generateBillingBatchErrors(input: GenerateBillingBatchDraft): string[] {

@@ -3,6 +3,7 @@
 import {
   AlertTriangle,
   CheckCircle2,
+  Eye,
   FileText,
   Loader2,
   LockKeyhole,
@@ -28,7 +29,9 @@ import { apiErrorMessage } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 import {
   canIssueInvoice,
+  filterInvoicesByStatus,
   generateBillingBatchErrors,
+  invoiceScopeTitle,
   issueInvoiceErrors,
   summarizeBillingWorkspace
 } from "./billing-workspace-model";
@@ -41,7 +44,7 @@ import type {
   IssueInvoicePayload
 } from "./billing-schema";
 import { billingBatchStatusValues, invoiceStatusValues } from "./billing-schema";
-import { useBillingBatches, useGenerateBillingBatch, useInvoices, useIssueInvoice } from "./use-billing";
+import { useBatchInvoices, useBillingBatches, useGenerateBillingBatch, useInvoices, useIssueInvoice } from "./use-billing";
 
 type StatusFilter<TStatus extends string> = TStatus | "ALL";
 type BillingPermissions = ReturnType<typeof resolveFinancialCommandPermissions>["billing"];
@@ -374,7 +377,19 @@ function GenerateBatchForm({ allowed }: Readonly<{ allowed: boolean }>) {
   );
 }
 
-function BatchTable({ batches, isFetching }: Readonly<{ batches: BillingBatch[]; isFetching: boolean }>) {
+function BatchTable({
+  batches,
+  isFetching,
+  selectedBatchId,
+  onSelectBatch,
+  onClearSelection
+}: Readonly<{
+  batches: BillingBatch[];
+  isFetching: boolean;
+  selectedBatchId: string | null;
+  onSelectBatch: (batch: BillingBatch) => void;
+  onClearSelection: () => void;
+}>) {
   if (batches.length === 0) {
     return <EmptyState title="Batch billing belum tersedia" description="Generate batch akan membuat invoice draft dari baca meter terverifikasi." />;
   }
@@ -386,12 +401,20 @@ function BatchTable({ batches, isFetching }: Readonly<{ batches: BillingBatch[];
           <ReceiptText className="size-5 text-slate-700" aria-hidden="true" />
           <h2 className="text-base font-bold text-slate-950">Billing Batch</h2>
         </div>
-        {isFetching ? (
-          <span className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600">
-            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-            Memperbarui
-          </span>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-3">
+          {selectedBatchId ? (
+            <button type="button" className={secondaryButtonClass} onClick={onClearSelection}>
+              <X className="size-4" aria-hidden="true" />
+              Semua Invoice
+            </button>
+          ) : null}
+          {isFetching ? (
+            <span className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600">
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              Memperbarui
+            </span>
+          ) : null}
+        </div>
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
@@ -402,11 +425,12 @@ function BatchTable({ batches, isFetching }: Readonly<{ batches: BillingBatch[];
               <th className="px-5 py-3 text-left font-bold text-slate-700">Area</th>
               <th className="px-5 py-3 text-left font-bold text-slate-700">Status</th>
               <th className="px-5 py-3 text-left font-bold text-slate-700">Dibuat</th>
+              <th className="px-5 py-3 text-left font-bold text-slate-700">Drill-down</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 bg-white">
             {batches.map((batch) => (
-              <tr key={batch.id} className="hover:bg-slate-50">
+              <tr key={batch.id} className={cn("hover:bg-slate-50", selectedBatchId === batch.id ? "bg-sky-50" : "bg-white")}>
                 <td className="whitespace-nowrap px-5 py-4 font-mono text-xs font-bold text-slate-800">{batch.batchNumber}</td>
                 <td className="whitespace-nowrap px-5 py-4 font-bold text-slate-950">{batch.period}</td>
                 <td className="whitespace-nowrap px-5 py-4 font-semibold text-slate-700">{batch.areaCode}</td>
@@ -414,6 +438,16 @@ function BatchTable({ batches, isFetching }: Readonly<{ batches: BillingBatch[];
                   <StatusBadge label={batchStatusLabels[batch.status]} tone={batchStatusTones[batch.status]} />
                 </td>
                 <td className="whitespace-nowrap px-5 py-4 text-slate-700">{formatDateTime(batch.createdAt)}</td>
+                <td className="whitespace-nowrap px-5 py-4">
+                  <button
+                    type="button"
+                    className={selectedBatchId === batch.id ? primaryButtonClass : secondaryButtonClass}
+                    onClick={() => onSelectBatch(batch)}
+                  >
+                    <Eye className="size-4" aria-hidden="true" />
+                    {selectedBatchId === batch.id ? "Terpilih" : "Lihat Invoice"}
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -424,11 +458,24 @@ function BatchTable({ batches, isFetching }: Readonly<{ batches: BillingBatch[];
 }
 
 function InvoiceTable({
+  title,
+  description,
   invoices,
   accounts,
   permissions,
-  isFetching
-}: Readonly<{ invoices: Invoice[]; accounts: Account[]; permissions: BillingPermissions; isFetching: boolean }>) {
+  isFetching,
+  selectedBatch,
+  onClearBatch
+}: Readonly<{
+  title: string;
+  description: string;
+  invoices: Invoice[];
+  accounts: Account[];
+  permissions: BillingPermissions;
+  isFetching: boolean;
+  selectedBatch: BillingBatch | null;
+  onClearBatch: () => void;
+}>) {
   const issueMutation = useIssueInvoice();
   const [draft, setDraft] = useState<IssueInvoiceDraft | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
@@ -436,8 +483,29 @@ function InvoiceTable({
   const receivableAccounts = useMemo(() => accounts.filter((account) => account.type === "ASSET"), [accounts]);
   const revenueAccounts = useMemo(() => accounts.filter((account) => account.type === "REVENUE"), [accounts]);
 
+  if (isFetching && invoices.length === 0) {
+    return (
+      <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex items-center gap-2 text-sm font-bold text-slate-950">
+          <Loader2 className="size-4 animate-spin text-slate-600" aria-hidden="true" />
+          Memuat invoice
+        </div>
+        <p className="mt-2 text-sm leading-6 text-slate-600">{description}</p>
+      </div>
+    );
+  }
+
   if (invoices.length === 0) {
-    return <EmptyState title="Invoice belum tersedia" description="Invoice draft akan muncul setelah billing batch berhasil dibuat." />;
+    return (
+      <EmptyState
+        title={selectedBatch ? "Invoice batch tidak ditemukan" : "Invoice belum tersedia"}
+        description={
+          selectedBatch
+            ? "Batch terpilih belum memiliki invoice pada status filter aktif."
+            : "Invoice draft akan muncul setelah billing batch berhasil dibuat."
+        }
+      />
+    );
   }
 
   function openIssue(invoice: Invoice) {
@@ -486,14 +554,25 @@ function InvoiceTable({
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
         <div className="flex items-center gap-2">
           <FileText className="size-5 text-slate-700" aria-hidden="true" />
-          <h2 className="text-base font-bold text-slate-950">Invoice</h2>
+          <div>
+            <h2 className="text-base font-bold text-slate-950">{title}</h2>
+            <p className="mt-1 text-sm font-semibold text-slate-600">{description}</p>
+          </div>
         </div>
-        {isFetching ? (
-          <span className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600">
-            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-            Memperbarui
-          </span>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-3">
+          {selectedBatch ? (
+            <button type="button" className={secondaryButtonClass} onClick={onClearBatch}>
+              <X className="size-4" aria-hidden="true" />
+              Semua Invoice
+            </button>
+          ) : null}
+          {isFetching ? (
+            <span className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600">
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              Memperbarui
+            </span>
+          ) : null}
+        </div>
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
@@ -616,6 +695,7 @@ export function BillingWorkspace() {
   const [period, setPeriod] = useState("");
   const [batchStatus, setBatchStatus] = useState<StatusFilter<BillingBatchStatus>>("ALL");
   const [invoiceStatus, setInvoiceStatus] = useState<StatusFilter<InvoiceStatus>>("ALL");
+  const [selectedBatch, setSelectedBatch] = useState<BillingBatch | null>(null);
   const currentUserQuery = useCurrentUser();
   const queryEnabled = currentUserQuery.isSuccess;
   const permissions = useMemo(
@@ -624,6 +704,7 @@ export function BillingWorkspace() {
   );
 
   const normalizedPeriod = /^\d{4}-\d{2}$/.test(period.trim()) ? period.trim() : undefined;
+  const globalInvoiceQueryEnabled = queryEnabled && !selectedBatch;
   const batchesQuery = useBillingBatches(
     {
       period: normalizedPeriod,
@@ -640,18 +721,35 @@ export function BillingWorkspace() {
       page: 0,
       size: 25
     },
-    queryEnabled
+    globalInvoiceQueryEnabled
   );
+  const batchInvoicesQuery = useBatchInvoices(selectedBatch?.id ?? null, queryEnabled && Boolean(selectedBatch));
   const accountsQuery = useAccounts({ page: 0, size: 100 }, queryEnabled);
 
   const batches = useMemo(() => batchesQuery.data?.items ?? [], [batchesQuery.data?.items]);
-  const invoices = useMemo(() => invoicesQuery.data?.items ?? [], [invoicesQuery.data?.items]);
+  const globalInvoices = useMemo(() => invoicesQuery.data?.items ?? [], [invoicesQuery.data?.items]);
+  const batchInvoices = useMemo(() => batchInvoicesQuery.data ?? [], [batchInvoicesQuery.data]);
+  const invoices = useMemo(() => {
+    if (!selectedBatch) {
+      return globalInvoices;
+    }
+
+    return filterInvoicesByStatus(batchInvoices, invoiceStatus === "ALL" ? undefined : invoiceStatus);
+  }, [batchInvoices, globalInvoices, invoiceStatus, selectedBatch]);
   const accounts = useMemo(() => accountsQuery.data?.items ?? [], [accountsQuery.data?.items]);
   const summary = useMemo(() => summarizeBillingWorkspace({ batches, invoices }), [batches, invoices]);
+  const invoiceTitle = invoiceScopeTitle(selectedBatch);
+  const invoiceDescription = selectedBatch
+    ? `${selectedBatch.period} / ${selectedBatch.areaCode}; status invoice difilter pada daftar batch ini.`
+    : "Menampilkan invoice berdasarkan filter periode dan status global.";
 
   function refetchAll() {
     void batchesQuery.refetch();
-    void invoicesQuery.refetch();
+    if (selectedBatch) {
+      void batchInvoicesQuery.refetch();
+    } else {
+      void invoicesQuery.refetch();
+    }
     void accountsQuery.refetch();
   }
 
@@ -663,8 +761,9 @@ export function BillingWorkspace() {
     return <ErrorState message={apiErrorMessage(currentUserQuery.error, "Sesi atau otorisasi billing tidak tersedia.")} />;
   }
 
-  const isInitialLoading = batchesQuery.isLoading || invoicesQuery.isLoading || accountsQuery.isLoading;
-  const hasError = batchesQuery.isError || invoicesQuery.isError || accountsQuery.isError;
+  const invoiceQuery = selectedBatch ? batchInvoicesQuery : invoicesQuery;
+  const isInitialLoading = batchesQuery.isLoading || (!selectedBatch && invoicesQuery.isLoading) || accountsQuery.isLoading;
+  const hasError = batchesQuery.isError || invoiceQuery.isError || accountsQuery.isError;
 
   return (
     <main className="space-y-6">
@@ -688,7 +787,7 @@ export function BillingWorkspace() {
         <div className="space-y-3">
           <ErrorState
             message={apiErrorMessage(
-              batchesQuery.error ?? invoicesQuery.error ?? accountsQuery.error,
+              batchesQuery.error ?? invoiceQuery.error ?? accountsQuery.error,
               "Data billing tidak tersedia."
             )}
           />
@@ -712,20 +811,42 @@ export function BillingWorkspace() {
             period={period}
             batchStatus={batchStatus}
             invoiceStatus={invoiceStatus}
-            onPeriodChange={setPeriod}
-            onBatchStatusChange={setBatchStatus}
+            onPeriodChange={(value) => {
+              setPeriod(value);
+              setSelectedBatch(null);
+            }}
+            onBatchStatusChange={(value) => {
+              setBatchStatus(value);
+              setSelectedBatch(null);
+            }}
             onInvoiceStatusChange={setInvoiceStatus}
             onReset={() => {
               setPeriod("");
               setBatchStatus("ALL");
               setInvoiceStatus("ALL");
+              setSelectedBatch(null);
             }}
           />
 
           <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
             <div className="space-y-4">
-              <BatchTable batches={batches} isFetching={batchesQuery.isFetching} />
-              <InvoiceTable invoices={invoices} accounts={accounts} permissions={permissions} isFetching={invoicesQuery.isFetching} />
+              <BatchTable
+                batches={batches}
+                isFetching={batchesQuery.isFetching}
+                selectedBatchId={selectedBatch?.id ?? null}
+                onSelectBatch={setSelectedBatch}
+                onClearSelection={() => setSelectedBatch(null)}
+              />
+              <InvoiceTable
+                title={invoiceTitle}
+                description={invoiceDescription}
+                invoices={invoices}
+                accounts={accounts}
+                permissions={permissions}
+                isFetching={selectedBatch ? batchInvoicesQuery.isFetching : invoicesQuery.isFetching}
+                selectedBatch={selectedBatch}
+                onClearBatch={() => setSelectedBatch(null)}
+              />
             </div>
             <div className="space-y-4">
               <BillingCommandPanel permissions={permissions} />

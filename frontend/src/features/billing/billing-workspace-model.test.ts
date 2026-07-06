@@ -3,7 +3,9 @@ import { test } from "node:test";
 import { financialCommandPermissions, resolveFinancialCommandPermissions } from "../security/financial-command-permissions.ts";
 import {
   canIssueInvoice,
+  filterInvoicesByStatus,
   generateBillingBatchErrors,
+  invoiceScopeTitle,
   issueInvoiceErrors,
   summarizeBillingWorkspace
 } from "./billing-workspace-model.ts";
@@ -37,6 +39,32 @@ test("canIssueInvoice requires invoice.issue authority and draft status", () => 
   assert.equal(canIssueInvoice({ status: "DRAFT" }, billingPermissions), true);
   assert.equal(canIssueInvoice({ status: "ISSUED" }, billingPermissions), false);
   assert.equal(canIssueInvoice({ status: "DRAFT" }, resolveFinancialCommandPermissions([]).billing), false);
+});
+
+test("filterInvoicesByStatus scopes batch drill-down invoices by selected status", () => {
+  assert.deepEqual(
+    filterInvoicesByStatus(
+      [
+        { id: "invoice-1", status: "DRAFT" },
+        { id: "invoice-2", status: "ISSUED" },
+        { id: "invoice-3", status: "DRAFT" }
+      ],
+      "DRAFT"
+    ),
+    [
+      { id: "invoice-1", status: "DRAFT" },
+      { id: "invoice-3", status: "DRAFT" }
+    ]
+  );
+
+  assert.deepEqual(filterInvoicesByStatus([{ id: "invoice-1", status: "PAID" }], undefined), [
+    { id: "invoice-1", status: "PAID" }
+  ]);
+});
+
+test("invoiceScopeTitle identifies all-invoice and selected batch surfaces", () => {
+  assert.equal(invoiceScopeTitle(null), "Invoice");
+  assert.equal(invoiceScopeTitle({ batchNumber: "BIL-202607-AREA-01" }), "Invoice Batch BIL-202607-AREA-01");
 });
 
 test("generateBillingBatchErrors validates period, dates, area, and audit reason", () => {

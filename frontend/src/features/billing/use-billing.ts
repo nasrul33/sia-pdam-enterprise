@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query/query-keys";
-import { generateBillingBatch, issueInvoice, listBillingBatches, listInvoices } from "./billing-api";
+import { generateBillingBatch, issueInvoice, listBatchInvoices, listBillingBatches, listInvoices } from "./billing-api";
 import type {
   BillingBatchFilters,
   GenerateBillingBatchPayload,
@@ -21,6 +21,14 @@ export function useInvoices(filters: InvoiceFilters, enabled = true) {
     queryKey: [...queryKeys.invoices, "list", filters],
     queryFn: () => listInvoices(filters),
     enabled
+  });
+}
+
+export function useBatchInvoices(batchId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: [...queryKeys.invoices, "batch", batchId],
+    queryFn: () => listBatchInvoices(batchId ?? ""),
+    enabled: enabled && Boolean(batchId)
   });
 }
 
