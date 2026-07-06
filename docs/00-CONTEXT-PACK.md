@@ -6,7 +6,7 @@
 - Repository: sia-pdam-enterprise
 - Objective: Rebuild sistem PDAM berbasis Java/Spring Boot dan Next.js
 - Current phase: Bootstrap
-- Last updated: 2026-07-06
+- Last updated: 2026-07-07
 
 ## Immutable Context
 
@@ -50,11 +50,12 @@
 | BR-SEC-005 | Payment settlement, reversal, and webhook event read endpoints require granular backend permissions while provider webhook remains HMAC-authenticated | Security/Payment | confirmed |
 | BR-SEC-006 | Accounting and billing financial command endpoints require granular backend permissions | Security/Accounting/Billing | confirmed |
 | BR-UI-002 | Collection action frontend visibility follows backend-provided authorities | Frontend/Security | confirmed |
-| BR-UI-003 | Financial command frontend visibility follows backend-provided accounting and billing authorities | Frontend/Security | confirmed |
+| BR-UI-003 | Financial command frontend visibility follows backend-provided accounting, billing, and payment authorities | Frontend/Security | confirmed |
 | BR-UI-004 | Accounting workspace must present CoA, period, and journal control states without bypassing backend posting governance | Frontend/Accounting | confirmed |
 | BR-UI-005 | Accounting workspace mutations must require matching command permission, audit reason, confirmation for high-risk workflows, and backend revalidation | Frontend/Accounting | confirmed |
 | BR-UI-006 | Billing workspace must use idempotency for batch generation and require controlled invoice issue with receivable/revenue accounts | Frontend/Billing | confirmed |
 | BR-UI-007 | Accounting journal detail must expose debit-credit lines, source traceability, posting metadata, and balance status without adding edit paths | Frontend/Accounting | confirmed |
+| BR-UI-008 | Payment workspace must use backend payment command contracts, idempotency, account validation, audit reason, and permission-aware visibility | Frontend/Payment | confirmed |
 | BR-UI-001 | Operational frontend pages expose loading, error, empty, filter, mutation pending, and mutation error states | Frontend | confirmed |
 
 ## Requirements Traceability
@@ -88,11 +89,12 @@
 | REQ-SEC-006 | Permission granular command akuntansi dan billing | Security/Accounting/Billing | Account manage, period manage/close, journal create/post, billing generate, and invoice issue use `account.manage`, `period.manage`, `period.close`, `journal.create`, `journal.post`, `billing.generate`, and `invoice.issue` authorities | T-093 | AccountingControllerPermissionTest, BillingControllerPermissionTest, AccountingBillingPermissionSeedMigrationTest |
 | REQ-UI-001 | Workspace penagihan piutang siap operasional | Frontend | `/receivables/collection-actions` provides typed API integration, filters, create form, workflow actions, loading/error/empty states, and mutation feedback | T-086 | npm lint, typecheck, build |
 | REQ-UI-002 | Visibility aksi penagihan permission-aware | Frontend/Security | Frontend reads `/api/auth/me`, gates list/create/execute/cancel controls by `collection-action.*` authorities, and keeps backend enforcement authoritative | T-091 | AuthControllerTest, collection-action-permissions.test.ts |
-| REQ-UI-003 | Visibility command finansial permission-aware | Frontend/Security | Dashboard reads `/api/auth/me` and shows accounting/billing command access from `account.manage`, `period.manage`, `period.close`, `journal.create`, `journal.post`, `billing.generate`, and `invoice.issue` authorities | T-094 | financial-command-permissions.test.ts, npm test:permissions, npm typecheck/lint/build |
+| REQ-UI-003 | Visibility command finansial permission-aware | Frontend/Security | Dashboard reads `/api/auth/me` and shows accounting/billing/payment command access from `account.manage`, `period.manage`, `period.close`, `journal.create`, `journal.post`, `billing.generate`, `invoice.issue`, `payment.counter`, `payment.reverse`, and `payment.webhook.read` authorities | T-094,T-099 | financial-command-permissions.test.ts, npm test:permissions, npm typecheck/lint/build |
 | REQ-UI-004 | Workspace akuntansi fondasi | Frontend/Accounting | `/accounting` lists CoA, accounting periods, and journals with typed API schemas, summary cards, status badges, journal filter, loading/error/empty states, and permission-aware command availability | T-095 | accounting-workspace-model.test.ts, npm test:permissions, npm typecheck/lint/build |
 | REQ-UI-005 | Workflow command akuntansi | Frontend/Accounting | `/accounting` supports permission-gated CoA creation, accounting period creation, period closing-review/lock confirmation, manual journal draft creation with debit-credit validation, and journal posting confirmation with audit reason | T-096 | accounting-workspace-model.test.ts, npm test:permissions, npm typecheck/lint/build |
 | REQ-UI-006 | Workspace billing fondasi | Frontend/Billing | `/billing` lists billing batches and invoices with typed schemas/hooks, period/status filters, summary cards, idempotent batch generation, draft invoice issue confirmation, account validation, loading/error/empty states, and permission-aware commands | T-097 | billing-workspace-model.test.ts, npm test:permissions, npm typecheck/lint/build |
 | REQ-UI-007 | Detail baca jurnal akuntansi | Frontend/Accounting | `/accounting` opens a read-only journal detail drawer from the journal table, fetches `/api/journals/{journalId}`, shows source traceability, posted metadata, totals, balanced status, and debit-credit lines with account labels | T-098 | accounting-workspace-model.test.ts, npm test:permissions, npm typecheck/lint/build |
+| REQ-UI-008 | Workspace pembayaran settlement | Frontend/Payment | `/payments` reads payment webhook events when authorized, submits counter settlement with idempotency key, submits payment reversal with audit reason, validates asset cash/receivable accounts and allocation totals locally, and keeps backend permissions authoritative | T-099 | payment-workspace-model.test.ts, npm test:permissions, npm typecheck/lint/build |
 
 ## Decision Log
 
@@ -136,6 +138,7 @@
 | 2026-07-06 | Add Accounting command workflows | Finance users need controlled write workflows without bypassing backend posting governance | `/accounting` now submits CoA, period, manual journal, period close, period lock, and journal post commands through typed TanStack mutations with audit reason, local journal balance validation, permission gates, and query invalidation |
 | 2026-07-06 | Add Billing workspace foundation | Billing users need a controlled surface for batch generation and invoice issue before receivable settlement expansion | `/billing` now reads typed billing batch and invoice endpoints, generates batches with idempotency keys, issues draft invoices with receivable/revenue account selection, and gates commands by backend authorities |
 | 2026-07-07 | Add Accounting journal detail drawer | Finance users need source-to-ledger traceability without leaving the accounting workspace | `/accounting` now fetches full journal details on demand, presents source document, posting metadata, backend totals, line-level debit-credit values, and local line integrity summary in a read-only drawer |
+| 2026-07-07 | Add Payment settlement workspace visibility | Payment operators need a controlled surface for loket settlement, reversal, and webhook monitoring without inventing unsupported payment list contracts | `/payments` now uses existing backend payment contracts, idempotency key submission, asset account validation, allocation-total checks, permission-aware event visibility, and mutation feedback |
 
 ## Assumptions Register
 
@@ -170,10 +173,10 @@
 
 ## Current Implementation State
 
-- Completed: repository scaffold, docs baseline, backend skeleton, frontend dashboard shell, Money primitive, accounting domain skeleton, persisted audit primitive, idempotency primitive, V2 domain foundation migration, quality gate verification, initial GitHub push, repository-backed Accounting API, customer/connection API foundation, metering API foundation, tariff engine foundation, billing batch foundation, payment webhook foundation, payment idempotency foundation, receivable aging foundation, posted reporting foundation, ledger materialization from posted journals, controlled invoice issue with receivable/revenue posting, controlled counter payment settlement with cash/bank receivable posting, controlled payment reversal with receivable restoration and reversal journal, receivable collection action workflow with dunning controls, frontend receivable collection workspace, collection invoice-customer ownership validation, collection action granular permission enforcement, database-backed user/role/permission authentication, RBAC role/permission seed catalog, secure bootstrap admin provisioning, permission-aware collection action frontend visibility, payment granular permission enforcement and seed catalog, accounting and billing command permission enforcement and seed catalog, permission-aware financial command dashboard visibility, accounting workspace foundation, accounting command workflows, billing workspace foundation, accounting journal detail drawer.
+- Completed: repository scaffold, docs baseline, backend skeleton, frontend dashboard shell, Money primitive, accounting domain skeleton, persisted audit primitive, idempotency primitive, V2 domain foundation migration, quality gate verification, initial GitHub push, repository-backed Accounting API, customer/connection API foundation, metering API foundation, billing batch foundation, payment webhook foundation, payment idempotency foundation, receivable aging foundation, posted reporting foundation, ledger materialization from posted journals, controlled invoice issue with receivable/revenue posting, controlled counter payment settlement with cash/bank receivable posting, controlled payment reversal with receivable restoration and reversal journal, receivable collection action workflow with dunning controls, frontend receivable collection workspace, collection invoice-customer ownership validation, collection action granular permission enforcement, database-backed user/role/permission authentication, RBAC role/permission seed catalog, secure bootstrap admin provisioning, permission-aware collection action frontend visibility, payment granular permission enforcement and seed catalog, accounting and billing command permission enforcement and seed catalog, permission-aware financial command dashboard visibility, accounting workspace foundation, accounting command workflows, billing workspace foundation, accounting journal detail drawer, payment settlement workspace visibility.
 - In progress: none.
 - Blocked: official tariff values, numbering format, final production auth mechanism decision beyond Basic auth.
-- Next actions: build payment settlement workspace visibility, then add billing batch invoice drill-down by batch.
+- Next actions: add billing batch invoice drill-down by batch, then add payment list/detail endpoint if operational reconciliation requires browsing settled payments directly.
 
 ## Latest Verification Snapshot
 
@@ -216,6 +219,7 @@
 | Accounting Command Workflow increment | passed: RED/GREEN accounting workspace model tests, `npm run test:permissions`, `npm run typecheck`, `npm run lint`, `npm run build` |
 | Billing Workspace Foundation increment | passed: RED/GREEN billing workspace model tests, `npm run test:permissions`, `npm run typecheck`, `npm run lint`, `npm run build` |
 | Accounting Journal Detail Drawer increment | passed: RED/GREEN accounting detail line summary test, `npm run test:permissions`, `npm run typecheck`, `npm run lint`, `npm run build` |
+| Payment Settlement Workspace increment | passed: RED/GREEN payment workspace model tests, `npm run test:permissions`, `npm run typecheck`, `npm run lint`, `npm run build`, local `/payments` smoke `200` |
 
 ## Handoff Instructions
 

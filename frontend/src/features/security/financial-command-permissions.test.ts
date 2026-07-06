@@ -36,10 +36,25 @@ test("resolveFinancialCommandPermissions maps billing command authorities", () =
   );
 });
 
+test("resolveFinancialCommandPermissions maps payment command authorities", () => {
+  assert.deepEqual(
+    resolveFinancialCommandPermissions([
+      financialCommandPermissions.paymentCounter,
+      financialCommandPermissions.paymentWebhookRead
+    ]).payment,
+    {
+      canSettleCounterPayments: true,
+      canReversePayments: false,
+      canReadWebhookEvents: true
+    }
+  );
+});
+
 test("visibleFinancialCommandGroups marks individual commands by permission", () => {
   const state = resolveFinancialCommandPermissions([
     financialCommandPermissions.journalCreate,
-    financialCommandPermissions.invoiceIssue
+    financialCommandPermissions.invoiceIssue,
+    financialCommandPermissions.paymentReverse
   ]);
 
   assert.deepEqual(
@@ -55,6 +70,10 @@ test("visibleFinancialCommandGroups marks individual commands by permission", ()
       {
         title: "Billing",
         allowed: [financialCommandPermissions.invoiceIssue]
+      },
+      {
+        title: "Payment",
+        allowed: [financialCommandPermissions.paymentReverse]
       }
     ]
   );

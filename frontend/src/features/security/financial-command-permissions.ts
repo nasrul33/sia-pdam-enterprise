@@ -5,7 +5,10 @@ export const financialCommandPermissions = {
   journalCreate: "journal.create",
   journalPost: "journal.post",
   billingGenerate: "billing.generate",
-  invoiceIssue: "invoice.issue"
+  invoiceIssue: "invoice.issue",
+  paymentCounter: "payment.counter",
+  paymentReverse: "payment.reverse",
+  paymentWebhookRead: "payment.webhook.read"
 } as const;
 
 export type AccountingCommandPermissionState = {
@@ -21,9 +24,16 @@ export type BillingCommandPermissionState = {
   canIssueInvoices: boolean;
 };
 
+export type PaymentCommandPermissionState = {
+  canSettleCounterPayments: boolean;
+  canReversePayments: boolean;
+  canReadWebhookEvents: boolean;
+};
+
 export type FinancialCommandPermissionState = {
   accounting: AccountingCommandPermissionState;
   billing: BillingCommandPermissionState;
+  payment: PaymentCommandPermissionState;
   hasAnyFinancialCommand: boolean;
 };
 
@@ -35,7 +45,7 @@ export type FinancialCommand = {
 };
 
 export type FinancialCommandGroup = {
-  title: "Accounting" | "Billing";
+  title: "Accounting" | "Billing" | "Payment";
   commands: readonly FinancialCommand[];
 };
 
@@ -52,10 +62,16 @@ export function resolveFinancialCommandPermissions(authorities: readonly string[
     canGenerateBilling: authoritySet.has(financialCommandPermissions.billingGenerate),
     canIssueInvoices: authoritySet.has(financialCommandPermissions.invoiceIssue)
   };
+  const payment = {
+    canSettleCounterPayments: authoritySet.has(financialCommandPermissions.paymentCounter),
+    canReversePayments: authoritySet.has(financialCommandPermissions.paymentReverse),
+    canReadWebhookEvents: authoritySet.has(financialCommandPermissions.paymentWebhookRead)
+  };
 
   return {
     accounting,
     billing,
+    payment,
     hasAnyFinancialCommand:
       accounting.canManageAccounts ||
       accounting.canManagePeriods ||
@@ -63,7 +79,10 @@ export function resolveFinancialCommandPermissions(authorities: readonly string[
       accounting.canCreateJournals ||
       accounting.canPostJournals ||
       billing.canGenerateBilling ||
-      billing.canIssueInvoices
+      billing.canIssueInvoices ||
+      payment.canSettleCounterPayments ||
+      payment.canReversePayments ||
+      payment.canReadWebhookEvents
   };
 }
 
@@ -118,6 +137,29 @@ export function visibleFinancialCommandGroups(state: FinancialCommandPermissionS
           permission: financialCommandPermissions.invoiceIssue,
           allowed: state.billing.canIssueInvoices,
           risk: "high"
+        }
+      ]
+    },
+    {
+      title: "Payment",
+      commands: [
+        {
+          label: "Counter Settlement",
+          permission: financialCommandPermissions.paymentCounter,
+          allowed: state.payment.canSettleCounterPayments,
+          risk: "high"
+        },
+        {
+          label: "Reversal Payment",
+          permission: financialCommandPermissions.paymentReverse,
+          allowed: state.payment.canReversePayments,
+          risk: "high"
+        },
+        {
+          label: "Webhook Event Read",
+          permission: financialCommandPermissions.paymentWebhookRead,
+          allowed: state.payment.canReadWebhookEvents,
+          risk: "medium"
         }
       ]
     }

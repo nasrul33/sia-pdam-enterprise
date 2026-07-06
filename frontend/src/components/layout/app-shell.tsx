@@ -19,7 +19,7 @@ const navItems = [
   { label: "Sambungan", href: "/", icon: BadgeCheck },
   { label: "Baca Meter", href: "/", icon: Gauge },
   { label: "Billing", href: "/billing", icon: ReceiptText },
-  { label: "Pembayaran", href: "/", icon: WalletCards },
+  { label: "Pembayaran", href: "/payments", icon: WalletCards },
   { label: "Piutang", href: "/receivables/collection-actions", icon: Banknote },
   { label: "Akuntansi", href: "/accounting", icon: BookOpenCheck },
   { label: "Laporan", href: "/", icon: ClipboardList },
