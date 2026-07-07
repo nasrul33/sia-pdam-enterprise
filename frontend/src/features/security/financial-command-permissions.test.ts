@@ -41,11 +41,13 @@ test("resolveFinancialCommandPermissions maps payment command authorities", () =
     resolveFinancialCommandPermissions([
       financialCommandPermissions.paymentCounter,
       financialCommandPermissions.paymentRead,
+      financialCommandPermissions.paymentReconcile,
       financialCommandPermissions.paymentWebhookRead
     ]).payment,
     {
       canSettleCounterPayments: true,
       canReadPayments: true,
+      canReconcilePayments: true,
       canReversePayments: false,
       canReadWebhookEvents: true
     }
@@ -56,6 +58,7 @@ test("visibleFinancialCommandGroups marks individual commands by permission", ()
   const state = resolveFinancialCommandPermissions([
     financialCommandPermissions.journalCreate,
     financialCommandPermissions.invoiceIssue,
+    financialCommandPermissions.paymentReconcile,
     financialCommandPermissions.paymentReverse
   ]);
 
@@ -75,7 +78,7 @@ test("visibleFinancialCommandGroups marks individual commands by permission", ()
       },
       {
         title: "Payment",
-        allowed: [financialCommandPermissions.paymentReverse]
+        allowed: [financialCommandPermissions.paymentReconcile, financialCommandPermissions.paymentReverse]
       }
     ]
   );

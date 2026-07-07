@@ -8,6 +8,7 @@ export const financialCommandPermissions = {
   invoiceIssue: "invoice.issue",
   paymentCounter: "payment.counter",
   paymentRead: "payment.read",
+  paymentReconcile: "payment.reconcile",
   paymentReverse: "payment.reverse",
   paymentWebhookRead: "payment.webhook.read"
 } as const;
@@ -28,6 +29,7 @@ export type BillingCommandPermissionState = {
 export type PaymentCommandPermissionState = {
   canSettleCounterPayments: boolean;
   canReadPayments: boolean;
+  canReconcilePayments: boolean;
   canReversePayments: boolean;
   canReadWebhookEvents: boolean;
 };
@@ -67,6 +69,7 @@ export function resolveFinancialCommandPermissions(authorities: readonly string[
   const payment = {
     canSettleCounterPayments: authoritySet.has(financialCommandPermissions.paymentCounter),
     canReadPayments: authoritySet.has(financialCommandPermissions.paymentRead),
+    canReconcilePayments: authoritySet.has(financialCommandPermissions.paymentReconcile),
     canReversePayments: authoritySet.has(financialCommandPermissions.paymentReverse),
     canReadWebhookEvents: authoritySet.has(financialCommandPermissions.paymentWebhookRead)
   };
@@ -85,6 +88,7 @@ export function resolveFinancialCommandPermissions(authorities: readonly string[
       billing.canIssueInvoices ||
       payment.canSettleCounterPayments ||
       payment.canReadPayments ||
+      payment.canReconcilePayments ||
       payment.canReversePayments ||
       payment.canReadWebhookEvents
   };
@@ -157,6 +161,12 @@ export function visibleFinancialCommandGroups(state: FinancialCommandPermissionS
           label: "Payment Read",
           permission: financialCommandPermissions.paymentRead,
           allowed: state.payment.canReadPayments,
+          risk: "medium"
+        },
+        {
+          label: "Payment Reconcile",
+          permission: financialCommandPermissions.paymentReconcile,
+          allowed: state.payment.canReconcilePayments,
           risk: "medium"
         },
         {

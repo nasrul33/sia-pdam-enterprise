@@ -147,6 +147,15 @@ All payment settlement mutation endpoints must send an `Idempotency-Key` header 
 
 `POST /api/payments/counter` requires `payment.counter` authority, `Idempotency-Key`, `amount`, `paidAt`, `allocations[]`, `cashAccountId`, `receivableAccountId`, and `reason`. The payment amount must equal the allocation total. Each invoice allocation must target an `ISSUED` or `PARTIAL_PAID` invoice and cannot exceed invoice outstanding amount. Accounting period is derived from `paidAt` using UTC `yyyy-MM`; the period must exist and allow posting. Accounting validates cash/bank and receivable accounts as `ASSET`, blocks duplicate source journals, posts debit cash/bank and credit receivable through `PostingService`, materializes ledger entries, then links `payments.settlement_journal_entry_id`. A completed retry with the same idempotency key and payload returns the original payment, receipt, and allocations without duplicate writes or duplicate journal posting.
 
+## Payment Register
+
+| Method | Endpoint | Purpose | Permission |
+|---|---|---|---|
+| GET | /api/payments | list payments with `status`, `channel`, pagination | payment.read |
+| GET | /api/payments/{id} | payment detail with receipt, allocation, and journal trace | payment.read |
+
+The payment register is read-only. It exposes settlement/reversal traceability but does not provide alternate correction paths; reversal remains the controlled command endpoint below.
+
 ## Payment Reversal
 
 | Method | Endpoint | Purpose | Permission |
@@ -154,6 +163,32 @@ All payment settlement mutation endpoints must send an `Idempotency-Key` header 
 | POST | /api/payments/{id}/reverse | reverse settled payment | payment.reverse |
 
 `POST /api/payments/{id}/reverse` requires `payment.reverse` authority, `cashAccountId`, `receivableAccountId`, and mandatory `reason`. Reversal is allowed only for `SETTLED` payments with an existing settlement journal. It restores each payment allocation back to invoice outstanding, marks the payment `REVERSED`, posts a source-traceable reversal journal (`sourceModule=PAYMENT_REVERSAL`) through `PostingService`, materializes ledger entries, and links `payments.reversal_journal_entry_id`. The reversal journal debits receivable and credits cash/bank.
+
+## Payment Reconciliation
+
+| Method | Endpoint | Purpose | Permission |
+|---|---|---|---|
+| GET | /api/payment-reconciliation/export | export settled/reversed payment slice as CSV with `status`, `channel`, `paidAtFrom`, `paidAtTo` filters | payment.reconcile |
+| POST | /api/payment-reconciliation/match | match imported bank statement rows to settled/reversed payments | payment.reconcile |
+
+`GET /api/payment-reconciliation/export` returns `text/csv`, limits export to 10,000 rows, and only allows `SETTLED` or `REVERSED` payment status. The action is audited because it exports sensitive kas-bank reconciliation data.
+
+`POST /api/payment-reconciliation/match` accepts up to 200 rows:
+
+```json
+{
+  "rows": [
+    {
+      "statementReference": "BANK-20260731-0001",
+      "amount": 100000,
+      "transactedAt": "2026-07-31T12:00:00Z",
+      "channel": "COUNTER"
+    }
+  ]
+}
+```
+
+The response classifies rows as `EXACT_MATCH`, `PROBABLE_MATCH`, `AMOUNT_VARIANCE`, `REVERSED_PAYMENT`, `MULTIPLE_CANDIDATES`, or `UNMATCHED`, including variance amount and matched payment/journal references when available. This workflow does not create, post, reverse, or mutate journals; accounting corrections remain explicit accounting/payment reversal workflows.
 
 ## Receivable Aging
 

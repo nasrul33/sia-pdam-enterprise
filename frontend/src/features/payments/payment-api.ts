@@ -1,9 +1,12 @@
-import { apiGet, apiPost } from "@/lib/api/client";
+import { apiGet, apiGetText, apiPost } from "@/lib/api/client";
 import {
   paymentPageSchema,
+  paymentReconciliationMatchReportSchema,
   paymentSettlementSchema,
   paymentWebhookEventPageSchema,
   type PaymentFilters,
+  type PaymentReconciliationExportFilters,
+  type PaymentReconciliationMatchPayload,
   type PaymentWebhookEventFilters,
   type ReversePaymentPayload,
   type SettleCounterPaymentPayload
@@ -39,6 +42,25 @@ function webhookEventParams(filters: PaymentWebhookEventFilters): URLSearchParam
   return params;
 }
 
+function reconciliationParams(filters: PaymentReconciliationExportFilters): URLSearchParams {
+  const params = new URLSearchParams();
+
+  if (filters.status) {
+    params.set("status", filters.status);
+  }
+  if (filters.channel) {
+    params.set("channel", filters.channel);
+  }
+  if (filters.paidAtFrom) {
+    params.set("paidAtFrom", filters.paidAtFrom);
+  }
+  if (filters.paidAtTo) {
+    params.set("paidAtTo", filters.paidAtTo);
+  }
+
+  return params;
+}
+
 export async function listPayments(filters: PaymentFilters) {
   const payload = await apiGet<unknown>(`/api/payments?${paymentParams(filters).toString()}`);
   return paymentPageSchema.parse(payload);
@@ -52,6 +74,16 @@ export async function getPayment(paymentId: string) {
 export async function listPaymentWebhookEvents(filters: PaymentWebhookEventFilters) {
   const payload = await apiGet<unknown>(`/api/payment-webhook-events?${webhookEventParams(filters).toString()}`);
   return paymentWebhookEventPageSchema.parse(payload);
+}
+
+export async function exportPaymentReconciliationCsv(filters: PaymentReconciliationExportFilters) {
+  const query = reconciliationParams(filters).toString();
+  return apiGetText(`/api/payment-reconciliation/export${query ? `?${query}` : ""}`);
+}
+
+export async function matchPaymentReconciliation(payload: PaymentReconciliationMatchPayload) {
+  const response = await apiPost<PaymentReconciliationMatchPayload, unknown>("/api/payment-reconciliation/match", payload);
+  return paymentReconciliationMatchReportSchema.parse(response);
 }
 
 export async function settleCounterPayment(input: {

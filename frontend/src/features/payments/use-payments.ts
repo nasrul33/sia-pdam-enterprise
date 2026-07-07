@@ -1,8 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query/query-keys";
-import { getPayment, listPaymentWebhookEvents, listPayments, reversePayment, settleCounterPayment } from "./payment-api";
+import {
+  getPayment,
+  listPaymentWebhookEvents,
+  listPayments,
+  matchPaymentReconciliation,
+  reversePayment,
+  settleCounterPayment
+} from "./payment-api";
 import type {
   PaymentFilters,
+  PaymentReconciliationMatchPayload,
   PaymentWebhookEventFilters,
   ReversePaymentPayload,
   SettleCounterPaymentPayload
@@ -29,6 +37,12 @@ export function usePaymentWebhookEvents(filters: PaymentWebhookEventFilters, ena
     queryKey: [...queryKeys.payments, "webhook-events", filters],
     queryFn: () => listPaymentWebhookEvents(filters),
     enabled
+  });
+}
+
+export function useMatchPaymentReconciliation() {
+  return useMutation({
+    mutationFn: (payload: PaymentReconciliationMatchPayload) => matchPaymentReconciliation(payload)
   });
 }
 

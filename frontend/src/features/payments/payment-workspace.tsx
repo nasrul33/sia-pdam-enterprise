@@ -3,7 +3,9 @@
 import {
   AlertTriangle,
   CheckCircle2,
+  Download,
   Eye,
+  FileSpreadsheet,
   FileSearch,
   ListFilter,
   Loader2,
@@ -14,6 +16,7 @@ import {
   ShieldCheck,
   Trash2,
   Undo2,
+  UploadCloud,
   WalletCards
 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -33,11 +36,15 @@ import { resolveFinancialCommandPermissions } from "@/features/security/financia
 import {
   allocationTotalAmount,
   canReadPayments,
+  canReconcilePayments,
   canReversePayment,
   canSettleCounterPayment,
   counterPaymentErrors,
+  parseBankStatementCsv,
   parseMoneyInput,
+  paymentReconciliationExportErrors,
   reversePaymentErrors,
+  summarizeReconciliationMatches,
   summarizePaymentList,
   summarizePaymentWorkspace,
   type CounterPaymentAllocationDraft,
@@ -45,6 +52,8 @@ import {
   type ReversePaymentDraft
 } from "./payment-workspace-model";
 import type {
+  PaymentReconciliationMatchReport,
+  PaymentReconciliationMatchStatus,
   PaymentSettlement,
   PaymentStatus,
   PaymentSummary,
@@ -54,7 +63,15 @@ import type {
   SettleCounterPaymentPayload
 } from "./payment-schema";
 import { paymentStatusValues, paymentWebhookStatusValues } from "./payment-schema";
-import { usePayment, usePaymentWebhookEvents, usePayments, useReversePayment, useSettleCounterPayment } from "./use-payments";
+import { exportPaymentReconciliationCsv } from "./payment-api";
+import {
+  useMatchPaymentReconciliation,
+  usePayment,
+  usePaymentWebhookEvents,
+  usePayments,
+  useReversePayment,
+  useSettleCounterPayment
+} from "./use-payments";
 
 type StatusFilter<TStatus extends string> = TStatus | "ALL";
 type PaymentPermissions = ReturnType<typeof resolveFinancialCommandPermissions>["payment"];
@@ -87,6 +104,24 @@ const paymentStatusTones: Record<PaymentStatus, "success" | "warning" | "danger"
   SETTLED: "success",
   REVERSED: "neutral",
   FAILED: "danger"
+};
+
+const reconciliationStatusLabels: Record<PaymentReconciliationMatchStatus, string> = {
+  EXACT_MATCH: "Exact",
+  PROBABLE_MATCH: "Probable",
+  AMOUNT_VARIANCE: "Variance",
+  REVERSED_PAYMENT: "Reversed",
+  MULTIPLE_CANDIDATES: "Multiple",
+  UNMATCHED: "Unmatched"
+};
+
+const reconciliationStatusTones: Record<PaymentReconciliationMatchStatus, "success" | "warning" | "danger" | "neutral" | "info"> = {
+  EXACT_MATCH: "success",
+  PROBABLE_MATCH: "info",
+  AMOUNT_VARIANCE: "warning",
+  REVERSED_PAYMENT: "neutral",
+  MULTIPLE_CANDIDATES: "warning",
+  UNMATCHED: "danger"
 };
 
 const webhookStatusTones: Record<PaymentWebhookStatus, "success" | "warning" | "danger" | "neutral" | "info"> = {
@@ -182,8 +217,23 @@ function toInstant(value: string): string {
   return new Date(value).toISOString();
 }
 
+function toOptionalInstant(value: string): string | undefined {
+  const normalized = value.trim();
+  return normalized ? new Date(normalized).toISOString() : undefined;
+}
+
 function accountLabel(account: Account): string {
   return `${account.code} - ${account.name}`;
+}
+
+function downloadTextFile(filename: string, content: string, type: string) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 function InlineMessage({ type, message }: Readonly<{ type: FeedbackType; message: string }>) {
@@ -258,6 +308,7 @@ function PaymentCommandPanel({ permissions }: Readonly<{ permissions: PaymentPer
       </div>
       <CommandStatus label="Counter Settlement" allowed={permissions.canSettleCounterPayments} highRisk />
       <CommandStatus label="Payment Read" allowed={permissions.canReadPayments} />
+      <CommandStatus label="Payment Reconcile" allowed={permissions.canReconcilePayments} />
       <CommandStatus label="Payment Reversal" allowed={permissions.canReversePayments} highRisk />
       <CommandStatus label="Webhook Event Read" allowed={permissions.canReadWebhookEvents} />
     </div>
@@ -649,6 +700,230 @@ function TraceItem({ label, value }: Readonly<{ label: string; value: string }>)
     <div className="rounded-lg border border-slate-200 bg-white p-3">
       <dt className="text-xs font-bold uppercase text-slate-600">{label}</dt>
       <dd className="mt-1 break-words font-mono text-xs font-semibold text-slate-900">{value}</dd>
+    </div>
+  );
+}
+
+function PaymentReconciliationPanel({
+  allowed,
+  channel,
+  status
+}: Readonly<{
+  allowed: boolean;
+  channel: string;
+  status: StatusFilter<PaymentStatus>;
+}>) {
+  const matchMutation = useMatchPaymentReconciliation();
+  const [paidAtFrom, setPaidAtFrom] = useState("");
+  const [paidAtTo, setPaidAtTo] = useState("");
+  const [statementCsv, setStatementCsv] = useState("");
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [matchReport, setMatchReport] = useState<PaymentReconciliationMatchReport | null>(null);
+  const exportDraft = { status, paidAtFrom, paidAtTo };
+  const exportErrors = paymentReconciliationExportErrors(exportDraft);
+  const matchSummary = useMemo(
+    () => (matchReport ? summarizeReconciliationMatches(matchReport.matches) : null),
+    [matchReport]
+  );
+
+  async function handleExport() {
+    setLocalError(null);
+    setSuccessMessage(null);
+
+    if (!allowed) {
+      setLocalError("User tidak memiliki permission payment.reconcile.");
+      return;
+    }
+    if (exportErrors.length > 0) {
+      setLocalError(exportErrors[0]);
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      const csv = await exportPaymentReconciliationCsv({
+        status: status === "ALL" ? undefined : status,
+        channel: optionalString(channel) ?? undefined,
+        paidAtFrom: toOptionalInstant(paidAtFrom),
+        paidAtTo: toOptionalInstant(paidAtTo)
+      });
+      downloadTextFile(`payment-reconciliation-${new Date().toISOString().slice(0, 10)}.csv`, csv, "text/csv;charset=utf-8");
+      setSuccessMessage("Export CSV rekonsiliasi berhasil dibuat.");
+    } catch (error) {
+      setLocalError(apiErrorMessage(error, "Gagal export rekonsiliasi pembayaran."));
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
+  async function handleMatch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLocalError(null);
+    setSuccessMessage(null);
+    setMatchReport(null);
+    matchMutation.reset();
+
+    if (!allowed) {
+      setLocalError("User tidak memiliki permission payment.reconcile.");
+      return;
+    }
+
+    const parsed = parseBankStatementCsv(statementCsv);
+    if (parsed.errors.length > 0) {
+      setLocalError(parsed.errors[0]);
+      return;
+    }
+
+    try {
+      const report = await matchMutation.mutateAsync({ rows: parsed.rows });
+      setMatchReport(report);
+      setSuccessMessage(`Match selesai untuk ${report.summary.totalRows} baris bank statement.`);
+    } catch {
+      return;
+    }
+  }
+
+  const disabled = !allowed || isExporting || matchMutation.isPending;
+  const errorMessage =
+    localError ?? (matchMutation.isError ? apiErrorMessage(matchMutation.error, "Gagal match bank statement.") : null);
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <FileSpreadsheet className="size-5 text-sky-700" aria-hidden="true" />
+          <h3 className="text-sm font-bold text-slate-950">Payment Reconciliation</h3>
+        </div>
+        <StatusBadge label={allowed ? "payment.reconcile" : "Locked"} tone={allowed ? "success" : "neutral"} />
+      </div>
+      {!allowed ? (
+        <p className="mt-3 text-sm leading-6 text-slate-700">
+          Authority <span className="font-mono font-bold">payment.reconcile</span> diperlukan untuk export dan matching bank.
+        </p>
+      ) : null}
+
+      <div className="mt-4 grid gap-3">
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold uppercase text-slate-600">Export Register Slice</p>
+              <p className="mt-1 text-sm font-semibold text-slate-700">
+                Filter aktif: {status === "ALL" ? "SETTLED/REVERSED" : paymentStatusLabels[status]} - {optionalString(channel) ?? "Semua channel"}
+              </p>
+            </div>
+            <button type="button" className={secondaryButtonClass} disabled={disabled} onClick={handleExport}>
+              {isExporting ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Download className="size-4" aria-hidden="true" />}
+              Export CSV
+            </button>
+          </div>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <label className="block">
+              <span className="text-xs font-bold uppercase text-slate-600">Paid From</span>
+              <input
+                type="datetime-local"
+                className={inputClass}
+                value={paidAtFrom}
+                disabled={disabled}
+                onChange={(event) => setPaidAtFrom(event.target.value)}
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs font-bold uppercase text-slate-600">Paid To</span>
+              <input
+                type="datetime-local"
+                className={inputClass}
+                value={paidAtTo}
+                disabled={disabled}
+                onChange={(event) => setPaidAtTo(event.target.value)}
+              />
+            </label>
+          </div>
+        </div>
+
+        <form onSubmit={handleMatch} className="grid gap-3">
+          <label className="block">
+            <span className="text-xs font-bold uppercase text-slate-600">Bank Statement CSV</span>
+            <textarea
+              className={textareaClass}
+              value={statementCsv}
+              disabled={disabled}
+              onChange={(event) => setStatementCsv(event.target.value)}
+              placeholder="reference;amount;transacted_at;channel"
+            />
+          </label>
+          {errorMessage ? <InlineMessage type="error" message={errorMessage} /> : null}
+          {successMessage ? <InlineMessage type="success" message={successMessage} /> : null}
+          <button type="submit" className={primaryButtonClass} disabled={disabled}>
+            {matchMutation.isPending ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <UploadCloud className="size-4" aria-hidden="true" />}
+            Match Bank Rows
+          </button>
+        </form>
+
+        {matchReport && matchSummary ? (
+          <div className="rounded-lg border border-slate-200 bg-white">
+            <div className="grid gap-2 border-b border-slate-200 p-3 text-sm sm:grid-cols-3">
+              <MetricPill label="Exact" value={matchSummary.exactMatches} tone="success" />
+              <MetricPill label="Variance" value={matchSummary.amountVariances} tone="warning" />
+              <MetricPill label="Unmatched" value={matchSummary.unmatchedRows} tone="danger" />
+              <MetricPill label="Probable" value={matchSummary.probableMatches} tone="info" />
+              <MetricPill label="Reversed" value={matchSummary.reversedPayments} tone="neutral" />
+              <MetricPill label="Multiple" value={matchSummary.multipleCandidates} tone="warning" />
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-200 text-sm">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-bold text-slate-700">Row</th>
+                    <th className="px-4 py-3 text-left font-bold text-slate-700">Reference</th>
+                    <th className="px-4 py-3 text-left font-bold text-slate-700">Status</th>
+                    <th className="px-4 py-3 text-right font-bold text-slate-700">Bank Amount</th>
+                    <th className="px-4 py-3 text-right font-bold text-slate-700">Variance</th>
+                    <th className="px-4 py-3 text-left font-bold text-slate-700">Payment</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {matchReport.matches.map((match) => (
+                    <tr key={`${match.rowNumber}-${match.statementReference}`} className="hover:bg-slate-50">
+                      <td className="whitespace-nowrap px-4 py-3 font-bold text-slate-950">{match.rowNumber}</td>
+                      <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-slate-700">{match.statementReference}</td>
+                      <td className="whitespace-nowrap px-4 py-3">
+                        <StatusBadge label={reconciliationStatusLabels[match.status]} tone={reconciliationStatusTones[match.status]} />
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-right font-bold text-slate-950">
+                        <MoneyText value={match.statementAmount} />
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-right font-bold text-slate-950">
+                        {match.amountVariance === null ? "-" : <MoneyText value={match.amountVariance} />}
+                      </td>
+                      <td className="min-w-48 px-4 py-3 text-slate-700">
+                        <p className="font-mono text-xs font-semibold">{match.matchedPaymentNumber ?? "-"}</p>
+                        <p className="mt-1 text-xs leading-5 text-slate-600">{match.message}</p>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function MetricPill({
+  label,
+  value,
+  tone
+}: Readonly<{ label: string; value: number; tone: "success" | "warning" | "danger" | "neutral" | "info" }>) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-bold uppercase text-slate-600">{label}</span>
+        <StatusBadge label={String(value)} tone={tone} />
+      </div>
     </div>
   );
 }
@@ -1362,6 +1637,11 @@ export function PaymentWorkspace() {
             </div>
             <div className="space-y-4">
               <PaymentCommandPanel permissions={permissions} />
+              <PaymentReconciliationPanel
+                allowed={canReconcilePayments(permissions)}
+                channel={paymentChannel}
+                status={paymentStatus}
+              />
               <CounterSettlementForm
                 allowed={canSettleCounterPayment(permissions)}
                 accounts={accounts}

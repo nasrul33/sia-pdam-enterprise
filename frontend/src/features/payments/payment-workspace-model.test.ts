@@ -4,11 +4,15 @@ import { financialCommandPermissions, resolveFinancialCommandPermissions } from 
 import {
   allocationTotalAmount,
   canReadPayments,
+  canReconcilePayments,
   canReversePayment,
   canSettleCounterPayment,
   counterPaymentErrors,
+  parseBankStatementCsv,
   parseMoneyInput,
+  paymentReconciliationExportErrors,
   reversePaymentErrors,
+  summarizeReconciliationMatches,
   summarizePaymentList,
   summarizePaymentWorkspace
 } from "./payment-workspace-model.ts";
@@ -66,12 +70,15 @@ test("payment command guards require matching authorities", () => {
   const paymentPermissions = resolveFinancialCommandPermissions([
     financialCommandPermissions.paymentCounter,
     financialCommandPermissions.paymentRead,
+    financialCommandPermissions.paymentReconcile,
     financialCommandPermissions.paymentReverse
   ]).payment;
 
   assert.equal(canSettleCounterPayment(paymentPermissions), true);
   assert.equal(canReadPayments(paymentPermissions), true);
+  assert.equal(canReconcilePayments(paymentPermissions), true);
   assert.equal(canReversePayment(paymentPermissions), true);
+  assert.equal(canReconcilePayments(resolveFinancialCommandPermissions([]).payment), false);
   assert.equal(canReadPayments(resolveFinancialCommandPermissions([]).payment), false);
   assert.equal(canSettleCounterPayment(resolveFinancialCommandPermissions([]).payment), false);
 });
@@ -93,6 +100,69 @@ test("summarizePaymentList calculates reconciliation counts and cash impact", ()
       totalReversedAmount: 25000.25,
       netCashImpact: 125000.25
     }
+  );
+});
+
+test("parseBankStatementCsv accepts header rows, semicolon delimiter, and decimal comma", () => {
+  assert.deepEqual(
+    parseBankStatementCsv(
+      [
+        "reference;amount;transacted_at;channel",
+        "BANK-001;100000,50;2026-07-31T12:00:00Z;counter",
+        "BANK-002;25000;2026-07-31;bank"
+      ].join("\n")
+    ),
+    {
+      rows: [
+        {
+          statementReference: "BANK-001",
+          amount: 100000.5,
+          transactedAt: "2026-07-31T12:00:00.000Z",
+          channel: "counter"
+        },
+        {
+          statementReference: "BANK-002",
+          amount: 25000,
+          transactedAt: "2026-07-31T00:00:00.000Z",
+          channel: "bank"
+        }
+      ],
+      errors: []
+    }
+  );
+});
+
+test("payment reconciliation helpers summarize match risk and validate export filters", () => {
+  assert.deepEqual(
+    summarizeReconciliationMatches([
+      { status: "EXACT_MATCH", amountVariance: 0 },
+      { status: "PROBABLE_MATCH", amountVariance: 0 },
+      { status: "AMOUNT_VARIANCE", amountVariance: 5000.25 },
+      { status: "REVERSED_PAYMENT", amountVariance: 0 },
+      { status: "MULTIPLE_CANDIDATES", amountVariance: null },
+      { status: "UNMATCHED", amountVariance: null }
+    ]),
+    {
+      exactMatches: 1,
+      probableMatches: 1,
+      amountVariances: 1,
+      reversedPayments: 1,
+      multipleCandidates: 1,
+      unmatchedRows: 1,
+      totalVariance: 5000.25
+    }
+  );
+
+  assert.deepEqual(
+    paymentReconciliationExportErrors({
+      status: "FAILED",
+      paidAtFrom: "2026-08-01T00:00",
+      paidAtTo: "2026-07-31T00:00"
+    }),
+    [
+      "Export rekonsiliasi hanya mendukung payment Settled atau Reversed.",
+      "Tanggal akhir export tidak boleh sebelum tanggal awal."
+    ]
   );
 });
 

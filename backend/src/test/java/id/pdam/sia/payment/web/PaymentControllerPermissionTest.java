@@ -5,6 +5,7 @@ import id.pdam.sia.payment.domain.PaymentWebhookStatus;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.access.prepost.PreAuthorize;
 
+import java.time.Instant;
 import java.lang.reflect.Method;
 import java.security.Principal;
 import java.util.UUID;
@@ -63,6 +64,29 @@ class PaymentControllerPermissionTest {
         assertPermission(
                 PaymentQueryController.class.getMethod("getPayment", UUID.class),
                 "hasAuthority('payment.read')"
+        );
+    }
+
+    @Test
+    void paymentReconciliationEndpointsRequireReconcilePermission() throws NoSuchMethodException {
+        assertPermission(
+                PaymentReconciliationController.class.getMethod(
+                        "exportPayments",
+                        PaymentStatus.class,
+                        String.class,
+                        Instant.class,
+                        Instant.class,
+                        Principal.class
+                ),
+                "hasAuthority('payment.reconcile')"
+        );
+        assertPermission(
+                PaymentReconciliationController.class.getMethod(
+                        "matchBankStatement",
+                        PaymentReconciliationMatchRequest.class,
+                        Principal.class
+                ),
+                "hasAuthority('payment.reconcile')"
         );
     }
 
