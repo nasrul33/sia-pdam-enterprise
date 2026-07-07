@@ -1,6 +1,6 @@
 import type { Account } from "@/features/accounting/accounting-schema";
 import type { PaymentCommandPermissionState } from "@/features/security/financial-command-permissions";
-import type { PaymentWebhookStatus } from "./payment-schema";
+import type { PaymentStatus, PaymentWebhookStatus } from "./payment-schema";
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -9,12 +9,26 @@ type WebhookSummarySubject = {
   errorMessage: string | null;
 };
 
+type PaymentSummarySubject = {
+  status: PaymentStatus;
+  amount: number;
+};
+
 export type PaymentWorkspaceSummary = {
   receivedEvents: number;
   processedEvents: number;
   failedEvents: number;
   ignoredEvents: number;
   unresolvedFailures: number;
+};
+
+export type PaymentListSummary = {
+  settledPayments: number;
+  reversedPayments: number;
+  pendingOrFailedPayments: number;
+  totalSettledAmount: number;
+  totalReversedAmount: number;
+  netCashImpact: number;
 };
 
 export type CounterPaymentAllocationDraft = {
@@ -49,12 +63,37 @@ export function summarizePaymentWorkspace(events: readonly WebhookSummarySubject
   };
 }
 
+export function summarizePaymentList(payments: readonly PaymentSummarySubject[]): PaymentListSummary {
+  const settledPayments = payments.filter((payment) => payment.status === "SETTLED");
+  const reversedPayments = payments.filter((payment) => payment.status === "REVERSED");
+  const pendingOrFailedPayments = payments.filter((payment) => payment.status === "PENDING" || payment.status === "FAILED");
+  const totalSettledAmount = roundMoney(settledPayments.reduce((total, payment) => total + payment.amount, 0));
+  const totalReversedAmount = roundMoney(reversedPayments.reduce((total, payment) => total + payment.amount, 0));
+
+  return {
+    settledPayments: settledPayments.length,
+    reversedPayments: reversedPayments.length,
+    pendingOrFailedPayments: pendingOrFailedPayments.length,
+    totalSettledAmount,
+    totalReversedAmount,
+    netCashImpact: roundMoney(totalSettledAmount - totalReversedAmount)
+  };
+}
+
 export function canSettleCounterPayment(permissions: PaymentCommandPermissionState): boolean {
   return permissions.canSettleCounterPayments;
 }
 
+export function canReadPayments(permissions: PaymentCommandPermissionState): boolean {
+  return permissions.canReadPayments;
+}
+
 export function canReversePayment(permissions: PaymentCommandPermissionState): boolean {
   return permissions.canReversePayments;
+}
+
+function roundMoney(value: number): number {
+  return Math.round(value * 100) / 100;
 }
 
 export function parseMoneyInput(value: string): number | null {

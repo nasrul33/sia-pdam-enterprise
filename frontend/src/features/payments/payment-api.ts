@@ -1,13 +1,30 @@
 import { apiGet, apiPost } from "@/lib/api/client";
 import {
+  paymentPageSchema,
   paymentSettlementSchema,
   paymentWebhookEventPageSchema,
+  type PaymentFilters,
   type PaymentWebhookEventFilters,
   type ReversePaymentPayload,
   type SettleCounterPaymentPayload
 } from "./payment-schema";
 
-function pageParams(filters: PaymentWebhookEventFilters): URLSearchParams {
+function paymentParams(filters: PaymentFilters): URLSearchParams {
+  const params = new URLSearchParams();
+  params.set("page", String(filters.page));
+  params.set("size", String(filters.size));
+
+  if (filters.status) {
+    params.set("status", filters.status);
+  }
+  if (filters.channel) {
+    params.set("channel", filters.channel);
+  }
+
+  return params;
+}
+
+function webhookEventParams(filters: PaymentWebhookEventFilters): URLSearchParams {
   const params = new URLSearchParams();
   params.set("page", String(filters.page));
   params.set("size", String(filters.size));
@@ -22,8 +39,18 @@ function pageParams(filters: PaymentWebhookEventFilters): URLSearchParams {
   return params;
 }
 
+export async function listPayments(filters: PaymentFilters) {
+  const payload = await apiGet<unknown>(`/api/payments?${paymentParams(filters).toString()}`);
+  return paymentPageSchema.parse(payload);
+}
+
+export async function getPayment(paymentId: string) {
+  const payload = await apiGet<unknown>(`/api/payments/${paymentId}`);
+  return paymentSettlementSchema.parse(payload);
+}
+
 export async function listPaymentWebhookEvents(filters: PaymentWebhookEventFilters) {
-  const payload = await apiGet<unknown>(`/api/payment-webhook-events?${pageParams(filters).toString()}`);
+  const payload = await apiGet<unknown>(`/api/payment-webhook-events?${webhookEventParams(filters).toString()}`);
   return paymentWebhookEventPageSchema.parse(payload);
 }
 

@@ -1,5 +1,6 @@
 package id.pdam.sia.payment.web;
 
+import id.pdam.sia.payment.domain.PaymentStatus;
 import id.pdam.sia.payment.domain.PaymentWebhookStatus;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -44,6 +45,24 @@ class PaymentControllerPermissionTest {
                         int.class
                 ),
                 "hasAuthority('payment.webhook.read')"
+        );
+    }
+
+    @Test
+    void paymentReadEndpointsRequireReadPermission() throws NoSuchMethodException {
+        assertPermission(
+                PaymentQueryController.class.getMethod(
+                        "listPayments",
+                        PaymentStatus.class,
+                        String.class,
+                        int.class,
+                        int.class
+                ),
+                "hasAuthority('payment.read')"
+        );
+        assertPermission(
+                PaymentQueryController.class.getMethod("getPayment", UUID.class),
+                "hasAuthority('payment.read')"
         );
     }
 

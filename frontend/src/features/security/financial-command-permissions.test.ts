@@ -40,10 +40,12 @@ test("resolveFinancialCommandPermissions maps payment command authorities", () =
   assert.deepEqual(
     resolveFinancialCommandPermissions([
       financialCommandPermissions.paymentCounter,
+      financialCommandPermissions.paymentRead,
       financialCommandPermissions.paymentWebhookRead
     ]).payment,
     {
       canSettleCounterPayments: true,
+      canReadPayments: true,
       canReversePayments: false,
       canReadWebhookEvents: true
     }

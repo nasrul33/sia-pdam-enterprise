@@ -27,6 +27,31 @@ export const paymentWebhookEventPageSchema = z.object({
   totalPages: z.number().int().nonnegative()
 });
 
+export const paymentSummarySchema = z.object({
+  id: z.string().uuid(),
+  paymentNumber: z.string().min(1),
+  channel: z.string().min(1),
+  externalReference: z.string().nullable(),
+  status: paymentStatusSchema,
+  amount: z.coerce.number().positive(),
+  paidAt: z.string().min(1),
+  settledAt: z.string().min(1).nullable(),
+  reversedAt: z.string().min(1).nullable(),
+  reversalReason: z.string().nullable(),
+  settlementJournalEntryId: z.string().uuid().nullable(),
+  reversalJournalEntryId: z.string().uuid().nullable(),
+  createdAt: z.string().min(1),
+  updatedAt: z.string().min(1)
+});
+
+export const paymentPageSchema = z.object({
+  items: z.array(paymentSummarySchema),
+  page: z.number().int().nonnegative(),
+  size: z.number().int().positive(),
+  totalItems: z.number().int().nonnegative(),
+  totalPages: z.number().int().nonnegative()
+});
+
 export const paymentAllocationSchema = z.object({
   id: z.string().uuid(),
   paymentId: z.string().uuid(),
@@ -65,9 +90,18 @@ export type PaymentStatus = z.infer<typeof paymentStatusSchema>;
 export type PaymentWebhookStatus = z.infer<typeof paymentWebhookStatusSchema>;
 export type PaymentWebhookEvent = z.infer<typeof paymentWebhookEventSchema>;
 export type PaymentWebhookEventPage = z.infer<typeof paymentWebhookEventPageSchema>;
+export type PaymentSummary = z.infer<typeof paymentSummarySchema>;
+export type PaymentPage = z.infer<typeof paymentPageSchema>;
 export type PaymentAllocation = z.infer<typeof paymentAllocationSchema>;
 export type PaymentReceipt = z.infer<typeof paymentReceiptSchema>;
 export type PaymentSettlement = z.infer<typeof paymentSettlementSchema>;
+
+export type PaymentFilters = {
+  page: number;
+  size: number;
+  status?: PaymentStatus;
+  channel?: string;
+};
 
 export type PaymentWebhookEventFilters = {
   page: number;

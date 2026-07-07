@@ -3,6 +3,9 @@
 import {
   AlertTriangle,
   CheckCircle2,
+  Eye,
+  FileSearch,
+  ListFilter,
   Loader2,
   LockKeyhole,
   Plus,
@@ -29,11 +32,13 @@ import { cn } from "@/lib/utils";
 import { resolveFinancialCommandPermissions } from "@/features/security/financial-command-permissions";
 import {
   allocationTotalAmount,
+  canReadPayments,
   canReversePayment,
   canSettleCounterPayment,
   counterPaymentErrors,
   parseMoneyInput,
   reversePaymentErrors,
+  summarizePaymentList,
   summarizePaymentWorkspace,
   type CounterPaymentAllocationDraft,
   type CounterPaymentDraft,
@@ -41,13 +46,15 @@ import {
 } from "./payment-workspace-model";
 import type {
   PaymentSettlement,
+  PaymentStatus,
+  PaymentSummary,
   PaymentWebhookEvent,
   PaymentWebhookStatus,
   ReversePaymentPayload,
   SettleCounterPaymentPayload
 } from "./payment-schema";
-import { paymentWebhookStatusValues } from "./payment-schema";
-import { usePaymentWebhookEvents, useReversePayment, useSettleCounterPayment } from "./use-payments";
+import { paymentStatusValues, paymentWebhookStatusValues } from "./payment-schema";
+import { usePayment, usePaymentWebhookEvents, usePayments, useReversePayment, useSettleCounterPayment } from "./use-payments";
 
 type StatusFilter<TStatus extends string> = TStatus | "ALL";
 type PaymentPermissions = ReturnType<typeof resolveFinancialCommandPermissions>["payment"];
@@ -66,6 +73,20 @@ const webhookStatusLabels: Record<PaymentWebhookStatus, string> = {
   PROCESSED: "Processed",
   FAILED: "Gagal",
   IGNORED: "Ignored"
+};
+
+const paymentStatusLabels: Record<PaymentStatus, string> = {
+  PENDING: "Pending",
+  SETTLED: "Settled",
+  REVERSED: "Reversed",
+  FAILED: "Gagal"
+};
+
+const paymentStatusTones: Record<PaymentStatus, "success" | "warning" | "danger" | "neutral" | "info"> = {
+  PENDING: "warning",
+  SETTLED: "success",
+  REVERSED: "neutral",
+  FAILED: "danger"
 };
 
 const webhookStatusTones: Record<PaymentWebhookStatus, "success" | "warning" | "danger" | "neutral" | "info"> = {
@@ -236,6 +257,7 @@ function PaymentCommandPanel({ permissions }: Readonly<{ permissions: PaymentPer
         </div>
       </div>
       <CommandStatus label="Counter Settlement" allowed={permissions.canSettleCounterPayments} highRisk />
+      <CommandStatus label="Payment Read" allowed={permissions.canReadPayments} />
       <CommandStatus label="Payment Reversal" allowed={permissions.canReversePayments} highRisk />
       <CommandStatus label="Webhook Event Read" allowed={permissions.canReadWebhookEvents} />
     </div>
@@ -294,6 +316,339 @@ function PaymentFilterToolbar({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function PaymentListToolbar({
+  channel,
+  status,
+  canRead,
+  onChannelChange,
+  onStatusChange,
+  onReset
+}: Readonly<{
+  channel: string;
+  status: StatusFilter<PaymentStatus>;
+  canRead: boolean;
+  onChannelChange: (channel: string) => void;
+  onStatusChange: (status: StatusFilter<PaymentStatus>) => void;
+  onReset: () => void;
+}>) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="mb-3 flex items-center gap-2">
+        <ListFilter className="size-5 text-sky-700" aria-hidden="true" />
+        <h2 className="text-base font-bold text-slate-950">Payment Register</h2>
+      </div>
+      <div className="grid gap-3 md:grid-cols-[minmax(180px,1fr)_180px_auto]">
+        <label className="block">
+          <span className="text-xs font-bold uppercase text-slate-600">Channel</span>
+          <input
+            className={inputClass}
+            value={channel}
+            maxLength={64}
+            disabled={!canRead}
+            onChange={(event) => onChannelChange(event.target.value)}
+            placeholder="COUNTER"
+          />
+        </label>
+        <label className="block">
+          <span className="text-xs font-bold uppercase text-slate-600">Status Payment</span>
+          <select
+            className={inputClass}
+            value={status}
+            disabled={!canRead}
+            onChange={(event) => onStatusChange(event.target.value as StatusFilter<PaymentStatus>)}
+          >
+            <option value="ALL">Semua</option>
+            {paymentStatusValues.map((value) => (
+              <option key={value} value={value}>
+                {paymentStatusLabels[value]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="flex items-end">
+          <button type="button" onClick={onReset} className={secondaryButtonClass} disabled={!canRead}>
+            <RotateCcw className="size-4" aria-hidden="true" />
+            Reset
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PaymentTable({
+  payments,
+  canRead,
+  isFetching,
+  selectedPaymentId,
+  page,
+  totalPages,
+  totalItems,
+  onSelect,
+  onPrevious,
+  onNext
+}: Readonly<{
+  payments: PaymentSummary[];
+  canRead: boolean;
+  isFetching: boolean;
+  selectedPaymentId: string | null;
+  page: number;
+  totalPages: number;
+  totalItems: number;
+  onSelect: (paymentId: string) => void;
+  onPrevious: () => void;
+  onNext: () => void;
+}>) {
+  if (!canRead) {
+    return (
+      <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex items-center gap-2">
+          <LockKeyhole className="size-5 text-slate-600" aria-hidden="true" />
+          <h2 className="text-base font-bold text-slate-950">Payment Register Terkunci</h2>
+        </div>
+        <p className="mt-2 text-sm leading-6 text-slate-700">
+          Authority <span className="font-mono font-bold">payment.read</span> diperlukan untuk membaca settlement,
+          reversal, receipt, allocation, dan jejak jurnal.
+        </p>
+      </div>
+    );
+  }
+
+  if (payments.length === 0) {
+    return (
+      <EmptyState
+        title="Payment register belum tersedia"
+        description="Settlement loket atau payment provider yang sudah masuk akan muncul sesuai filter aktif."
+      />
+    );
+  }
+
+  const currentPage = page + 1;
+  const pageCount = Math.max(totalPages, 1);
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
+        <div className="flex items-center gap-2">
+          <ReceiptText className="size-5 text-slate-700" aria-hidden="true" />
+          <h2 className="text-base font-bold text-slate-950">Payment List</h2>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-sm font-semibold text-slate-600">{totalItems} payment</span>
+          {isFetching ? (
+            <span className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600">
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              Memperbarui
+            </span>
+          ) : null}
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-slate-200 text-sm">
+          <thead className="bg-slate-50">
+            <tr>
+              <th className="px-5 py-3 text-left font-bold text-slate-700">Payment</th>
+              <th className="px-5 py-3 text-left font-bold text-slate-700">Channel</th>
+              <th className="px-5 py-3 text-left font-bold text-slate-700">Status</th>
+              <th className="px-5 py-3 text-right font-bold text-slate-700">Nominal</th>
+              <th className="px-5 py-3 text-left font-bold text-slate-700">Paid</th>
+              <th className="px-5 py-3 text-left font-bold text-slate-700">Settlement Journal</th>
+              <th className="px-5 py-3 text-left font-bold text-slate-700">Reversal Journal</th>
+              <th className="px-5 py-3 text-right font-bold text-slate-700">Aksi</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 bg-white">
+            {payments.map((payment) => (
+              <tr key={payment.id} className={cn("hover:bg-slate-50", selectedPaymentId === payment.id ? "bg-sky-50" : "")}>
+                <td className="whitespace-nowrap px-5 py-4">
+                  <p className="font-bold text-slate-950">{payment.paymentNumber}</p>
+                  <p className="font-mono text-xs text-slate-500">{shortId(payment.externalReference)}</p>
+                </td>
+                <td className="whitespace-nowrap px-5 py-4 font-bold text-slate-800">{payment.channel}</td>
+                <td className="whitespace-nowrap px-5 py-4">
+                  <StatusBadge label={paymentStatusLabels[payment.status]} tone={paymentStatusTones[payment.status]} />
+                </td>
+                <td className="whitespace-nowrap px-5 py-4 text-right font-bold text-slate-950">
+                  <MoneyText value={payment.amount} />
+                </td>
+                <td className="whitespace-nowrap px-5 py-4 text-slate-700">{formatDateTime(payment.paidAt)}</td>
+                <td className="whitespace-nowrap px-5 py-4 font-mono text-xs text-slate-600">
+                  {shortId(payment.settlementJournalEntryId)}
+                </td>
+                <td className="whitespace-nowrap px-5 py-4 font-mono text-xs text-slate-600">
+                  {shortId(payment.reversalJournalEntryId)}
+                </td>
+                <td className="whitespace-nowrap px-5 py-4 text-right">
+                  <button type="button" className={secondaryButtonClass} onClick={() => onSelect(payment.id)}>
+                    <Eye className="size-4" aria-hidden="true" />
+                    Detail
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-5 py-4">
+        <p className="text-sm font-semibold text-slate-600">
+          Halaman {currentPage} dari {pageCount}
+        </p>
+        <div className="flex items-center gap-2">
+          <button type="button" className={secondaryButtonClass} disabled={page === 0} onClick={onPrevious}>
+            Sebelumnya
+          </button>
+          <button type="button" className={secondaryButtonClass} disabled={totalPages === 0 || currentPage >= totalPages} onClick={onNext}>
+            Berikutnya
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PaymentDetailPanel({
+  payment,
+  canRead,
+  selectedPaymentId,
+  isLoading,
+  isFetching,
+  error,
+  onClear
+}: Readonly<{
+  payment: PaymentSettlement | undefined;
+  canRead: boolean;
+  selectedPaymentId: string | null;
+  isLoading: boolean;
+  isFetching: boolean;
+  error: unknown;
+  onClear: () => void;
+}>) {
+  if (!canRead) {
+    return null;
+  }
+
+  if (!selectedPaymentId) {
+    return (
+      <div className="rounded-lg border border-dashed border-slate-300 bg-white p-5 shadow-sm">
+        <div className="flex items-center gap-2">
+          <FileSearch className="size-5 text-slate-600" aria-hidden="true" />
+          <h2 className="text-base font-bold text-slate-950">Detail Payment</h2>
+        </div>
+        <p className="mt-2 text-sm leading-6 text-slate-700">
+          Pilih payment dari register untuk melihat receipt, allocation invoice, dan journal traceability.
+        </p>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return <LoadingSkeleton />;
+  }
+
+  if (error) {
+    return <ErrorState message={apiErrorMessage(error, "Detail payment tidak tersedia.")} />;
+  }
+
+  if (!payment) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 p-5">
+        <div>
+          <div className="flex items-center gap-2">
+            <FileSearch className="size-5 text-sky-700" aria-hidden="true" />
+            <h2 className="text-base font-bold text-slate-950">Detail Payment</h2>
+          </div>
+          <p className="mt-1 font-mono text-sm font-semibold text-slate-600">{payment.id}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {isFetching ? (
+            <span className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600">
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              Memperbarui
+            </span>
+          ) : null}
+          <StatusBadge label={paymentStatusLabels[payment.status]} tone={paymentStatusTones[payment.status]} />
+          <button type="button" className={secondaryButtonClass} onClick={onClear}>
+            Tutup
+          </button>
+        </div>
+      </div>
+
+      <div className="grid gap-4 p-5 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <dl className="grid gap-3 sm:grid-cols-2">
+            <TraceItem label="Payment Number" value={payment.paymentNumber} />
+            <TraceItem label="Channel" value={payment.channel} />
+            <TraceItem label="External Reference" value={payment.externalReference ?? "-"} />
+            <TraceItem label="Idempotency" value={payment.idempotencyKey} />
+            <TraceItem label="Paid At" value={formatDateTime(payment.paidAt)} />
+            <TraceItem label="Settled At" value={formatDateTime(payment.settledAt)} />
+            <TraceItem label="Reversed At" value={formatDateTime(payment.reversedAt)} />
+            <TraceItem label="Receipt" value={payment.receipt.receiptNumber} />
+            <TraceItem label="Settlement Journal" value={payment.settlementJournalEntryId ?? "-"} />
+            <TraceItem label="Reversal Journal" value={payment.reversalJournalEntryId ?? "-"} />
+          </dl>
+          {payment.reversalReason ? (
+            <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">
+              {payment.reversalReason}
+            </div>
+          ) : null}
+        </div>
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+          <p className="text-xs font-bold uppercase text-slate-600">Nominal Payment</p>
+          <p className="mt-2 text-2xl font-bold text-slate-950">
+            <MoneyText value={payment.amount} />
+          </p>
+          <p className="mt-3 text-xs font-bold uppercase text-slate-600">Receipt Issued</p>
+          <p className="mt-1 text-sm font-semibold text-slate-700">{formatDateTime(payment.receipt.issuedAt)}</p>
+        </div>
+      </div>
+
+      <div className="border-t border-slate-200 p-5">
+        <h3 className="text-sm font-bold text-slate-950">Allocation Trace</h3>
+        {payment.allocations.length === 0 ? (
+          <p className="mt-2 text-sm font-semibold text-slate-600">Tidak ada allocation untuk payment ini.</p>
+        ) : (
+          <div className="mt-3 overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-200 text-sm">
+              <thead className="bg-slate-50">
+                <tr>
+                  <th className="px-4 py-3 text-left font-bold text-slate-700">Invoice ID</th>
+                  <th className="px-4 py-3 text-left font-bold text-slate-700">Allocation ID</th>
+                  <th className="px-4 py-3 text-right font-bold text-slate-700">Nominal</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {payment.allocations.map((allocation) => (
+                  <tr key={allocation.id}>
+                    <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-slate-700">{allocation.invoiceId}</td>
+                    <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-slate-600">{allocation.id}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-right font-bold text-slate-950">
+                      <MoneyText value={allocation.amount} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TraceItem({ label, value }: Readonly<{ label: string; value: string }>) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-3">
+      <dt className="text-xs font-bold uppercase text-slate-600">{label}</dt>
+      <dd className="mt-1 break-words font-mono text-xs font-semibold text-slate-900">{value}</dd>
     </div>
   );
 }
@@ -792,6 +1147,10 @@ function ReversePaymentForm({ allowed, accounts }: Readonly<{ allowed: boolean; 
 }
 
 export function PaymentWorkspace() {
+  const [paymentChannel, setPaymentChannel] = useState("");
+  const [paymentStatus, setPaymentStatus] = useState<StatusFilter<PaymentStatus>>("ALL");
+  const [paymentPage, setPaymentPage] = useState(0);
+  const [selectedPaymentId, setSelectedPaymentId] = useState<string | null>(null);
   const [provider, setProvider] = useState("");
   const [status, setStatus] = useState<StatusFilter<PaymentWebhookStatus>>("ALL");
   const [page, setPage] = useState(0);
@@ -801,10 +1160,22 @@ export function PaymentWorkspace() {
     [currentUserQuery.data?.authorities]
   );
   const queryEnabled = currentUserQuery.isSuccess;
+  const paymentsEnabled = queryEnabled && canReadPayments(permissions);
   const eventsEnabled = queryEnabled && permissions.canReadWebhookEvents;
   const accountsEnabled = queryEnabled && (permissions.canSettleCounterPayments || permissions.canReversePayments);
+  const normalizedPaymentChannel = paymentChannel.trim() || undefined;
   const normalizedProvider = provider.trim() || undefined;
 
+  const paymentsQuery = usePayments(
+    {
+      channel: normalizedPaymentChannel,
+      status: paymentStatus === "ALL" ? undefined : paymentStatus,
+      page: paymentPage,
+      size: 25
+    },
+    paymentsEnabled
+  );
+  const paymentDetailQuery = usePayment(selectedPaymentId, paymentsEnabled && Boolean(selectedPaymentId));
   const webhookEventsQuery = usePaymentWebhookEvents(
     {
       provider: normalizedProvider,
@@ -816,9 +1187,18 @@ export function PaymentWorkspace() {
   );
   const accountsQuery = useAccounts({ page: 0, size: 100 }, accountsEnabled);
 
+  const payments = useMemo(() => paymentsQuery.data?.items ?? [], [paymentsQuery.data?.items]);
   const events = useMemo(() => webhookEventsQuery.data?.items ?? [], [webhookEventsQuery.data?.items]);
   const accounts = useMemo(() => accountsQuery.data?.items ?? [], [accountsQuery.data?.items]);
+  const paymentSummary = useMemo(() => summarizePaymentList(payments), [payments]);
   const summary = useMemo(() => summarizePaymentWorkspace(events), [events]);
+
+  function resetPaymentFilters() {
+    setPaymentChannel("");
+    setPaymentStatus("ALL");
+    setPaymentPage(0);
+    setSelectedPaymentId(null);
+  }
 
   function resetFilters() {
     setProvider("");
@@ -827,6 +1207,12 @@ export function PaymentWorkspace() {
   }
 
   function refetchAll() {
+    if (paymentsEnabled) {
+      void paymentsQuery.refetch();
+    }
+    if (paymentsEnabled && selectedPaymentId) {
+      void paymentDetailQuery.refetch();
+    }
     if (eventsEnabled) {
       void webhookEventsQuery.refetch();
     }
@@ -844,9 +1230,14 @@ export function PaymentWorkspace() {
   }
 
   const isInitialLoading =
-    (eventsEnabled && webhookEventsQuery.isLoading) || (accountsEnabled && accountsQuery.isLoading);
-  const hasError = (eventsEnabled && webhookEventsQuery.isError) || (accountsEnabled && accountsQuery.isError);
-  const error = webhookEventsQuery.error ?? accountsQuery.error;
+    (paymentsEnabled && paymentsQuery.isLoading) ||
+    (eventsEnabled && webhookEventsQuery.isLoading) ||
+    (accountsEnabled && accountsQuery.isLoading);
+  const hasError =
+    (paymentsEnabled && paymentsQuery.isError) ||
+    (eventsEnabled && webhookEventsQuery.isError) ||
+    (accountsEnabled && accountsQuery.isError);
+  const error = paymentsQuery.error ?? webhookEventsQuery.error ?? accountsQuery.error;
 
   return (
     <main className="space-y-6">
@@ -880,57 +1271,95 @@ export function PaymentWorkspace() {
         <>
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <SummaryCard
-              label="Received"
-              value={String(summary.receivedEvents)}
-              helper="Event provider yang sudah diterima backend."
-              tone="info"
-            />
-            <SummaryCard
-              label="Processed"
-              value={String(summary.processedEvents)}
-              helper="Event yang selesai diproses tanpa error."
+              label="Settled"
+              value={String(paymentSummary.settledPayments)}
+              helper={`Total settled pada halaman aktif: ${new Intl.NumberFormat("id-ID").format(paymentSummary.totalSettledAmount)}.`}
               tone="success"
             />
             <SummaryCard
-              label="Failed"
+              label="Reversed"
+              value={String(paymentSummary.reversedPayments)}
+              helper={`Total reversal pada halaman aktif: ${new Intl.NumberFormat("id-ID").format(paymentSummary.totalReversedAmount)}.`}
+              tone="neutral"
+            />
+            <SummaryCard
+              label="Net Cash"
+              value={<MoneyText value={paymentSummary.netCashImpact} />}
+              helper="Settled dikurangi reversal pada halaman aktif."
+              tone="info"
+            />
+            <SummaryCard
+              label="Webhook Failed"
               value={String(summary.failedEvents)}
               helper={`${summary.unresolvedFailures} failure masih memiliki pesan error.`}
               tone="warning"
             />
-            <SummaryCard
-              label="Ignored"
-              value={String(summary.ignoredEvents)}
-              helper="Event duplikat atau tidak relevan pada filter aktif."
-              tone="neutral"
-            />
           </section>
 
-          <PaymentFilterToolbar
-            provider={provider}
-            status={status}
-            canRead={permissions.canReadWebhookEvents}
-            onProviderChange={(value) => {
-              setProvider(value);
-              setPage(0);
-            }}
-            onStatusChange={(value) => {
-              setStatus(value);
-              setPage(0);
-            }}
-            onReset={resetFilters}
-          />
-
           <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_460px]">
-            <WebhookEventTable
-              events={events}
-              canRead={permissions.canReadWebhookEvents}
-              isFetching={webhookEventsQuery.isFetching}
-              page={webhookEventsQuery.data?.page ?? page}
-              totalPages={webhookEventsQuery.data?.totalPages ?? 0}
-              totalItems={webhookEventsQuery.data?.totalItems ?? 0}
-              onPrevious={() => setPage((current) => Math.max(current - 1, 0))}
-              onNext={() => setPage((current) => current + 1)}
-            />
+            <div className="space-y-4">
+              <PaymentListToolbar
+                channel={paymentChannel}
+                status={paymentStatus}
+                canRead={permissions.canReadPayments}
+                onChannelChange={(value) => {
+                  setPaymentChannel(value);
+                  setPaymentPage(0);
+                  setSelectedPaymentId(null);
+                }}
+                onStatusChange={(value) => {
+                  setPaymentStatus(value);
+                  setPaymentPage(0);
+                  setSelectedPaymentId(null);
+                }}
+                onReset={resetPaymentFilters}
+              />
+              <PaymentTable
+                payments={payments}
+                canRead={permissions.canReadPayments}
+                isFetching={paymentsQuery.isFetching}
+                selectedPaymentId={selectedPaymentId}
+                page={paymentsQuery.data?.page ?? paymentPage}
+                totalPages={paymentsQuery.data?.totalPages ?? 0}
+                totalItems={paymentsQuery.data?.totalItems ?? 0}
+                onSelect={setSelectedPaymentId}
+                onPrevious={() => setPaymentPage((current) => Math.max(current - 1, 0))}
+                onNext={() => setPaymentPage((current) => current + 1)}
+              />
+              <PaymentDetailPanel
+                payment={paymentDetailQuery.data}
+                canRead={permissions.canReadPayments}
+                selectedPaymentId={selectedPaymentId}
+                isLoading={paymentDetailQuery.isLoading}
+                isFetching={paymentDetailQuery.isFetching}
+                error={paymentDetailQuery.error}
+                onClear={() => setSelectedPaymentId(null)}
+              />
+              <PaymentFilterToolbar
+                provider={provider}
+                status={status}
+                canRead={permissions.canReadWebhookEvents}
+                onProviderChange={(value) => {
+                  setProvider(value);
+                  setPage(0);
+                }}
+                onStatusChange={(value) => {
+                  setStatus(value);
+                  setPage(0);
+                }}
+                onReset={resetFilters}
+              />
+              <WebhookEventTable
+                events={events}
+                canRead={permissions.canReadWebhookEvents}
+                isFetching={webhookEventsQuery.isFetching}
+                page={webhookEventsQuery.data?.page ?? page}
+                totalPages={webhookEventsQuery.data?.totalPages ?? 0}
+                totalItems={webhookEventsQuery.data?.totalItems ?? 0}
+                onPrevious={() => setPage((current) => Math.max(current - 1, 0))}
+                onNext={() => setPage((current) => current + 1)}
+              />
+            </div>
             <div className="space-y-4">
               <PaymentCommandPanel permissions={permissions} />
               <CounterSettlementForm

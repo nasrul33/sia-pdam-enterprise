@@ -3,11 +3,13 @@ import { test } from "node:test";
 import { financialCommandPermissions, resolveFinancialCommandPermissions } from "../security/financial-command-permissions.ts";
 import {
   allocationTotalAmount,
+  canReadPayments,
   canReversePayment,
   canSettleCounterPayment,
   counterPaymentErrors,
   parseMoneyInput,
   reversePaymentErrors,
+  summarizePaymentList,
   summarizePaymentWorkspace
 } from "./payment-workspace-model.ts";
 
@@ -63,12 +65,35 @@ test("summarizePaymentWorkspace summarizes webhook states and failures", () => {
 test("payment command guards require matching authorities", () => {
   const paymentPermissions = resolveFinancialCommandPermissions([
     financialCommandPermissions.paymentCounter,
+    financialCommandPermissions.paymentRead,
     financialCommandPermissions.paymentReverse
   ]).payment;
 
   assert.equal(canSettleCounterPayment(paymentPermissions), true);
+  assert.equal(canReadPayments(paymentPermissions), true);
   assert.equal(canReversePayment(paymentPermissions), true);
+  assert.equal(canReadPayments(resolveFinancialCommandPermissions([]).payment), false);
   assert.equal(canSettleCounterPayment(resolveFinancialCommandPermissions([]).payment), false);
+});
+
+test("summarizePaymentList calculates reconciliation counts and cash impact", () => {
+  assert.deepEqual(
+    summarizePaymentList([
+      { status: "SETTLED", amount: 100000.25 },
+      { status: "SETTLED", amount: 50000.25 },
+      { status: "REVERSED", amount: 25000.25 },
+      { status: "FAILED", amount: 1000 },
+      { status: "PENDING", amount: 2000 }
+    ]),
+    {
+      settledPayments: 2,
+      reversedPayments: 1,
+      pendingOrFailedPayments: 2,
+      totalSettledAmount: 150000.5,
+      totalReversedAmount: 25000.25,
+      netCashImpact: 125000.25
+    }
+  );
 });
 
 test("counterPaymentErrors validates amount, accounts, allocations, and audit reason", () => {
