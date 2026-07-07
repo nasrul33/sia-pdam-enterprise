@@ -195,6 +195,8 @@ The payment register is read-only. It exposes settlement/reversal traceability b
 
 The response classifies rows as `EXACT_MATCH`, `PROBABLE_MATCH`, `AMOUNT_VARIANCE`, `REVERSED_PAYMENT`, `MULTIPLE_CANDIDATES`, or `UNMATCHED`, including variance amount and matched payment/journal references when available. This workflow does not create, post, reverse, or mutate journals; accounting corrections remain explicit accounting/payment reversal workflows.
 
+Frontend import adapters normalize UAT source files into this same `rows[]` contract before calling `/match`. Supported profiles are `STANDARD` (`reference`, `amount`, `transacted_at`, optional `channel`), `BANK_MUTATION` (`transaction_date`, `reference`, `credit`, optional `channel`), and `PAYMENT_GATEWAY` (`external_reference`, `paid_amount`, `paid_at`, optional `channel`). Template/header validation happens before the backend match command so invalid source files do not consume reconciliation runs.
+
 `POST /api/payment-reconciliation/sessions` accepts the same bounded `rows[]` payload plus optional source metadata:
 
 ```json

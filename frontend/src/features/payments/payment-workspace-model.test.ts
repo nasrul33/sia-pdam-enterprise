@@ -8,7 +8,9 @@ import {
   canReversePayment,
   canSettleCounterPayment,
   counterPaymentErrors,
+  bankStatementImportTemplate,
   parseBankStatementCsv,
+  parseBankStatementImport,
   parseMoneyInput,
   paymentReconciliationExportErrors,
   reconciliationCompletionErrors,
@@ -132,6 +134,76 @@ test("parseBankStatementCsv accepts header rows, semicolon delimiter, and decima
         }
       ],
       errors: []
+    }
+  );
+});
+
+test("parseBankStatementImport validates source-specific bank mutation and payment gateway templates", () => {
+  assert.equal(
+    bankStatementImportTemplate("BANK_MUTATION"),
+    [
+      "transaction_date;reference;description;debit;credit;channel",
+      "2026-07-31T12:00:00Z;BANK-20260731-0001;Setoran loket;;100000.00;COUNTER"
+    ].join("\n")
+  );
+
+  assert.deepEqual(
+    parseBankStatementImport(
+      [
+        "tanggal;no_ref;keterangan;debit;kredit;kanal",
+        "31/07/2026;BANK-001;Setoran loket;;100.000,50;counter",
+        "31-07-2026 13:30;BANK-002;Setoran online;0;25000;bank"
+      ].join("\n"),
+      "BANK_MUTATION"
+    ),
+    {
+      rows: [
+        {
+          statementReference: "BANK-001",
+          amount: 100000.5,
+          transactedAt: "2026-07-31T00:00:00.000Z",
+          channel: "counter"
+        },
+        {
+          statementReference: "BANK-002",
+          amount: 25000,
+          transactedAt: "2026-07-31T13:30:00.000Z",
+          channel: "bank"
+        }
+      ],
+      errors: []
+    }
+  );
+
+  assert.deepEqual(
+    parseBankStatementImport(
+      [
+        "external_reference,paid_amount,paid_at,channel",
+        "PG-001,150000,2026-07-31T08:00:00Z,MOBILE"
+      ].join("\n"),
+      "PAYMENT_GATEWAY"
+    ).rows,
+    [
+      {
+        statementReference: "PG-001",
+        amount: 150000,
+        transactedAt: "2026-07-31T08:00:00.000Z",
+        channel: "MOBILE"
+      }
+    ]
+  );
+});
+
+test("parseBankStatementImport returns row-level template errors before matching", () => {
+  assert.deepEqual(
+    parseBankStatementImport("tanggal;keterangan;debit\n2026-07-31;Mutasi keluar;1000", "BANK_MUTATION"),
+    {
+      rows: [],
+      errors: [
+        "Template BANK_MUTATION wajib memiliki kolom: reference, credit.",
+        "Baris 2: referensi bank wajib diisi.",
+        "Baris 2: nominal kredit masuk wajib lebih besar dari nol."
+      ]
     }
   );
 });

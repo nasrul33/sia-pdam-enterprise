@@ -40,7 +40,9 @@ import {
   canReversePayment,
   canSettleCounterPayment,
   counterPaymentErrors,
-  parseBankStatementCsv,
+  bankStatementImportProfileOptions,
+  bankStatementImportTemplate,
+  parseBankStatementImport,
   parseMoneyInput,
   paymentReconciliationExportErrors,
   reconciliationCompletionErrors,
@@ -51,6 +53,7 @@ import {
   summarizePaymentList,
   summarizePaymentWorkspace,
   toClosedResolutionStatus,
+  type BankStatementImportProfile,
   type BankStatementCsvRow,
   type CounterPaymentAllocationDraft,
   type CounterPaymentDraft,
@@ -763,9 +766,11 @@ function PaymentReconciliationPanel({
   const [paidAtFrom, setPaidAtFrom] = useState("");
   const [paidAtTo, setPaidAtTo] = useState("");
   const [statementCsv, setStatementCsv] = useState("");
+  const [importProfile, setImportProfile] = useState<BankStatementImportProfile>("STANDARD");
   const [sourceFilename, setSourceFilename] = useState("");
   const [bankAccountReference, setBankAccountReference] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
+  const [importErrors, setImportErrors] = useState<string[]>([]);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [matchReport, setMatchReport] = useState<PaymentReconciliationMatchReport | null>(null);
@@ -792,6 +797,7 @@ function PaymentReconciliationPanel({
 
   async function handleExport() {
     setLocalError(null);
+    setImportErrors([]);
     setSuccessMessage(null);
 
     if (!allowed) {
@@ -823,6 +829,7 @@ function PaymentReconciliationPanel({
   async function handleMatch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLocalError(null);
+    setImportErrors([]);
     setSuccessMessage(null);
     setMatchReport(null);
     setLastParsedRows([]);
@@ -833,8 +840,9 @@ function PaymentReconciliationPanel({
       return;
     }
 
-    const parsed = parseBankStatementCsv(statementCsv);
+    const parsed = parseBankStatementImport(statementCsv, importProfile);
     if (parsed.errors.length > 0) {
+      setImportErrors(parsed.errors);
       setLocalError(parsed.errors[0]);
       return;
     }
@@ -851,6 +859,7 @@ function PaymentReconciliationPanel({
 
   async function handleCreateSession() {
     setLocalError(null);
+    setImportErrors([]);
     setSuccessMessage(null);
     createSessionMutation.reset();
 
@@ -880,6 +889,7 @@ function PaymentReconciliationPanel({
   async function handleResolveItem(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLocalError(null);
+    setImportErrors([]);
     setSuccessMessage(null);
     resolveItemMutation.reset();
 
@@ -929,6 +939,7 @@ function PaymentReconciliationPanel({
   async function handleCompleteSession(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLocalError(null);
+    setImportErrors([]);
     setSuccessMessage(null);
     completeSessionMutation.reset();
 
@@ -977,6 +988,18 @@ function PaymentReconciliationPanel({
     (resolveItemMutation.isError ? apiErrorMessage(resolveItemMutation.error, "Gagal menutup item rekonsiliasi.") : null) ??
     (completeSessionMutation.isError ? apiErrorMessage(completeSessionMutation.error, "Gagal menyelesaikan session rekonsiliasi.") : null);
   const recentSessions = sessionsQuery.data?.items ?? [];
+  const selectedImportProfile = bankStatementImportProfileOptions.find((option) => option.value === importProfile);
+
+  function handleDownloadImportTemplate() {
+    setLocalError(null);
+    setImportErrors([]);
+    const csv = bankStatementImportTemplate(importProfile);
+    downloadTextFile(
+      `payment-reconciliation-template-${importProfile.toLowerCase()}.csv`,
+      csv,
+      "text/csv;charset=utf-8"
+    );
+  }
 
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
@@ -1032,6 +1055,38 @@ function PaymentReconciliationPanel({
         </div>
 
         <form onSubmit={handleMatch} className="grid gap-3">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+              <label className="block">
+                <span className="text-xs font-bold uppercase text-slate-600">Import Profile</span>
+                <select
+                  className={inputClass}
+                  value={importProfile}
+                  disabled={disabled}
+                  onChange={(event) => {
+                    setImportProfile(event.target.value as BankStatementImportProfile);
+                    setLastParsedRows([]);
+                    setImportErrors([]);
+                  }}
+                >
+                  {bankStatementImportProfileOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="flex items-end">
+                <button type="button" className={secondaryButtonClass} disabled={disabled} onClick={handleDownloadImportTemplate}>
+                  <Download className="size-4" aria-hidden="true" />
+                  Template
+                </button>
+              </div>
+            </div>
+            <p className="mt-2 text-sm font-semibold leading-6 text-slate-700">
+              {selectedImportProfile?.description ?? "Template import bank statement."}
+            </p>
+          </div>
           <label className="block">
             <span className="text-xs font-bold uppercase text-slate-600">Bank Statement CSV</span>
             <textarea
@@ -1041,6 +1096,7 @@ function PaymentReconciliationPanel({
               onChange={(event) => {
                 setStatementCsv(event.target.value);
                 setLastParsedRows([]);
+                setImportErrors([]);
               }}
               placeholder="reference;amount;transacted_at;channel"
             />
@@ -1070,6 +1126,19 @@ function PaymentReconciliationPanel({
             </label>
           </div>
           {errorMessage ? <InlineMessage type="error" message={errorMessage} /> : null}
+          {importErrors.length > 1 ? (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+              <p className="text-sm font-bold text-red-900">Import validation</p>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm font-semibold text-red-800">
+                {importErrors.slice(0, 8).map((error) => (
+                  <li key={error}>{error}</li>
+                ))}
+              </ul>
+              {importErrors.length > 8 ? (
+                <p className="mt-2 text-xs font-semibold text-red-800">{importErrors.length - 8} error lain tidak ditampilkan.</p>
+              ) : null}
+            </div>
+          ) : null}
           {successMessage ? <InlineMessage type="success" message={successMessage} /> : null}
           <button type="submit" className={primaryButtonClass} disabled={disabled}>
             {matchMutation.isPending ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <UploadCloud className="size-4" aria-hidden="true" />}

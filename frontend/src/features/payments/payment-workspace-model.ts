@@ -60,6 +60,146 @@ export type ParsedBankStatementCsv = {
   errors: string[];
 };
 
+export const bankStatementImportProfileValues = ["STANDARD", "BANK_MUTATION", "PAYMENT_GATEWAY"] as const;
+
+export type BankStatementImportProfile = (typeof bankStatementImportProfileValues)[number];
+
+export type BankStatementImportProfileOption = {
+  value: BankStatementImportProfile;
+  label: string;
+  description: string;
+};
+
+type BankStatementImportField = "reference" | "amount" | "transactedAt" | "channel";
+
+type BankStatementImportFieldDefinition = {
+  canonical: string;
+  aliases: readonly string[];
+  required: boolean;
+};
+
+type BankStatementImportProfileDefinition = {
+  value: BankStatementImportProfile;
+  label: string;
+  description: string;
+  delimiter: "," | ";";
+  requiresHeader: boolean;
+  amountErrorLabel: string;
+  fields: Record<BankStatementImportField, BankStatementImportFieldDefinition>;
+  templateHeaders: readonly string[];
+  templateExample: readonly string[];
+};
+
+type BankStatementHeaderMap = Partial<Record<BankStatementImportField, number>>;
+
+const bankStatementImportProfileDefinitions: Record<BankStatementImportProfile, BankStatementImportProfileDefinition> = {
+  STANDARD: {
+    value: "STANDARD",
+    label: "Standard PDAM",
+    description: "Kolom reference, amount, transacted_at, dan channel opsional.",
+    delimiter: ";",
+    requiresHeader: false,
+    amountErrorLabel: "nominal bank",
+    fields: {
+      reference: {
+        canonical: "reference",
+        aliases: ["reference", "statementreference", "statementref", "ref", "externalreference"],
+        required: true
+      },
+      amount: {
+        canonical: "amount",
+        aliases: ["amount", "nominal", "nilai"],
+        required: true
+      },
+      transactedAt: {
+        canonical: "transacted_at",
+        aliases: ["transactedat", "transactiondate", "tanggal", "date", "paidat"],
+        required: true
+      },
+      channel: {
+        canonical: "channel",
+        aliases: ["channel", "kanal"],
+        required: false
+      }
+    },
+    templateHeaders: ["reference", "amount", "transacted_at", "channel"],
+    templateExample: ["BANK-20260731-0001", "100000.00", "2026-07-31T12:00:00Z", "COUNTER"]
+  },
+  BANK_MUTATION: {
+    value: "BANK_MUTATION",
+    label: "Mutasi Bank Kredit",
+    description: "Template mutasi rekening dengan kolom kredit sebagai nominal kas masuk.",
+    delimiter: ";",
+    requiresHeader: true,
+    amountErrorLabel: "nominal kredit masuk",
+    fields: {
+      reference: {
+        canonical: "reference",
+        aliases: ["reference", "noref", "nomorreferensi", "ref", "mutasireference", "transactionid"],
+        required: true
+      },
+      amount: {
+        canonical: "credit",
+        aliases: ["credit", "kredit", "creditamount", "mutasikredit", "amountin"],
+        required: true
+      },
+      transactedAt: {
+        canonical: "transaction_date",
+        aliases: ["transactiondate", "tanggal", "tgltransaksi", "date", "transactedat"],
+        required: true
+      },
+      channel: {
+        canonical: "channel",
+        aliases: ["channel", "kanal", "source"],
+        required: false
+      }
+    },
+    templateHeaders: ["transaction_date", "reference", "description", "debit", "credit", "channel"],
+    templateExample: ["2026-07-31T12:00:00Z", "BANK-20260731-0001", "Setoran loket", "", "100000.00", "COUNTER"]
+  },
+  PAYMENT_GATEWAY: {
+    value: "PAYMENT_GATEWAY",
+    label: "Payment Gateway",
+    description: "Template settlement provider dengan external reference, amount, timestamp, dan channel.",
+    delimiter: ",",
+    requiresHeader: true,
+    amountErrorLabel: "nominal settlement",
+    fields: {
+      reference: {
+        canonical: "external_reference",
+        aliases: ["externalreference", "externalref", "reference", "paymentreference", "transactionid"],
+        required: true
+      },
+      amount: {
+        canonical: "paid_amount",
+        aliases: ["paidamount", "amount", "grossamount", "settlementamount", "nominal"],
+        required: true
+      },
+      transactedAt: {
+        canonical: "paid_at",
+        aliases: ["paidat", "settledat", "transactiondate", "transactedat", "tanggal"],
+        required: true
+      },
+      channel: {
+        canonical: "channel",
+        aliases: ["channel", "paymentchannel", "kanal"],
+        required: false
+      }
+    },
+    templateHeaders: ["external_reference", "paid_amount", "paid_at", "channel"],
+    templateExample: ["PG-20260731-0001", "100000.00", "2026-07-31T12:00:00Z", "MOBILE"]
+  }
+};
+
+export const bankStatementImportProfileOptions: BankStatementImportProfileOption[] = bankStatementImportProfileValues.map((value) => {
+  const definition = bankStatementImportProfileDefinitions[value];
+  return {
+    value,
+    label: definition.label,
+    description: definition.description
+  };
+});
+
 export type PaymentReconciliationMatchSummary = {
   exactMatches: number;
   probableMatches: number;
@@ -254,6 +394,22 @@ export function toClosedResolutionStatus(
 }
 
 export function parseBankStatementCsv(value: string): ParsedBankStatementCsv {
+  return parseBankStatementImport(value, "STANDARD");
+}
+
+export function bankStatementImportTemplate(profile: BankStatementImportProfile): string {
+  const definition = bankStatementImportProfileDefinitions[profile];
+  return [
+    definition.templateHeaders.join(definition.delimiter),
+    definition.templateExample.join(definition.delimiter)
+  ].join("\n");
+}
+
+export function parseBankStatementImport(
+  value: string,
+  profile: BankStatementImportProfile
+): ParsedBankStatementCsv {
+  const definition = bankStatementImportProfileDefinitions[profile];
   const errors: string[] = [];
   const lines = value
     .split(/\r?\n/)
@@ -266,18 +422,25 @@ export function parseBankStatementCsv(value: string): ParsedBankStatementCsv {
 
   const delimiter = lines[0].includes(";") ? ";" : ",";
   const firstColumns = parseCsvLine(lines[0], delimiter);
-  const headerMap = headerIndexes(firstColumns);
-  const hasHeader = headerMap !== null;
+  const headerResult = headerIndexes(firstColumns, definition);
+  const hasHeader = headerResult.missingRequiredFields.length === 0 || definition.requiresHeader;
+  const headerMap = headerResult.indexes;
+  if (definition.requiresHeader && headerResult.missingRequiredFields.length > 0) {
+    errors.push(
+      `Template ${profile} wajib memiliki kolom: ${headerResult.missingRequiredFields.join(", ")}.`
+    );
+  }
   const dataLines = hasHeader ? lines.slice(1) : lines;
+  const useFallbackColumns = !definition.requiresHeader && headerResult.missingRequiredFields.length > 0;
   const rows: BankStatementCsvRow[] = [];
 
   dataLines.forEach((line, index) => {
     const lineNumber = hasHeader ? index + 2 : index + 1;
     const columns = parseCsvLine(line, delimiter);
-    const reference = columnValue(columns, headerMap, "reference", 0);
-    const amountText = columnValue(columns, headerMap, "amount", 1);
-    const transactedAtText = columnValue(columns, headerMap, "transactedAt", 2);
-    const channel = optionalCsvValue(columnValue(columns, headerMap, "channel", 3));
+    const reference = columnValue(columns, headerMap, "reference", 0, useFallbackColumns);
+    const amountText = columnValue(columns, headerMap, "amount", 1, useFallbackColumns);
+    const transactedAtText = columnValue(columns, headerMap, "transactedAt", 2, useFallbackColumns);
+    const channel = optionalCsvValue(columnValue(columns, headerMap, "channel", 3, useFallbackColumns));
     const amount = parseMoneyInput(amountText);
     const transactedAt = parseOptionalDateTime(transactedAtText);
 
@@ -285,7 +448,7 @@ export function parseBankStatementCsv(value: string): ParsedBankStatementCsv {
       errors.push(`Baris ${lineNumber}: referensi bank wajib diisi.`);
     }
     if (amount === null) {
-      errors.push(`Baris ${lineNumber}: nominal bank wajib lebih besar dari nol.`);
+      errors.push(`Baris ${lineNumber}: ${definition.amountErrorLabel} wajib lebih besar dari nol.`);
     }
     if (transactedAt === null) {
       errors.push(`Baris ${lineNumber}: tanggal transaksi bank wajib valid.`);
@@ -334,18 +497,29 @@ function parseCsvLine(line: string, delimiter: "," | ";"): string[] {
   return values;
 }
 
-function headerIndexes(columns: readonly string[]): Record<"reference" | "amount" | "transactedAt" | "channel", number> | null {
+function headerIndexes(
+  columns: readonly string[],
+  definition: BankStatementImportProfileDefinition
+): { indexes: BankStatementHeaderMap; missingRequiredFields: string[] } {
   const normalized = columns.map((column) => normalizeHeader(column));
-  const reference = findHeader(normalized, ["reference", "statementreference", "statementref", "ref", "externalreference"]);
-  const amount = findHeader(normalized, ["amount", "nominal", "nilai"]);
-  const transactedAt = findHeader(normalized, ["transactedat", "transactiondate", "tanggal", "date", "paidat"]);
-  const channel = findHeader(normalized, ["channel", "kanal"]);
+  const indexes: BankStatementHeaderMap = {};
+  const missingRequiredFields: string[] = [];
 
-  if (reference === -1 || amount === -1 || transactedAt === -1) {
-    return null;
-  }
+  bankStatementImportFields().forEach((field) => {
+    const fieldDefinition = definition.fields[field];
+    const index = findHeader(normalized, fieldDefinition.aliases);
+    if (index !== -1) {
+      indexes[field] = index;
+    } else if (fieldDefinition.required) {
+      missingRequiredFields.push(fieldDefinition.canonical);
+    }
+  });
 
-  return { reference, amount, transactedAt, channel };
+  return { indexes, missingRequiredFields };
+}
+
+function bankStatementImportFields(): BankStatementImportField[] {
+  return ["reference", "amount", "transactedAt", "channel"];
 }
 
 function normalizeHeader(value: string): string {
@@ -358,11 +532,19 @@ function findHeader(headers: readonly string[], candidates: readonly string[]): 
 
 function columnValue(
   columns: readonly string[],
-  headers: Record<"reference" | "amount" | "transactedAt" | "channel", number> | null,
-  key: "reference" | "amount" | "transactedAt" | "channel",
-  fallbackIndex: number
+  headers: BankStatementHeaderMap,
+  key: BankStatementImportField,
+  fallbackIndex: number,
+  useFallbackColumns: boolean
 ): string {
-  const index = headers?.[key] ?? fallbackIndex;
+  const mappedIndex = headers[key];
+  if (mappedIndex !== undefined) {
+    return columns[mappedIndex] ?? "";
+  }
+  if (!useFallbackColumns) {
+    return "";
+  }
+  const index = fallbackIndex;
   return columns[index] ?? "";
 }
 
@@ -376,12 +558,37 @@ function parseOptionalDateTime(value: string): number | null {
   if (!normalized) {
     return null;
   }
+
+  const localDateMatch = normalized.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (localDateMatch) {
+    const [, dayText, monthText, yearText, hourText = "0", minuteText = "0", secondText = "0"] = localDateMatch;
+    const year = Number(yearText);
+    const month = Number(monthText);
+    const day = Number(dayText);
+    const hour = Number(hourText);
+    const minute = Number(minuteText);
+    const second = Number(secondText);
+    const time = Date.UTC(year, month - 1, day, hour, minute, second);
+    const date = new Date(time);
+    if (
+      date.getUTCFullYear() === year &&
+      date.getUTCMonth() === month - 1 &&
+      date.getUTCDate() === day &&
+      date.getUTCHours() === hour &&
+      date.getUTCMinutes() === minute &&
+      date.getUTCSeconds() === second
+    ) {
+      return time;
+    }
+    return null;
+  }
+
   const time = new Date(normalized).getTime();
   return Number.isNaN(time) ? null : time;
 }
 
 export function parseMoneyInput(value: string): number | null {
-  const normalized = value.trim().replace(",", ".");
+  const normalized = normalizeMoneyInput(value);
   if (!normalized) {
     return null;
   }
@@ -392,6 +599,55 @@ export function parseMoneyInput(value: string): number | null {
   }
 
   return Math.round(parsed * 100) / 100;
+}
+
+function normalizeMoneyInput(value: string): string {
+  const cleaned = value
+    .trim()
+    .replace(/\s/g, "")
+    .replace(/^Rp\.?/i, "")
+    .replace(/[^0-9,.-]/g, "");
+  if (!cleaned) {
+    return "";
+  }
+
+  const lastComma = cleaned.lastIndexOf(",");
+  const lastDot = cleaned.lastIndexOf(".");
+  if (lastComma !== -1 && lastDot !== -1) {
+    const decimalSeparator = lastComma > lastDot ? "," : ".";
+    const thousandsSeparator = decimalSeparator === "," ? "." : ",";
+    return cleaned
+      .replaceAll(thousandsSeparator, "")
+      .replace(decimalSeparator, ".");
+  }
+
+  if (lastComma !== -1) {
+    return normalizeSingleSeparatorMoney(cleaned, ",");
+  }
+  if (lastDot !== -1) {
+    return normalizeSingleSeparatorMoney(cleaned, ".");
+  }
+
+  return cleaned;
+}
+
+function normalizeSingleSeparatorMoney(value: string, separator: "," | "."): string {
+  const parts = value.split(separator);
+  const lastPart = parts[parts.length - 1] ?? "";
+
+  if (parts.length === 2) {
+    const [integerPart = "", fractionalPart = ""] = parts;
+    if (fractionalPart.length === 3 && integerPart.length <= 3) {
+      return `${integerPart}${fractionalPart}`;
+    }
+    return `${integerPart}.${fractionalPart}`;
+  }
+
+  if (lastPart.length > 0 && lastPart.length <= 2) {
+    return `${parts.slice(0, -1).join("")}.${lastPart}`;
+  }
+
+  return parts.join("");
 }
 
 export function allocationTotalAmount(allocations: readonly CounterPaymentAllocationDraft[]): number {
