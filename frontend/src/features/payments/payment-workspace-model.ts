@@ -1,6 +1,12 @@
 import type { Account } from "@/features/accounting/accounting-schema";
 import type { PaymentCommandPermissionState } from "@/features/security/financial-command-permissions";
-import type { PaymentReconciliationMatchStatus, PaymentStatus, PaymentWebhookStatus } from "./payment-schema";
+import type {
+  ClosedPaymentReconciliationResolutionStatus,
+  PaymentReconciliationMatchStatus,
+  PaymentReconciliationResolutionStatus,
+  PaymentStatus,
+  PaymentWebhookStatus
+} from "./payment-schema";
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -16,6 +22,12 @@ type PaymentSummarySubject = {
 
 type ReconciliationMatchSubject = {
   status: PaymentReconciliationMatchStatus;
+  amountVariance: number | null;
+};
+
+type ReconciliationSessionItemSubject = {
+  matchStatus: PaymentReconciliationMatchStatus;
+  resolutionStatus: PaymentReconciliationResolutionStatus;
   amountVariance: number | null;
 };
 
@@ -58,10 +70,24 @@ export type PaymentReconciliationMatchSummary = {
   totalVariance: number;
 };
 
+export type PaymentReconciliationSessionItemSummary = PaymentReconciliationMatchSummary & {
+  openItems: number;
+  acceptedItems: number;
+  resolvedItems: number;
+  ignoredItems: number;
+  exceptionItems: number;
+};
+
 export type PaymentReconciliationExportDraft = {
   status: PaymentStatus | "ALL";
   paidAtFrom: string;
   paidAtTo: string;
+};
+
+export type PaymentReconciliationResolutionDraft = {
+  itemId: string;
+  resolutionStatus: PaymentReconciliationResolutionStatus;
+  reason: string;
 };
 
 export type CounterPaymentAllocationDraft = {
@@ -149,6 +175,19 @@ export function summarizeReconciliationMatches(
   };
 }
 
+export function summarizeReconciliationSessionItems(
+  items: readonly ReconciliationSessionItemSubject[]
+): PaymentReconciliationSessionItemSummary {
+  return {
+    ...summarizeReconciliationMatches(items.map((item) => ({ status: item.matchStatus, amountVariance: item.amountVariance }))),
+    openItems: items.filter((item) => item.resolutionStatus === "OPEN").length,
+    acceptedItems: items.filter((item) => item.resolutionStatus === "ACCEPTED").length,
+    resolvedItems: items.filter((item) => item.resolutionStatus === "RESOLVED").length,
+    ignoredItems: items.filter((item) => item.resolutionStatus === "IGNORED").length,
+    exceptionItems: items.filter((item) => item.matchStatus !== "EXACT_MATCH" && item.matchStatus !== "PROBABLE_MATCH").length
+  };
+}
+
 export function paymentReconciliationExportErrors(draft: PaymentReconciliationExportDraft): string[] {
   const errors: string[] = [];
   const fromTime = parseOptionalDateTime(draft.paidAtFrom);
@@ -168,6 +207,50 @@ export function paymentReconciliationExportErrors(draft: PaymentReconciliationEx
   }
 
   return errors;
+}
+
+export function reconciliationResolutionErrors(draft: PaymentReconciliationResolutionDraft): string[] {
+  const errors: string[] = [];
+  const itemId = draft.itemId.trim();
+  const reason = draft.reason.trim();
+
+  if (!uuidPattern.test(itemId)) {
+    errors.push("Item rekonsiliasi wajib dipilih.");
+  }
+  if (draft.resolutionStatus === "OPEN") {
+    errors.push("Status resolution wajib menutup item.");
+  }
+  if (!reason) {
+    errors.push("Alasan resolution wajib diisi.");
+  }
+  if (reason.length > 500) {
+    errors.push("Alasan resolution maksimal 500 karakter.");
+  }
+
+  return errors;
+}
+
+export function reconciliationCompletionErrors(input: { reason: string; openItems: number }): string[] {
+  const errors: string[] = [];
+  const reason = input.reason.trim();
+
+  if (input.openItems > 0) {
+    errors.push("Semua item rekonsiliasi wajib ditutup sebelum session diselesaikan.");
+  }
+  if (!reason) {
+    errors.push("Alasan completion wajib diisi.");
+  }
+  if (reason.length > 500) {
+    errors.push("Alasan completion maksimal 500 karakter.");
+  }
+
+  return errors;
+}
+
+export function toClosedResolutionStatus(
+  status: PaymentReconciliationResolutionStatus
+): ClosedPaymentReconciliationResolutionStatus | null {
+  return status === "OPEN" ? null : status;
 }
 
 export function parseBankStatementCsv(value: string): ParsedBankStatementCsv {

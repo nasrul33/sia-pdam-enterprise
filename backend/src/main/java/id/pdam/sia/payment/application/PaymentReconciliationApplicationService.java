@@ -1,10 +1,17 @@
 package id.pdam.sia.payment.application;
 
 import id.pdam.sia.payment.domain.Payment;
+import id.pdam.sia.payment.domain.PaymentReconciliationItem;
+import id.pdam.sia.payment.domain.PaymentReconciliationResolutionStatus;
+import id.pdam.sia.payment.domain.PaymentReconciliationSession;
+import id.pdam.sia.payment.domain.PaymentReconciliationSessionStatus;
 import id.pdam.sia.payment.domain.PaymentStatus;
+import id.pdam.sia.payment.repository.PaymentReconciliationItemRepository;
+import id.pdam.sia.payment.repository.PaymentReconciliationSessionRepository;
 import id.pdam.sia.payment.repository.PaymentRepository;
 import id.pdam.sia.shared.audit.AuditTrailService;
 import id.pdam.sia.shared.exception.BusinessException;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
@@ -16,25 +23,36 @@ import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 public class PaymentReconciliationApplicationService {
     private static final int MAX_EXPORT_ROWS = 10_000;
     private static final int MAX_MATCH_ROWS = 200;
     private static final List<PaymentStatus> RECONCILIABLE_STATUSES = List.of(PaymentStatus.SETTLED, PaymentStatus.REVERSED);
+    private static final DateTimeFormatter SESSION_DATE_FORMATTER = DateTimeFormatter.BASIC_ISO_DATE.withZone(ZoneOffset.UTC);
     private static final Sort PAYMENT_SORT = Sort.by(Sort.Direction.DESC, "paidAt")
+            .and(Sort.by(Sort.Direction.DESC, "createdAt"));
+    private static final Sort SESSION_SORT = Sort.by(Sort.Direction.DESC, "startedAt")
             .and(Sort.by(Sort.Direction.DESC, "createdAt"));
 
     private final PaymentRepository paymentRepository;
+    private final PaymentReconciliationSessionRepository paymentReconciliationSessionRepository;
+    private final PaymentReconciliationItemRepository paymentReconciliationItemRepository;
     private final AuditTrailService auditTrailService;
 
     public PaymentReconciliationApplicationService(
             PaymentRepository paymentRepository,
+            PaymentReconciliationSessionRepository paymentReconciliationSessionRepository,
+            PaymentReconciliationItemRepository paymentReconciliationItemRepository,
             AuditTrailService auditTrailService
     ) {
         this.paymentRepository = paymentRepository;
+        this.paymentReconciliationSessionRepository = paymentReconciliationSessionRepository;
+        this.paymentReconciliationItemRepository = paymentReconciliationItemRepository;
         this.auditTrailService = auditTrailService;
     }
 
@@ -52,6 +70,91 @@ public class PaymentReconciliationApplicationService {
 
     @Transactional
     public PaymentReconciliationMatchReport matchBankStatementRows(List<BankStatementRowCommand> rows, String actor) {
+        PaymentReconciliationMatchReport report = PaymentReconciliationMatchReport.from(matchRows(rows));
+        auditTrailService.record(actor, "PAYMENT", "MATCH_BANK_STATEMENT", "payment-reconciliation", "rows=" + rows.size());
+        return report;
+    }
+
+    @Transactional
+    public PaymentReconciliationSessionResult createSession(
+            List<BankStatementRowCommand> rows,
+            String sourceFilename,
+            String bankAccountReference,
+            String actor
+    ) {
+        List<PaymentReconciliationMatchResult> matches = matchRows(rows);
+        PaymentReconciliationMatchReport report = PaymentReconciliationMatchReport.from(matches);
+        PaymentReconciliationSession session = paymentReconciliationSessionRepository.save(new PaymentReconciliationSession(
+                sessionNumber(),
+                sourceFilename,
+                bankAccountReference,
+                actor,
+                report.summary()
+        ));
+        List<PaymentReconciliationItem> items = paymentReconciliationItemRepository.saveAll(matches.stream()
+                .map(match -> PaymentReconciliationItem.from(session.getId(), match))
+                .toList());
+
+        auditTrailService.record(actor, "PAYMENT", "CREATE_RECONCILIATION_SESSION", session.getId().toString(), "rows=" + rows.size());
+        return new PaymentReconciliationSessionResult(session, items);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<PaymentReconciliationSession> listSessions(PaymentReconciliationSessionStatus status, int page, int size) {
+        PageRequest pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100), SESSION_SORT);
+        if (status == null) {
+            return paymentReconciliationSessionRepository.findAll(pageable);
+        }
+        return paymentReconciliationSessionRepository.findByStatus(status, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public PaymentReconciliationSessionResult getSession(UUID sessionId) {
+        PaymentReconciliationSession session = loadSession(sessionId);
+        return new PaymentReconciliationSessionResult(
+                session,
+                paymentReconciliationItemRepository.findBySessionIdOrderByRowNumberAsc(session.getId())
+        );
+    }
+
+    @Transactional
+    public PaymentReconciliationItem resolveItem(
+            UUID sessionId,
+            UUID itemId,
+            PaymentReconciliationResolutionStatus resolutionStatus,
+            String reason,
+            String actor
+    ) {
+        PaymentReconciliationSession session = loadSession(sessionId);
+        session.ensureOpen();
+        PaymentReconciliationItem item = paymentReconciliationItemRepository.findBySessionIdAndId(session.getId(), itemId)
+                .orElseThrow(() -> new BusinessException("PAYMENT_RECONCILIATION_ITEM_NOT_FOUND", "Reconciliation item was not found."));
+        item.resolve(resolutionStatus, reason, actor);
+        PaymentReconciliationItem savedItem = paymentReconciliationItemRepository.save(item);
+        auditTrailService.record(actor, "PAYMENT", "RESOLVE_RECONCILIATION_ITEM", savedItem.getId().toString(), reason);
+        return savedItem;
+    }
+
+    @Transactional
+    public PaymentReconciliationSessionResult completeSession(UUID sessionId, String reason, String actor) {
+        PaymentReconciliationSession session = loadSession(sessionId);
+        long openItems = paymentReconciliationItemRepository.countBySessionIdAndResolutionStatus(
+                session.getId(),
+                PaymentReconciliationResolutionStatus.OPEN
+        );
+        if (openItems > 0) {
+            throw new BusinessException("PAYMENT_RECONCILIATION_OPEN_ITEMS", "All reconciliation items must be resolved before completion.");
+        }
+        session.complete(reason);
+        PaymentReconciliationSession savedSession = paymentReconciliationSessionRepository.save(session);
+        auditTrailService.record(actor, "PAYMENT", "COMPLETE_RECONCILIATION_SESSION", savedSession.getId().toString(), reason);
+        return new PaymentReconciliationSessionResult(
+                savedSession,
+                paymentReconciliationItemRepository.findBySessionIdOrderByRowNumberAsc(savedSession.getId())
+        );
+    }
+
+    private List<PaymentReconciliationMatchResult> matchRows(List<BankStatementRowCommand> rows) {
         if (rows == null || rows.isEmpty()) {
             throw new BusinessException("PAYMENT_RECONCILIATION_ROWS_REQUIRED", "Bank statement rows are required.");
         }
@@ -59,12 +162,9 @@ public class PaymentReconciliationApplicationService {
             throw new BusinessException("PAYMENT_RECONCILIATION_ROWS_LIMIT", "Bank statement rows cannot exceed 200 rows.");
         }
 
-        List<PaymentReconciliationMatchResult> matches = java.util.stream.IntStream.range(0, rows.size())
+        return java.util.stream.IntStream.range(0, rows.size())
                 .mapToObj(index -> matchRow(index + 1, normalizeRow(rows.get(index))))
                 .toList();
-
-        auditTrailService.record(actor, "PAYMENT", "MATCH_BANK_STATEMENT", "payment-reconciliation", "rows=" + rows.size());
-        return PaymentReconciliationMatchReport.from(matches);
     }
 
     private PaymentReconciliationMatchResult matchRow(int rowNumber, BankStatementRowCommand row) {
@@ -128,6 +228,14 @@ public class PaymentReconciliationApplicationService {
     private Optional<Payment> findReferenceMatch(String reference) {
         return paymentRepository.findByPaymentNumber(reference)
                 .or(() -> paymentRepository.findByExternalReference(reference));
+    }
+
+    private PaymentReconciliationSession loadSession(UUID sessionId) {
+        if (sessionId == null) {
+            throw new BusinessException("PAYMENT_RECONCILIATION_SESSION_ID_REQUIRED", "Reconciliation session id is required.");
+        }
+        return paymentReconciliationSessionRepository.findById(sessionId)
+                .orElseThrow(() -> new BusinessException("PAYMENT_RECONCILIATION_SESSION_NOT_FOUND", "Reconciliation session was not found."));
     }
 
     private static Specification<Payment> specification(PaymentReconciliationFilters filters) {
@@ -231,5 +339,9 @@ public class PaymentReconciliationApplicationService {
                 + ";channel=" + (filters.channel() == null ? "ALL" : filters.channel())
                 + ";paidAtFrom=" + (filters.paidAtFrom() == null ? "-" : filters.paidAtFrom())
                 + ";paidAtTo=" + (filters.paidAtTo() == null ? "-" : filters.paidAtTo());
+    }
+
+    private static String sessionNumber() {
+        return "REC-" + SESSION_DATE_FORMATTER.format(Instant.now()) + "-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
     }
 }

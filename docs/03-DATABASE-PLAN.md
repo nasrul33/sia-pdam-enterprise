@@ -33,6 +33,8 @@
 - payment_allocations
 - payment_receipts
 - payment_webhook_events
+- payment_reconciliation_sessions
+- payment_reconciliation_items
 - receivable_aging_snapshots
 - collection_actions
 - ledger_entries
@@ -50,5 +52,8 @@
 | V7__rbac_seed.sql | RBAC role and permission catalog | idempotent role, permission, and role-permission grants without default user credentials |
 | V8__payment_permission_seed.sql | payment permission catalog | idempotent payment permission and role-permission grants without default user credentials |
 | V9__accounting_billing_permission_seed.sql | accounting and billing command permission catalog | idempotent accounting/billing command permission grants without default user credentials |
+| V10__payment_read_permission_seed.sql | payment read permission catalog | idempotent `payment.read` supervisory/auditor grants without default user credentials |
+| V11__payment_reconciliation_permission_seed.sql | payment reconciliation permission catalog | idempotent `payment.reconcile` supervisory/auditor grants without default user credentials |
+| V12__payment_reconciliation_sessions.sql | payment reconciliation session review | non-posting session/item tables, status checks, resolution indexes, and no cascade into financial history |
 
 Smoke test on PostgreSQL 16 confirms migrations apply from an empty schema and Hibernate validation passes afterward.

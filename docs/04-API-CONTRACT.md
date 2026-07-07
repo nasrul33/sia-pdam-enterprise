@@ -170,6 +170,11 @@ The payment register is read-only. It exposes settlement/reversal traceability b
 |---|---|---|---|
 | GET | /api/payment-reconciliation/export | export settled/reversed payment slice as CSV with `status`, `channel`, `paidAtFrom`, `paidAtTo` filters | payment.reconcile |
 | POST | /api/payment-reconciliation/match | match imported bank statement rows to settled/reversed payments | payment.reconcile |
+| GET | /api/payment-reconciliation/sessions | list reconciliation sessions with `status`, pagination | payment.reconcile |
+| POST | /api/payment-reconciliation/sessions | create persisted reconciliation session from bank statement rows | payment.reconcile |
+| GET | /api/payment-reconciliation/sessions/{sessionId} | read reconciliation session detail and items | payment.reconcile |
+| POST | /api/payment-reconciliation/sessions/{sessionId}/items/{itemId}/resolve | close one reconciliation item with resolution status and reason | payment.reconcile |
+| POST | /api/payment-reconciliation/sessions/{sessionId}/complete | complete an open reconciliation session | payment.reconcile |
 
 `GET /api/payment-reconciliation/export` returns `text/csv`, limits export to 10,000 rows, and only allows `SETTLED` or `REVERSED` payment status. The action is audited because it exports sensitive kas-bank reconciliation data.
 
@@ -189,6 +194,46 @@ The payment register is read-only. It exposes settlement/reversal traceability b
 ```
 
 The response classifies rows as `EXACT_MATCH`, `PROBABLE_MATCH`, `AMOUNT_VARIANCE`, `REVERSED_PAYMENT`, `MULTIPLE_CANDIDATES`, or `UNMATCHED`, including variance amount and matched payment/journal references when available. This workflow does not create, post, reverse, or mutate journals; accounting corrections remain explicit accounting/payment reversal workflows.
+
+`POST /api/payment-reconciliation/sessions` accepts the same bounded `rows[]` payload plus optional source metadata:
+
+```json
+{
+  "sourceFilename": "bank-statement-2026-07.csv",
+  "bankAccountReference": "BCA-OPERASIONAL",
+  "rows": [
+    {
+      "statementReference": "BANK-20260731-0001",
+      "amount": 100000,
+      "transactedAt": "2026-07-31T12:00:00Z",
+      "channel": "COUNTER"
+    }
+  ]
+}
+```
+
+The create-session command persists one `payment_reconciliation_sessions` header and one `payment_reconciliation_items` row per statement line. Items start with `resolutionStatus=OPEN`.
+
+`POST /api/payment-reconciliation/sessions/{sessionId}/items/{itemId}/resolve` requires:
+
+```json
+{
+  "resolutionStatus": "RESOLVED",
+  "reason": "Bank fee mutation classified and reviewed."
+}
+```
+
+Allowed resolution statuses are `ACCEPTED`, `RESOLVED`, and `IGNORED`; `OPEN` is rejected for resolution commands. `reason` and actor are stored for audit traceability.
+
+`POST /api/payment-reconciliation/sessions/{sessionId}/complete` requires:
+
+```json
+{
+  "reason": "All exceptions reviewed."
+}
+```
+
+Completion is allowed only when every item is no longer `OPEN`. Session workflows are operational review records only; they do not create journal entries, ledger entries, payment reversals, or accounting adjustments automatically.
 
 ## Receivable Aging
 

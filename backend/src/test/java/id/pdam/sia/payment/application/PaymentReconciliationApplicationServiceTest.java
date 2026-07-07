@@ -1,7 +1,13 @@
 package id.pdam.sia.payment.application;
 
 import id.pdam.sia.payment.domain.Payment;
+import id.pdam.sia.payment.domain.PaymentReconciliationItem;
+import id.pdam.sia.payment.domain.PaymentReconciliationResolutionStatus;
+import id.pdam.sia.payment.domain.PaymentReconciliationSession;
+import id.pdam.sia.payment.domain.PaymentReconciliationSessionStatus;
 import id.pdam.sia.payment.domain.PaymentStatus;
+import id.pdam.sia.payment.repository.PaymentReconciliationItemRepository;
+import id.pdam.sia.payment.repository.PaymentReconciliationSessionRepository;
 import id.pdam.sia.payment.repository.PaymentRepository;
 import id.pdam.sia.shared.audit.AuditTrailService;
 import id.pdam.sia.shared.exception.BusinessException;
@@ -16,6 +22,8 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
+import java.util.stream.StreamSupport;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -30,9 +38,15 @@ class PaymentReconciliationApplicationServiceTest {
     private static final Instant PAID_AT = Instant.parse("2026-07-31T12:00:00Z");
 
     private final PaymentRepository paymentRepository = mock(PaymentRepository.class);
+    private final PaymentReconciliationSessionRepository paymentReconciliationSessionRepository =
+            mock(PaymentReconciliationSessionRepository.class);
+    private final PaymentReconciliationItemRepository paymentReconciliationItemRepository =
+            mock(PaymentReconciliationItemRepository.class);
     private final AuditTrailService auditTrailService = mock(AuditTrailService.class);
     private final PaymentReconciliationApplicationService service = new PaymentReconciliationApplicationService(
             paymentRepository,
+            paymentReconciliationSessionRepository,
+            paymentReconciliationItemRepository,
             auditTrailService
     );
 
@@ -140,6 +154,138 @@ class PaymentReconciliationApplicationServiceTest {
         assertThat(report.matches().get(1).matchedPaymentId()).isNull();
     }
 
+    @Test
+    void createsPersistedReconciliationSessionWithOpenItemsAndAuditTrail() {
+        Payment payment = settledPayment("PAY-20260731-0010", "BANK-0010", new BigDecimal("125000.00"));
+        when(paymentRepository.findByPaymentNumber("PAY-20260731-0010")).thenReturn(Optional.of(payment));
+        when(paymentReconciliationSessionRepository.save(any(PaymentReconciliationSession.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(paymentReconciliationItemRepository.saveAll(any()))
+                .thenAnswer(invocation -> StreamSupport.stream(
+                        invocation.<Iterable<PaymentReconciliationItem>>getArgument(0).spliterator(),
+                        false
+                ).toList());
+
+        PaymentReconciliationSessionResult result = service.createSession(
+                List.of(new BankStatementRowCommand("PAY-20260731-0010", new BigDecimal("125000.00"), PAID_AT, "counter")),
+                " bank-statement.csv ",
+                " bank-operasional ",
+                "finance.supervisor"
+        );
+
+        assertThat(result.session().getStatus()).isEqualTo(PaymentReconciliationSessionStatus.OPEN);
+        assertThat(result.session().getSourceFilename()).isEqualTo("bank-statement.csv");
+        assertThat(result.session().getBankAccountReference()).isEqualTo("bank-operasional");
+        assertThat(result.session().getTotalRows()).isEqualTo(1);
+        assertThat(result.items()).hasSize(1);
+        assertThat(result.items().get(0).getSessionId()).isEqualTo(result.session().getId());
+        assertThat(result.items().get(0).getMatchStatus()).isEqualTo(PaymentReconciliationMatchStatus.EXACT_MATCH);
+        assertThat(result.items().get(0).getResolutionStatus()).isEqualTo(PaymentReconciliationResolutionStatus.OPEN);
+        verify(auditTrailService).record(
+                eq("finance.supervisor"),
+                eq("PAYMENT"),
+                eq("CREATE_RECONCILIATION_SESSION"),
+                eq(result.session().getId().toString()),
+                eq("rows=1")
+        );
+    }
+
+    @Test
+    void resolvesSessionItemWithReasonActorAndAuditTrail() {
+        PaymentReconciliationSession session = openSession("REC-20260731-RESOLVE");
+        PaymentReconciliationItem item = PaymentReconciliationItem.from(
+                session.getId(),
+                PaymentReconciliationMatchResult.unmatched(1, new BankStatementRowCommand(
+                        "BANK-UNMATCHED",
+                        new BigDecimal("50000.00"),
+                        PAID_AT,
+                        "bank"
+                ))
+        );
+        when(paymentReconciliationSessionRepository.findById(session.getId())).thenReturn(Optional.of(session));
+        when(paymentReconciliationItemRepository.findBySessionIdAndId(session.getId(), item.getId()))
+                .thenReturn(Optional.of(item));
+        when(paymentReconciliationItemRepository.save(any(PaymentReconciliationItem.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        PaymentReconciliationItem resolved = service.resolveItem(
+                session.getId(),
+                item.getId(),
+                PaymentReconciliationResolutionStatus.RESOLVED,
+                "Mutasi bank sudah diklasifikasi sebagai biaya administrasi.",
+                "finance.supervisor"
+        );
+
+        assertThat(resolved.getResolutionStatus()).isEqualTo(PaymentReconciliationResolutionStatus.RESOLVED);
+        assertThat(resolved.getResolutionReason()).isEqualTo("Mutasi bank sudah diklasifikasi sebagai biaya administrasi.");
+        assertThat(resolved.getResolvedBy()).isEqualTo("finance.supervisor");
+        assertThat(resolved.getResolvedAt()).isNotNull();
+        verify(auditTrailService).record(
+                "finance.supervisor",
+                "PAYMENT",
+                "RESOLVE_RECONCILIATION_ITEM",
+                resolved.getId().toString(),
+                "Mutasi bank sudah diklasifikasi sebagai biaya administrasi."
+        );
+    }
+
+    @Test
+    void rejectsCompletingSessionWhenOpenItemsRemain() {
+        PaymentReconciliationSession session = openSession("REC-20260731-OPEN");
+        when(paymentReconciliationSessionRepository.findById(session.getId())).thenReturn(Optional.of(session));
+        when(paymentReconciliationItemRepository.countBySessionIdAndResolutionStatus(
+                session.getId(),
+                PaymentReconciliationResolutionStatus.OPEN
+        )).thenReturn(1L);
+
+        assertThatThrownBy(() -> service.completeSession(session.getId(), "closing", "finance.supervisor"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("All reconciliation items must be resolved");
+
+        verify(paymentReconciliationSessionRepository, never()).save(any(PaymentReconciliationSession.class));
+    }
+
+    @Test
+    void completesSessionAfterAllItemsAreResolved() {
+        PaymentReconciliationSession session = openSession("REC-20260731-DONE");
+        PaymentReconciliationItem item = PaymentReconciliationItem.from(
+                session.getId(),
+                PaymentReconciliationMatchResult.unmatched(1, new BankStatementRowCommand(
+                        "BANK-RESOLVED",
+                        new BigDecimal("75000.00"),
+                        PAID_AT,
+                        "bank"
+                ))
+        );
+        item.resolve(PaymentReconciliationResolutionStatus.IGNORED, "Duplikasi mutasi bank sudah dikonfirmasi.", "auditor.internal");
+        when(paymentReconciliationSessionRepository.findById(session.getId())).thenReturn(Optional.of(session));
+        when(paymentReconciliationItemRepository.countBySessionIdAndResolutionStatus(
+                session.getId(),
+                PaymentReconciliationResolutionStatus.OPEN
+        )).thenReturn(0L);
+        when(paymentReconciliationSessionRepository.save(any(PaymentReconciliationSession.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(paymentReconciliationItemRepository.findBySessionIdOrderByRowNumberAsc(session.getId()))
+                .thenReturn(List.of(item));
+
+        PaymentReconciliationSessionResult result = service.completeSession(
+                session.getId(),
+                "Semua exception sudah ditindaklanjuti.",
+                "finance.supervisor"
+        );
+
+        assertThat(result.session().getStatus()).isEqualTo(PaymentReconciliationSessionStatus.COMPLETED);
+        assertThat(result.session().getCompletedAt()).isNotNull();
+        assertThat(result.items()).hasSize(1);
+        verify(auditTrailService).record(
+                "finance.supervisor",
+                "PAYMENT",
+                "COMPLETE_RECONCILIATION_SESSION",
+                session.getId().toString(),
+                "Semua exception sudah ditindaklanjuti."
+        );
+    }
+
     private static Payment settledPayment(String paymentNumber, String externalReference, BigDecimal amount) {
         Payment payment = new Payment(
                 paymentNumber,
@@ -151,5 +297,25 @@ class PaymentReconciliationApplicationServiceTest {
         );
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.SETTLED);
         return payment;
+    }
+
+    private static PaymentReconciliationSession openSession(String sessionNumber) {
+        PaymentReconciliationMatchSummary summary = new PaymentReconciliationMatchSummary(
+                1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                1,
+                BigDecimal.ZERO.setScale(2)
+        );
+        return new PaymentReconciliationSession(
+                sessionNumber + "-" + UUID.randomUUID().toString().substring(0, 8),
+                null,
+                null,
+                "finance.supervisor",
+                summary
+        );
     }
 }

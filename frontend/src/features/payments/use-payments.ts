@@ -1,17 +1,26 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query/query-keys";
 import {
+  completePaymentReconciliationSession,
+  createPaymentReconciliationSession,
+  getPaymentReconciliationSession,
   getPayment,
+  listPaymentReconciliationSessions,
   listPaymentWebhookEvents,
   listPayments,
   matchPaymentReconciliation,
+  resolvePaymentReconciliationItem,
   reversePayment,
   settleCounterPayment
 } from "./payment-api";
 import type {
+  CompletePaymentReconciliationSessionPayload,
+  CreatePaymentReconciliationSessionPayload,
   PaymentFilters,
   PaymentReconciliationMatchPayload,
+  PaymentReconciliationSessionFilters,
   PaymentWebhookEventFilters,
+  ResolvePaymentReconciliationItemPayload,
   ReversePaymentPayload,
   SettleCounterPaymentPayload
 } from "./payment-schema";
@@ -43,6 +52,57 @@ export function usePaymentWebhookEvents(filters: PaymentWebhookEventFilters, ena
 export function useMatchPaymentReconciliation() {
   return useMutation({
     mutationFn: (payload: PaymentReconciliationMatchPayload) => matchPaymentReconciliation(payload)
+  });
+}
+
+export function usePaymentReconciliationSessions(filters: PaymentReconciliationSessionFilters, enabled = true) {
+  return useQuery({
+    queryKey: [...queryKeys.payments, "reconciliation-sessions", filters],
+    queryFn: () => listPaymentReconciliationSessions(filters),
+    enabled
+  });
+}
+
+export function usePaymentReconciliationSession(sessionId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: [...queryKeys.payments, "reconciliation-session", sessionId],
+    queryFn: () => getPaymentReconciliationSession(sessionId ?? ""),
+    enabled: enabled && Boolean(sessionId)
+  });
+}
+
+export function useCreatePaymentReconciliationSession() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CreatePaymentReconciliationSessionPayload) => createPaymentReconciliationSession(payload),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.payments });
+    }
+  });
+}
+
+export function useResolvePaymentReconciliationItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      sessionId: string;
+      itemId: string;
+      payload: ResolvePaymentReconciliationItemPayload;
+    }) => resolvePaymentReconciliationItem(input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.payments });
+    }
+  });
+}
+
+export function useCompletePaymentReconciliationSession() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { sessionId: string; payload: CompletePaymentReconciliationSessionPayload }) =>
+      completePaymentReconciliationSession(input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.payments });
+    }
   });
 }
 

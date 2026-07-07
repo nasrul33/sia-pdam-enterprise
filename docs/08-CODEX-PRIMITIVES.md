@@ -30,8 +30,10 @@
 | PaymentSettlementApplicationService | payment/application | idempotent counter settlement, controlled reversal, invoice allocation restoration, accounting journal links, and audit trail |
 | PaymentQueryApplicationService | payment/application | read-only payment list/detail hydration with receipt, allocation, and journal traceability |
 | PaymentQueryController | payment/web | `payment.read` guarded payment register and detail endpoints |
-| PaymentReconciliationApplicationService | payment/application | audited CSV export and bank statement matching against settled/reversed payments without journal mutation |
-| PaymentReconciliationController | payment/web | `payment.reconcile` guarded export and match endpoints with bounded import rows |
+| PaymentReconciliationSession | payment/domain | operational non-posting reconciliation header with OPEN/COMPLETED/CANCELLED lifecycle |
+| PaymentReconciliationItem | payment/domain | persisted bank statement row match result with OPEN/ACCEPTED/RESOLVED/IGNORED resolution state |
+| PaymentReconciliationApplicationService | payment/application | audited CSV export, bank statement matching, persisted session creation, item resolution, and completion guard without journal mutation |
+| PaymentReconciliationController | payment/web | `payment.reconcile` guarded export, match, session list/detail/create, item resolve, and complete endpoints with bounded import rows |
 | CollectionAction | receivable/domain | controlled receivable collection workflow with explicit status and action type |
 | ReceivableAgingApplicationService | receivable/application | open-invoice aging snapshot with current, 30, 60, 90, and over-90 buckets |
 | CollectionActionApplicationService | receivable/application | overdue invoice dunning validation, invoice-customer ownership validation, duplicate active action guard, audited start/complete/cancel workflow |
@@ -41,6 +43,7 @@
 | Payment Permission Seed Migration | db/migration | idempotent payment permission and role grant catalog without default credentials |
 | Payment Read Permission Seed Migration | db/migration | idempotent `payment.read` grant for supervisory and auditor roles without default credentials |
 | Payment Reconciliation Permission Seed Migration | db/migration | idempotent `payment.reconcile` grant for supervisory and auditor roles without default credentials |
+| Payment Reconciliation Session Migration | db/migration | session/item tables with status constraints, review indexes, and no cascade into financial history |
 | Accounting Billing Permission Seed Migration | db/migration | idempotent accounting and billing command permission grants without default credentials |
 | BootstrapAdminUserService | shared/security | opt-in initial admin provisioning from explicit env vars with encoded password and idempotent super-admin grant |
 | AuthController | auth | exposes authenticated username and authorities for frontend permission visibility |
@@ -70,4 +73,4 @@
 | accounting mutation hooks and command validation | features/accounting | typed CoA, period, manual journal, period workflow, and journal posting mutations with audit reason handling and local debit-credit validation |
 | accounting journal detail drawer | features/accounting | typed journal detail fetch with source traceability, posting metadata, debit-credit line display, and read-only balance validation |
 | billing schema/hooks/workspace | features/billing, app/billing | typed billing batch and invoice lists with period/status filters, selected-batch invoice drill-down, idempotent batch generation, invoice issue confirmation, and receivable/revenue account validation |
-| payment schema/hooks/workspace | features/payments, app/payments | typed payment register/detail reads, reconciliation CSV export and bank statement matching, webhook event monitoring, counter settlement mutation with idempotency key, payment reversal mutation, receipt/allocation/journal traceability, asset account validation, allocation-total validation, permission gating, and loading/error/empty states |
+| payment schema/hooks/workspace | features/payments, app/payments | typed payment register/detail reads, reconciliation CSV export, bank statement matching, persisted session review/resolution/completion, webhook event monitoring, counter settlement mutation with idempotency key, payment reversal mutation, receipt/allocation/journal traceability, asset account validation, allocation-total validation, permission gating, and loading/error/empty states |

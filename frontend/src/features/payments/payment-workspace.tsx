@@ -43,17 +43,27 @@ import {
   parseBankStatementCsv,
   parseMoneyInput,
   paymentReconciliationExportErrors,
+  reconciliationCompletionErrors,
+  reconciliationResolutionErrors,
   reversePaymentErrors,
+  summarizeReconciliationSessionItems,
   summarizeReconciliationMatches,
   summarizePaymentList,
   summarizePaymentWorkspace,
+  toClosedResolutionStatus,
+  type BankStatementCsvRow,
   type CounterPaymentAllocationDraft,
   type CounterPaymentDraft,
   type ReversePaymentDraft
 } from "./payment-workspace-model";
 import type {
+  ClosedPaymentReconciliationResolutionStatus,
   PaymentReconciliationMatchReport,
   PaymentReconciliationMatchStatus,
+  PaymentReconciliationResolutionStatus,
+  PaymentReconciliationSessionItem,
+  PaymentReconciliationSessionStatus,
+  PaymentReconciliationSessionSummary,
   PaymentSettlement,
   PaymentStatus,
   PaymentSummary,
@@ -65,10 +75,15 @@ import type {
 import { paymentStatusValues, paymentWebhookStatusValues } from "./payment-schema";
 import { exportPaymentReconciliationCsv } from "./payment-api";
 import {
+  useCompletePaymentReconciliationSession,
+  useCreatePaymentReconciliationSession,
   useMatchPaymentReconciliation,
   usePayment,
+  usePaymentReconciliationSession,
+  usePaymentReconciliationSessions,
   usePaymentWebhookEvents,
   usePayments,
+  useResolvePaymentReconciliationItem,
   useReversePayment,
   useSettleCounterPayment
 } from "./use-payments";
@@ -123,6 +138,34 @@ const reconciliationStatusTones: Record<PaymentReconciliationMatchStatus, "succe
   MULTIPLE_CANDIDATES: "warning",
   UNMATCHED: "danger"
 };
+
+const reconciliationSessionStatusLabels: Record<PaymentReconciliationSessionStatus, string> = {
+  OPEN: "Open",
+  COMPLETED: "Completed",
+  CANCELLED: "Cancelled"
+};
+
+const reconciliationSessionStatusTones: Record<PaymentReconciliationSessionStatus, "success" | "warning" | "danger" | "neutral" | "info"> = {
+  OPEN: "warning",
+  COMPLETED: "success",
+  CANCELLED: "neutral"
+};
+
+const reconciliationResolutionStatusLabels: Record<PaymentReconciliationResolutionStatus, string> = {
+  OPEN: "Open",
+  ACCEPTED: "Accepted",
+  RESOLVED: "Resolved",
+  IGNORED: "Ignored"
+};
+
+const reconciliationResolutionStatusTones: Record<PaymentReconciliationResolutionStatus, "success" | "warning" | "danger" | "neutral" | "info"> = {
+  OPEN: "warning",
+  ACCEPTED: "success",
+  RESOLVED: "info",
+  IGNORED: "neutral"
+};
+
+const closedResolutionStatuses: ClosedPaymentReconciliationResolutionStatus[] = ["ACCEPTED", "RESOLVED", "IGNORED"];
 
 const webhookStatusTones: Record<PaymentWebhookStatus, "success" | "warning" | "danger" | "neutral" | "info"> = {
   RECEIVED: "info",
@@ -714,18 +757,37 @@ function PaymentReconciliationPanel({
   status: StatusFilter<PaymentStatus>;
 }>) {
   const matchMutation = useMatchPaymentReconciliation();
+  const createSessionMutation = useCreatePaymentReconciliationSession();
+  const resolveItemMutation = useResolvePaymentReconciliationItem();
+  const completeSessionMutation = useCompletePaymentReconciliationSession();
   const [paidAtFrom, setPaidAtFrom] = useState("");
   const [paidAtTo, setPaidAtTo] = useState("");
   const [statementCsv, setStatementCsv] = useState("");
+  const [sourceFilename, setSourceFilename] = useState("");
+  const [bankAccountReference, setBankAccountReference] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [matchReport, setMatchReport] = useState<PaymentReconciliationMatchReport | null>(null);
+  const [lastParsedRows, setLastParsedRows] = useState<BankStatementCsvRow[]>([]);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [resolutionItemId, setResolutionItemId] = useState("");
+  const [resolutionStatus, setResolutionStatus] = useState<PaymentReconciliationResolutionStatus>("RESOLVED");
+  const [resolutionReason, setResolutionReason] = useState("");
+  const [completeReason, setCompleteReason] = useState("");
+  const sessionFilters = useMemo(() => ({ page: 0, size: 5 }), []);
+  const sessionsQuery = usePaymentReconciliationSessions(sessionFilters, allowed);
+  const selectedSessionQuery = usePaymentReconciliationSession(selectedSessionId, allowed && Boolean(selectedSessionId));
   const exportDraft = { status, paidAtFrom, paidAtTo };
   const exportErrors = paymentReconciliationExportErrors(exportDraft);
   const matchSummary = useMemo(
     () => (matchReport ? summarizeReconciliationMatches(matchReport.matches) : null),
     [matchReport]
+  );
+  const selectedSession = selectedSessionQuery.data ?? null;
+  const selectedSessionSummary = useMemo(
+    () => (selectedSession ? summarizeReconciliationSessionItems(selectedSession.items) : null),
+    [selectedSession]
   );
 
   async function handleExport() {
@@ -763,6 +825,7 @@ function PaymentReconciliationPanel({
     setLocalError(null);
     setSuccessMessage(null);
     setMatchReport(null);
+    setLastParsedRows([]);
     matchMutation.reset();
 
     if (!allowed) {
@@ -779,15 +842,141 @@ function PaymentReconciliationPanel({
     try {
       const report = await matchMutation.mutateAsync({ rows: parsed.rows });
       setMatchReport(report);
+      setLastParsedRows(parsed.rows);
       setSuccessMessage(`Match selesai untuk ${report.summary.totalRows} baris bank statement.`);
     } catch {
       return;
     }
   }
 
-  const disabled = !allowed || isExporting || matchMutation.isPending;
+  async function handleCreateSession() {
+    setLocalError(null);
+    setSuccessMessage(null);
+    createSessionMutation.reset();
+
+    if (!allowed) {
+      setLocalError("User tidak memiliki permission payment.reconcile.");
+      return;
+    }
+    if (lastParsedRows.length === 0) {
+      setLocalError("Jalankan match bank statement sebelum menyimpan session.");
+      return;
+    }
+
+    try {
+      const session = await createSessionMutation.mutateAsync({
+        sourceFilename: optionalString(sourceFilename),
+        bankAccountReference: optionalString(bankAccountReference),
+        rows: lastParsedRows
+      });
+      setSelectedSessionId(session.id);
+      setResolutionItemId(session.items.find((item) => item.resolutionStatus === "OPEN")?.id ?? "");
+      setSuccessMessage(`Session ${session.sessionNumber} tersimpan untuk review exception.`);
+    } catch {
+      return;
+    }
+  }
+
+  async function handleResolveItem(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLocalError(null);
+    setSuccessMessage(null);
+    resolveItemMutation.reset();
+
+    if (!selectedSessionId || !selectedSession) {
+      setLocalError("Session rekonsiliasi wajib dipilih.");
+      return;
+    }
+    if (selectedSession.status !== "OPEN") {
+      setLocalError("Session rekonsiliasi sudah tidak open.");
+      return;
+    }
+
+    const errors = reconciliationResolutionErrors({
+      itemId: resolutionItemId,
+      resolutionStatus,
+      reason: resolutionReason
+    });
+    if (errors.length > 0) {
+      setLocalError(errors[0]);
+      return;
+    }
+
+    const closedStatus = toClosedResolutionStatus(resolutionStatus);
+    if (!closedStatus) {
+      setLocalError("Status resolution wajib menutup item.");
+      return;
+    }
+
+    try {
+      const session = await resolveItemMutation.mutateAsync({
+        sessionId: selectedSessionId,
+        itemId: resolutionItemId,
+        payload: {
+          resolutionStatus: closedStatus,
+          reason: normalizeInput(resolutionReason)
+        }
+      });
+      setResolutionItemId(session.items.find((item) => item.resolutionStatus === "OPEN")?.id ?? "");
+      setResolutionStatus("RESOLVED");
+      setResolutionReason("");
+      setSuccessMessage(`Item rekonsiliasi pada session ${session.sessionNumber} berhasil ditutup.`);
+    } catch {
+      return;
+    }
+  }
+
+  async function handleCompleteSession(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLocalError(null);
+    setSuccessMessage(null);
+    completeSessionMutation.reset();
+
+    if (!selectedSessionId || !selectedSession || !selectedSessionSummary) {
+      setLocalError("Session rekonsiliasi wajib dipilih.");
+      return;
+    }
+    if (selectedSession.status !== "OPEN") {
+      setLocalError("Session rekonsiliasi sudah tidak open.");
+      return;
+    }
+
+    const errors = reconciliationCompletionErrors({
+      reason: completeReason,
+      openItems: selectedSessionSummary.openItems
+    });
+    if (errors.length > 0) {
+      setLocalError(errors[0]);
+      return;
+    }
+
+    try {
+      const session = await completeSessionMutation.mutateAsync({
+        sessionId: selectedSessionId,
+        payload: { reason: normalizeInput(completeReason) }
+      });
+      setCompleteReason("");
+      setSuccessMessage(`Session ${session.sessionNumber} selesai dan terkunci untuk audit.`);
+    } catch {
+      return;
+    }
+  }
+
+  const busy =
+    isExporting ||
+    matchMutation.isPending ||
+    createSessionMutation.isPending ||
+    resolveItemMutation.isPending ||
+    completeSessionMutation.isPending;
+  const disabled = !allowed || busy;
+  const sessionCommandDisabled = disabled || selectedSession?.status !== "OPEN";
   const errorMessage =
-    localError ?? (matchMutation.isError ? apiErrorMessage(matchMutation.error, "Gagal match bank statement.") : null);
+    localError ??
+    (matchMutation.isError ? apiErrorMessage(matchMutation.error, "Gagal match bank statement.") : null) ??
+    (createSessionMutation.isError ? apiErrorMessage(createSessionMutation.error, "Gagal menyimpan session rekonsiliasi.") : null) ??
+    (resolveItemMutation.isError ? apiErrorMessage(resolveItemMutation.error, "Gagal menutup item rekonsiliasi.") : null) ??
+    (completeSessionMutation.isError ? apiErrorMessage(completeSessionMutation.error, "Gagal menyelesaikan session rekonsiliasi.") : null);
+  const recentSessions = sessionsQuery.data?.items ?? [];
 
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
@@ -849,10 +1038,37 @@ function PaymentReconciliationPanel({
               className={textareaClass}
               value={statementCsv}
               disabled={disabled}
-              onChange={(event) => setStatementCsv(event.target.value)}
+              onChange={(event) => {
+                setStatementCsv(event.target.value);
+                setLastParsedRows([]);
+              }}
               placeholder="reference;amount;transacted_at;channel"
             />
           </label>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block">
+              <span className="text-xs font-bold uppercase text-slate-600">Source Filename</span>
+              <input
+                className={inputClass}
+                value={sourceFilename}
+                maxLength={255}
+                disabled={disabled}
+                onChange={(event) => setSourceFilename(event.target.value)}
+                placeholder="bank-statement-2026-07.csv"
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs font-bold uppercase text-slate-600">Bank Account Ref</span>
+              <input
+                className={inputClass}
+                value={bankAccountReference}
+                maxLength={128}
+                disabled={disabled}
+                onChange={(event) => setBankAccountReference(event.target.value)}
+                placeholder="BCA-OPERASIONAL"
+              />
+            </label>
+          </div>
           {errorMessage ? <InlineMessage type="error" message={errorMessage} /> : null}
           {successMessage ? <InlineMessage type="success" message={successMessage} /> : null}
           <button type="submit" className={primaryButtonClass} disabled={disabled}>
@@ -870,6 +1086,20 @@ function PaymentReconciliationPanel({
               <MetricPill label="Probable" value={matchSummary.probableMatches} tone="info" />
               <MetricPill label="Reversed" value={matchSummary.reversedPayments} tone="neutral" />
               <MetricPill label="Multiple" value={matchSummary.multipleCandidates} tone="warning" />
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-3">
+              <p className="text-sm font-semibold text-slate-700">
+                {lastParsedRows.length} baris siap disimpan sebagai session audit.
+              </p>
+              <button
+                type="button"
+                className={secondaryButtonClass}
+                disabled={disabled || lastParsedRows.length === 0}
+                onClick={handleCreateSession}
+              >
+                {createSessionMutation.isPending ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <FileSearch className="size-4" aria-hidden="true" />}
+                Save Session
+              </button>
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-slate-200 text-sm">
@@ -908,8 +1138,276 @@ function PaymentReconciliationPanel({
             </div>
           </div>
         ) : null}
+
+        <ReconciliationSessionList
+          sessions={recentSessions}
+          selectedSessionId={selectedSessionId}
+          isLoading={sessionsQuery.isLoading}
+          isFetching={sessionsQuery.isFetching}
+          error={sessionsQuery.error}
+          onSelect={(sessionId) => {
+            setSelectedSessionId(sessionId);
+            setResolutionItemId("");
+            setResolutionReason("");
+            setCompleteReason("");
+          }}
+        />
+
+        {selectedSessionId ? (
+          <div className="rounded-lg border border-slate-200 bg-white">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-3">
+              <div className="flex items-center gap-2">
+                <FileSearch className="size-5 text-slate-700" aria-hidden="true" />
+                <h4 className="text-sm font-bold text-slate-950">Session Review</h4>
+              </div>
+              {selectedSessionQuery.isFetching ? (
+                <span className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600">
+                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                  Memperbarui
+                </span>
+              ) : null}
+            </div>
+
+            {selectedSessionQuery.isLoading ? (
+              <div className="p-3">
+                <LoadingSkeleton />
+              </div>
+            ) : null}
+
+            {selectedSessionQuery.isError ? (
+              <div className="p-3">
+                <InlineMessage
+                  type="error"
+                  message={apiErrorMessage(selectedSessionQuery.error, "Detail session rekonsiliasi tidak tersedia.")}
+                />
+              </div>
+            ) : null}
+
+            {selectedSession && selectedSessionSummary ? (
+              <div className="grid gap-3 p-3">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="font-mono text-sm font-bold text-slate-950">{selectedSession.sessionNumber}</p>
+                    <p className="mt-1 text-xs font-semibold text-slate-600">
+                      {selectedSession.sourceFilename ?? "Tanpa file"} - {selectedSession.bankAccountReference ?? "Semua rekening"}
+                    </p>
+                  </div>
+                  <StatusBadge
+                    label={reconciliationSessionStatusLabels[selectedSession.status]}
+                    tone={reconciliationSessionStatusTones[selectedSession.status]}
+                  />
+                </div>
+
+                <div className="grid gap-2 text-sm sm:grid-cols-3">
+                  <MetricPill label="Open" value={selectedSessionSummary.openItems} tone="warning" />
+                  <MetricPill label="Resolved" value={selectedSessionSummary.resolvedItems} tone="info" />
+                  <MetricPill label="Exception" value={selectedSessionSummary.exceptionItems} tone="danger" />
+                </div>
+
+                <div className="overflow-x-auto rounded-lg border border-slate-200">
+                  <table className="min-w-full divide-y divide-slate-200 text-sm">
+                    <thead className="bg-slate-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left font-bold text-slate-700">Row</th>
+                        <th className="px-4 py-3 text-left font-bold text-slate-700">Reference</th>
+                        <th className="px-4 py-3 text-left font-bold text-slate-700">Match</th>
+                        <th className="px-4 py-3 text-left font-bold text-slate-700">Resolution</th>
+                        <th className="px-4 py-3 text-right font-bold text-slate-700">Bank Amount</th>
+                        <th className="px-4 py-3 text-left font-bold text-slate-700">Payment</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 bg-white">
+                      {selectedSession.items.map((item) => (
+                        <ReconciliationSessionItemRow key={item.id} item={item} />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <form onSubmit={handleResolveItem} className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="block">
+                      <span className="text-xs font-bold uppercase text-slate-600">Item</span>
+                      <select
+                        className={inputClass}
+                        value={resolutionItemId}
+                        disabled={sessionCommandDisabled || selectedSessionSummary.openItems === 0}
+                        onChange={(event) => setResolutionItemId(event.target.value)}
+                      >
+                        <option value="">Pilih item</option>
+                        {selectedSession.items.filter((item) => item.resolutionStatus === "OPEN").map((item) => (
+                          <option key={item.id} value={item.id}>
+                            Row {item.rowNumber} - {item.statementReference} - {reconciliationResolutionStatusLabels[item.resolutionStatus]}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block">
+                      <span className="text-xs font-bold uppercase text-slate-600">Resolution Status</span>
+                      <select
+                        className={inputClass}
+                        value={resolutionStatus}
+                        disabled={sessionCommandDisabled || selectedSessionSummary.openItems === 0}
+                        onChange={(event) => setResolutionStatus(event.target.value as ClosedPaymentReconciliationResolutionStatus)}
+                      >
+                        {closedResolutionStatuses.map((value) => (
+                          <option key={value} value={value}>
+                            {reconciliationResolutionStatusLabels[value]}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  <label className="block">
+                    <span className="text-xs font-bold uppercase text-slate-600">Resolution Reason</span>
+                    <textarea
+                      className={textareaClass}
+                      value={resolutionReason}
+                      maxLength={500}
+                    disabled={sessionCommandDisabled || selectedSessionSummary.openItems === 0}
+                    onChange={(event) => setResolutionReason(event.target.value)}
+                  />
+                </label>
+                  <button type="submit" className={secondaryButtonClass} disabled={sessionCommandDisabled || selectedSessionSummary.openItems === 0}>
+                    {resolveItemMutation.isPending ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <CheckCircle2 className="size-4" aria-hidden="true" />}
+                    Resolve Item
+                  </button>
+                </form>
+
+                <form onSubmit={handleCompleteSession} className="grid gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                  <label className="block">
+                    <span className="text-xs font-bold uppercase text-emerald-800">Completion Reason</span>
+                    <textarea
+                      className={textareaClass}
+                      value={completeReason}
+                      maxLength={500}
+                      disabled={sessionCommandDisabled || selectedSessionSummary.openItems > 0}
+                      onChange={(event) => setCompleteReason(event.target.value)}
+                    />
+                  </label>
+                  <button
+                    type="submit"
+                    className={primaryButtonClass}
+                    disabled={sessionCommandDisabled || selectedSessionSummary.openItems > 0}
+                  >
+                    {completeSessionMutation.isPending ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <CheckCircle2 className="size-4" aria-hidden="true" />}
+                    Complete Session
+                  </button>
+                  {selectedSessionSummary.openItems > 0 ? (
+                    <p className="text-xs font-semibold text-emerald-900">
+                      {selectedSessionSummary.openItems} item masih open dan harus ditutup sebelum session selesai.
+                    </p>
+                  ) : null}
+                </form>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </div>
+  );
+}
+
+function ReconciliationSessionList({
+  sessions,
+  selectedSessionId,
+  isLoading,
+  isFetching,
+  error,
+  onSelect
+}: Readonly<{
+  sessions: PaymentReconciliationSessionSummary[];
+  selectedSessionId: string | null;
+  isLoading: boolean;
+  isFetching: boolean;
+  error: unknown;
+  onSelect: (sessionId: string) => void;
+}>) {
+  if (isLoading) {
+    return (
+      <div className="rounded-lg border border-slate-200 bg-white p-3">
+        <span className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600">
+          <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+          Memuat session rekonsiliasi
+        </span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return <InlineMessage type="error" message={apiErrorMessage(error, "Session rekonsiliasi tidak tersedia.")} />;
+  }
+
+  if (sessions.length === 0) {
+    return (
+      <div className="rounded-lg border border-slate-200 bg-white p-3">
+        <p className="text-sm font-bold text-slate-950">Belum ada session rekonsiliasi</p>
+        <p className="mt-1 text-sm leading-6 text-slate-600">Session baru muncul setelah hasil match disimpan.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-3">
+        <h4 className="text-sm font-bold text-slate-950">Recent Sessions</h4>
+        {isFetching ? (
+          <span className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600">
+            <Loader2 className="size-3 animate-spin" aria-hidden="true" />
+            Refresh
+          </span>
+        ) : null}
+      </div>
+      <div className="divide-y divide-slate-100">
+        {sessions.map((session) => (
+          <button
+            key={session.id}
+            type="button"
+            className={cn(
+              "flex w-full items-center justify-between gap-3 px-3 py-3 text-left transition hover:bg-slate-50",
+              selectedSessionId === session.id ? "bg-sky-50" : ""
+            )}
+            onClick={() => onSelect(session.id)}
+          >
+            <span>
+              <span className="block font-mono text-xs font-bold text-slate-950">{session.sessionNumber}</span>
+              <span className="mt-1 block text-xs font-semibold text-slate-600">
+                {session.totalRows} row - {formatDateTime(session.startedAt)}
+              </span>
+            </span>
+            <StatusBadge label={reconciliationSessionStatusLabels[session.status]} tone={reconciliationSessionStatusTones[session.status]} />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ReconciliationSessionItemRow({ item }: Readonly<{ item: PaymentReconciliationSessionItem }>) {
+  return (
+    <tr className="hover:bg-slate-50">
+      <td className="whitespace-nowrap px-4 py-3 font-bold text-slate-950">{item.rowNumber}</td>
+      <td className="whitespace-nowrap px-4 py-3">
+        <p className="font-mono text-xs font-semibold text-slate-800">{item.statementReference}</p>
+        <p className="mt-1 text-xs text-slate-600">{formatDateTime(item.transactedAt)}</p>
+      </td>
+      <td className="whitespace-nowrap px-4 py-3">
+        <StatusBadge label={reconciliationStatusLabels[item.matchStatus]} tone={reconciliationStatusTones[item.matchStatus]} />
+      </td>
+      <td className="whitespace-nowrap px-4 py-3">
+        <StatusBadge
+          label={reconciliationResolutionStatusLabels[item.resolutionStatus]}
+          tone={reconciliationResolutionStatusTones[item.resolutionStatus]}
+        />
+      </td>
+      <td className="whitespace-nowrap px-4 py-3 text-right font-bold text-slate-950">
+        <MoneyText value={item.statementAmount} />
+      </td>
+      <td className="min-w-56 px-4 py-3 text-slate-700">
+        <p className="font-mono text-xs font-semibold">{item.matchedPaymentNumber ?? "-"}</p>
+        <p className="mt-1 text-xs leading-5 text-slate-600">{item.message}</p>
+      </td>
+    </tr>
   );
 }
 

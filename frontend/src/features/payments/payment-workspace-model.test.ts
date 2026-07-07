@@ -11,10 +11,14 @@ import {
   parseBankStatementCsv,
   parseMoneyInput,
   paymentReconciliationExportErrors,
+  reconciliationCompletionErrors,
+  reconciliationResolutionErrors,
   reversePaymentErrors,
   summarizeReconciliationMatches,
+  summarizeReconciliationSessionItems,
   summarizePaymentList,
-  summarizePaymentWorkspace
+  summarizePaymentWorkspace,
+  toClosedResolutionStatus
 } from "./payment-workspace-model.ts";
 
 const assetCashAccount = {
@@ -164,6 +168,53 @@ test("payment reconciliation helpers summarize match risk and validate export fi
       "Tanggal akhir export tidak boleh sebelum tanggal awal."
     ]
   );
+});
+
+test("payment reconciliation session helpers summarize resolution state and validate commands", () => {
+  assert.deepEqual(
+    summarizeReconciliationSessionItems([
+      { matchStatus: "EXACT_MATCH", resolutionStatus: "ACCEPTED", amountVariance: 0 },
+      { matchStatus: "AMOUNT_VARIANCE", resolutionStatus: "OPEN", amountVariance: 2500 },
+      { matchStatus: "UNMATCHED", resolutionStatus: "RESOLVED", amountVariance: null },
+      { matchStatus: "MULTIPLE_CANDIDATES", resolutionStatus: "IGNORED", amountVariance: null }
+    ]),
+    {
+      exactMatches: 1,
+      probableMatches: 0,
+      amountVariances: 1,
+      reversedPayments: 0,
+      multipleCandidates: 1,
+      unmatchedRows: 1,
+      totalVariance: 2500,
+      openItems: 1,
+      acceptedItems: 1,
+      resolvedItems: 1,
+      ignoredItems: 1,
+      exceptionItems: 3
+    }
+  );
+
+  assert.deepEqual(
+    reconciliationResolutionErrors({
+      itemId: "bad",
+      resolutionStatus: "OPEN",
+      reason: ""
+    }),
+    [
+      "Item rekonsiliasi wajib dipilih.",
+      "Status resolution wajib menutup item.",
+      "Alasan resolution wajib diisi."
+    ]
+  );
+  assert.deepEqual(
+    reconciliationCompletionErrors({ reason: "", openItems: 2 }),
+    [
+      "Semua item rekonsiliasi wajib ditutup sebelum session diselesaikan.",
+      "Alasan completion wajib diisi."
+    ]
+  );
+  assert.equal(toClosedResolutionStatus("OPEN"), null);
+  assert.equal(toClosedResolutionStatus("RESOLVED"), "RESOLVED");
 });
 
 test("counterPaymentErrors validates amount, accounts, allocations, and audit reason", () => {

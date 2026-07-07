@@ -1,6 +1,7 @@
 package id.pdam.sia.payment.web;
 
 import id.pdam.sia.payment.domain.PaymentStatus;
+import id.pdam.sia.payment.domain.PaymentReconciliationSessionStatus;
 import id.pdam.sia.payment.domain.PaymentWebhookStatus;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -84,6 +85,46 @@ class PaymentControllerPermissionTest {
                 PaymentReconciliationController.class.getMethod(
                         "matchBankStatement",
                         PaymentReconciliationMatchRequest.class,
+                        Principal.class
+                ),
+                "hasAuthority('payment.reconcile')"
+        );
+        assertPermission(
+                PaymentReconciliationController.class.getMethod(
+                        "listSessions",
+                        PaymentReconciliationSessionStatus.class,
+                        int.class,
+                        int.class
+                ),
+                "hasAuthority('payment.reconcile')"
+        );
+        assertPermission(
+                PaymentReconciliationController.class.getMethod(
+                        "createSession",
+                        CreatePaymentReconciliationSessionRequest.class,
+                        Principal.class
+                ),
+                "hasAuthority('payment.reconcile')"
+        );
+        assertPermission(
+                PaymentReconciliationController.class.getMethod("getSession", UUID.class),
+                "hasAuthority('payment.reconcile')"
+        );
+        assertPermission(
+                PaymentReconciliationController.class.getMethod(
+                        "resolveItem",
+                        UUID.class,
+                        UUID.class,
+                        ResolvePaymentReconciliationItemRequest.class,
+                        Principal.class
+                ),
+                "hasAuthority('payment.reconcile')"
+        );
+        assertPermission(
+                PaymentReconciliationController.class.getMethod(
+                        "completeSession",
+                        UUID.class,
+                        CompletePaymentReconciliationSessionRequest.class,
                         Principal.class
                 ),
                 "hasAuthority('payment.reconcile')"
