@@ -47,6 +47,7 @@ import {
   parseMoneyInput,
   reconciliationAdjustmentErrors,
   reconciliationEvidenceExportErrors,
+  reconciliationReviewRegisterExportFilename,
   reconciliationReviewRegisterFilterErrors,
   reconciliationSignOffErrors,
   paymentReconciliationExportErrors,
@@ -87,7 +88,11 @@ import type {
   SettleCounterPaymentPayload
 } from "./payment-schema";
 import { paymentReconciliationReviewStatusValues, paymentStatusValues, paymentWebhookStatusValues } from "./payment-schema";
-import { exportPaymentReconciliationCsv, exportPaymentReconciliationEvidenceCsv } from "./payment-api";
+import {
+  exportPaymentReconciliationCsv,
+  exportPaymentReconciliationEvidenceCsv,
+  exportPaymentReconciliationReviewRegisterCsv
+} from "./payment-api";
 import {
   useCompletePaymentReconciliationSession,
   useCreatePaymentReconciliationAdjustment,
@@ -826,7 +831,9 @@ function PaymentReconciliationReviewRegisterPanel({ allowed }: Readonly<{ allowe
   const [completedFrom, setCompletedFrom] = useState("");
   const [completedTo, setCompletedTo] = useState("");
   const [page, setPage] = useState(0);
-  const filterErrors = reconciliationReviewRegisterFilterErrors({ completedFrom, completedTo });
+  const [isExportingHandoff, setIsExportingHandoff] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const filterErrors = reconciliationReviewRegisterFilterErrors({ signOffStatus, completedFrom, completedTo });
   const filtersValid = filterErrors.length === 0;
   const filters = useMemo(
     () => ({
@@ -847,6 +854,29 @@ function PaymentReconciliationReviewRegisterPanel({ allowed }: Readonly<{ allowe
     setCompletedFrom("");
     setCompletedTo("");
     setPage(0);
+    setExportError(null);
+  }
+
+  async function handleExportHandoff() {
+    setExportError(null);
+    if (!filtersValid) {
+      setExportError(filterErrors[0] ?? "Filter export review register tidak valid.");
+      return;
+    }
+
+    setIsExportingHandoff(true);
+    try {
+      const csv = await exportPaymentReconciliationReviewRegisterCsv(filters);
+      downloadTextFile(
+        reconciliationReviewRegisterExportFilename({ signOffStatus, completedFrom, completedTo }),
+        csv,
+        "text/csv;charset=utf-8"
+      );
+    } catch (error) {
+      setExportError(apiErrorMessage(error, "Gagal export handoff register rekonsiliasi."));
+    } finally {
+      setIsExportingHandoff(false);
+    }
   }
 
   if (!allowed) {
@@ -870,12 +900,23 @@ function PaymentReconciliationReviewRegisterPanel({ allowed }: Readonly<{ allowe
           <FileSearch className="size-5 text-sky-700" aria-hidden="true" />
           <h2 className="text-base font-bold text-slate-950">Reconciliation Review Register</h2>
         </div>
-        {reviewRegisterQuery.isFetching ? (
-          <span className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600">
-            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-            Memperbarui
-          </span>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-2">
+          {reviewRegisterQuery.isFetching ? (
+            <span className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600">
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              Memperbarui
+            </span>
+          ) : null}
+          <button
+            type="button"
+            className={secondaryButtonClass}
+            disabled={!filtersValid || isExportingHandoff}
+            onClick={handleExportHandoff}
+          >
+            {isExportingHandoff ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Download className="size-4" aria-hidden="true" />}
+            Export Handoff
+          </button>
+        </div>
       </div>
 
       <div className="grid gap-3 p-4">
@@ -940,6 +981,7 @@ function PaymentReconciliationReviewRegisterPanel({ allowed }: Readonly<{ allowe
         </div>
 
         {filterErrors.length > 0 ? <InlineMessage type="error" message={filterErrors[0]} /> : null}
+        {exportError ? <InlineMessage type="error" message={exportError} /> : null}
 
         {reviewRegisterQuery.isLoading ? <LoadingSkeleton /> : null}
 

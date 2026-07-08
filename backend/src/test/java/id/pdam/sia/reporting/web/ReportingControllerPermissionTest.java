@@ -36,6 +36,15 @@ class ReportingControllerPermissionTest {
                 ),
                 "hasAuthority('payment.reconcile')"
         );
+        assertPermission(
+                ReportingController.class.getMethod(
+                        "exportPaymentReconciliationReviewRegister",
+                        PaymentReconciliationReviewStatus.class,
+                        Instant.class,
+                        Instant.class
+                ),
+                "hasAuthority('payment.reconcile')"
+        );
     }
 
     private static void assertPermission(Method method, String expectedExpression) {

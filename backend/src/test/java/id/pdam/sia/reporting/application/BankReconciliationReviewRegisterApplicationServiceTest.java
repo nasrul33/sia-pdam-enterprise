@@ -119,6 +119,53 @@ class BankReconciliationReviewRegisterApplicationServiceTest {
     }
 
     @Test
+    void reviewRegisterCsvContainsHandoffColumnsAndUsesBoundedExportPage() {
+        PaymentReconciliationSession session = completedSession("REC-20260731-CSV");
+        PaymentReconciliationItem item = PaymentReconciliationItem.from(
+                session.getId(),
+                PaymentReconciliationMatchResult.unmatched(1, new BankStatementRowCommand(
+                        "BANK-FEE-CSV",
+                        new BigDecimal("2500.00"),
+                        TRANSACTED_AT,
+                        "bank"
+                ))
+        );
+        item.resolve(PaymentReconciliationResolutionStatus.ACCEPTED, "Biaya admin bank.", "auditor.internal");
+        when(sessionRepository.findAll(
+                org.mockito.ArgumentMatchers.<Specification<PaymentReconciliationSession>>any(),
+                any(Pageable.class)
+        )).thenReturn(new PageImpl<>(
+                List.of(session),
+                PageRequest.of(0, 10_000),
+                1
+        ));
+        when(itemRepository.findBySessionIdInOrderBySessionIdAscRowNumberAsc(anyCollection()))
+                .thenReturn(List.of(item));
+
+        String csv = service.reviewRegisterCsv(new BankReconciliationReviewRegisterFilters(
+                PaymentReconciliationReviewStatus.PENDING_SIGN_OFF,
+                null,
+                null
+        ));
+
+        assertThat(csv)
+                .startsWith("session_id,session_number,review_status,bank_account_reference")
+                .contains("pending_sign_off_age_days,generated_at,reviewer_notes,handoff_owner,handoff_due_date,handoff_status")
+                .contains(session.getSessionNumber())
+                .contains("PENDING_SIGN_OFF")
+                .contains("BCA-OPERASIONAL")
+                .contains("0.00");
+
+        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+        verify(sessionRepository).findAll(
+                org.mockito.ArgumentMatchers.<Specification<PaymentReconciliationSession>>any(),
+                pageableCaptor.capture()
+        );
+        assertThat(pageableCaptor.getValue().getPageSize()).isEqualTo(10_000);
+        assertThat(pageableCaptor.getValue().getSort().getOrderFor("completedAt")).isNotNull();
+    }
+
+    @Test
     void rejectsInvalidCompletedDateRange() {
         assertThatThrownBy(() -> service.reviewRegister(
                 new BankReconciliationReviewRegisterFilters(

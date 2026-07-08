@@ -102,6 +102,22 @@ function reconciliationReviewRegisterParams(filters: PaymentReconciliationReview
   return params;
 }
 
+function reconciliationReviewRegisterExportParams(filters: PaymentReconciliationReviewRegisterFilters): URLSearchParams {
+  const params = new URLSearchParams();
+
+  if (filters.signOffStatus) {
+    params.set("signOffStatus", filters.signOffStatus);
+  }
+  if (filters.completedFrom) {
+    params.set("completedFrom", filters.completedFrom);
+  }
+  if (filters.completedTo) {
+    params.set("completedTo", filters.completedTo);
+  }
+
+  return params;
+}
+
 export async function listPayments(filters: PaymentFilters) {
   const payload = await apiGet<unknown>(`/api/payments?${paymentParams(filters).toString()}`);
   return paymentPageSchema.parse(payload);
@@ -147,6 +163,11 @@ export async function listPaymentReconciliationReviewRegister(filters: PaymentRe
     `/api/reports/payment-reconciliation-review-register?${reconciliationReviewRegisterParams(filters).toString()}`
   );
   return paymentReconciliationReviewRegisterPageSchema.parse(payload);
+}
+
+export async function exportPaymentReconciliationReviewRegisterCsv(filters: PaymentReconciliationReviewRegisterFilters) {
+  const query = reconciliationReviewRegisterExportParams(filters).toString();
+  return apiGetText(`/api/reports/payment-reconciliation-review-register/export${query ? `?${query}` : ""}`);
 }
 
 export async function exportPaymentReconciliationEvidenceCsv(sessionId: string) {

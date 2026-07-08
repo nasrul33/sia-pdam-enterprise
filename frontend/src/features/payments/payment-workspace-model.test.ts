@@ -17,6 +17,7 @@ import {
   paymentReconciliationExportErrors,
   reconciliationEvidenceExportErrors,
   reconciliationReviewRegisterFilterErrors,
+  reconciliationReviewRegisterExportFilename,
   reconciliationSignOffErrors,
   reconciliationCompletionErrors,
   reconciliationResolutionErrors,
@@ -461,6 +462,7 @@ test("summarizeReconciliationReviewRegister tracks signed-off SLA and exception 
 test("reconciliationReviewRegisterFilterErrors validates review date range", () => {
   assert.deepEqual(
     reconciliationReviewRegisterFilterErrors({
+      signOffStatus: "ALL",
       completedFrom: "bad-date",
       completedTo: "2026-07-31T00:00"
     }),
@@ -469,6 +471,7 @@ test("reconciliationReviewRegisterFilterErrors validates review date range", () 
 
   assert.deepEqual(
     reconciliationReviewRegisterFilterErrors({
+      signOffStatus: "PENDING_SIGN_OFF",
       completedFrom: "2026-08-01T00:00",
       completedTo: "2026-07-31T00:00"
     }),
@@ -477,10 +480,31 @@ test("reconciliationReviewRegisterFilterErrors validates review date range", () 
 
   assert.deepEqual(
     reconciliationReviewRegisterFilterErrors({
+      signOffStatus: "SIGNED_OFF",
       completedFrom: "2026-07-01T00:00",
       completedTo: "2026-07-31T23:59"
     }),
     []
+  );
+});
+
+test("reconciliationReviewRegisterExportFilename includes status and date scope", () => {
+  assert.equal(
+    reconciliationReviewRegisterExportFilename({
+      signOffStatus: "PENDING_SIGN_OFF",
+      completedFrom: "2026-07-01T00:00",
+      completedTo: "2026-07-31T23:59"
+    }),
+    "payment-reconciliation-review-register-pending-sign-off-2026-07-01-2026-07-31.csv"
+  );
+
+  assert.equal(
+    reconciliationReviewRegisterExportFilename({
+      signOffStatus: "ALL",
+      completedFrom: "",
+      completedTo: ""
+    }),
+    "payment-reconciliation-review-register-all-all-all.csv"
   );
 });
 

@@ -92,4 +92,22 @@ public class ReportingController {
                 size
         ));
     }
+
+    @GetMapping(value = "/payment-reconciliation-review-register/export", produces = "text/csv")
+    @PreAuthorize(Permissions.PAYMENT_RECONCILE)
+    public ResponseEntity<String> exportPaymentReconciliationReviewRegister(
+            @RequestParam(required = false) PaymentReconciliationReviewStatus signOffStatus,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant completedFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant completedTo
+    ) {
+        return ResponseEntity.ok()
+                .contentType(TEXT_CSV)
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                        .filename("payment-reconciliation-review-register.csv")
+                        .build()
+                        .toString())
+                .body(bankReconciliationReviewRegisterApplicationService.reviewRegisterCsv(
+                        new BankReconciliationReviewRegisterFilters(signOffStatus, completedFrom, completedTo)
+                ));
+    }
 }

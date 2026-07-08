@@ -276,6 +276,7 @@ export type PaymentReconciliationSignOffDraft = {
 };
 
 export type PaymentReconciliationReviewRegisterFilterDraft = {
+  signOffStatus: PaymentReconciliationReviewStatus | "ALL";
   completedFrom: string;
   completedTo: string;
 };
@@ -559,6 +560,15 @@ export function reconciliationReviewRegisterFilterErrors(
   return errors;
 }
 
+export function reconciliationReviewRegisterExportFilename(
+  draft: PaymentReconciliationReviewRegisterFilterDraft
+): string {
+  const statusSegment = draft.signOffStatus.toLowerCase().replaceAll("_", "-");
+  const fromSegment = filenameDateSegment(draft.completedFrom);
+  const toSegment = filenameDateSegment(draft.completedTo);
+  return `payment-reconciliation-review-register-${statusSegment}-${fromSegment}-${toSegment}.csv`;
+}
+
 export function toClosedResolutionStatus(
   status: PaymentReconciliationResolutionStatus
 ): ClosedPaymentReconciliationResolutionStatus | null {
@@ -700,6 +710,22 @@ function normalizeHeader(value: string): string {
 
 function normalizeActor(value: string | null): string {
   return value?.trim().toLowerCase() ?? "";
+}
+
+function filenameDateSegment(value: string): string {
+  const normalized = value.trim();
+  if (!normalized) {
+    return "all";
+  }
+  const datePrefix = normalized.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (datePrefix) {
+    return datePrefix[1];
+  }
+  const time = new Date(normalized).getTime();
+  if (Number.isNaN(time)) {
+    return "invalid";
+  }
+  return new Date(time).toISOString().slice(0, 10);
 }
 
 function findHeader(headers: readonly string[], candidates: readonly string[]): number {

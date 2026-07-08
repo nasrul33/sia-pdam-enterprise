@@ -22,6 +22,7 @@ import java.util.stream.Collectors;
 
 @Service
 public class BankReconciliationReviewRegisterApplicationService {
+    private static final int MAX_EXPORT_ROWS = 10_000;
     private static final Sort REVIEW_SORT = Sort.by(Sort.Direction.DESC, "completedAt")
             .and(Sort.by(Sort.Direction.DESC, "startedAt"))
             .and(Sort.by(Sort.Direction.DESC, "createdAt"));
@@ -45,6 +46,85 @@ public class BankReconciliationReviewRegisterApplicationService {
     ) {
         BankReconciliationReviewRegisterFilters normalized = normalize(filters);
         PageRequest pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100), REVIEW_SORT);
+        return loadReviewRegister(normalized, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public String reviewRegisterCsv(BankReconciliationReviewRegisterFilters filters) {
+        Page<BankReconciliationReviewRegisterEntry> rows = loadReviewRegister(
+                normalize(filters),
+                PageRequest.of(0, MAX_EXPORT_ROWS, REVIEW_SORT)
+        );
+        StringBuilder builder = new StringBuilder();
+        appendRow(
+                builder,
+                "session_id",
+                "session_number",
+                "review_status",
+                "bank_account_reference",
+                "source_filename",
+                "created_by",
+                "started_at",
+                "completed_at",
+                "signed_off_by",
+                "signed_off_at",
+                "sign_off_reason",
+                "total_rows",
+                "exception_items",
+                "amount_variances",
+                "reversed_payments",
+                "multiple_candidates",
+                "unmatched_rows",
+                "accepted_items",
+                "resolved_items",
+                "ignored_items",
+                "adjusted_items",
+                "total_variance",
+                "pending_sign_off_age_days",
+                "generated_at",
+                "reviewer_notes",
+                "handoff_owner",
+                "handoff_due_date",
+                "handoff_status"
+        );
+        rows.getContent().forEach(row -> appendRow(
+                builder,
+                row.sessionId(),
+                row.sessionNumber(),
+                row.reviewStatus(),
+                row.bankAccountReference(),
+                row.sourceFilename(),
+                row.createdBy(),
+                row.startedAt(),
+                row.completedAt(),
+                row.signedOffBy(),
+                row.signedOffAt(),
+                row.signOffReason(),
+                row.totalRows(),
+                row.exceptionItems(),
+                row.amountVariances(),
+                row.reversedPayments(),
+                row.multipleCandidates(),
+                row.unmatchedRows(),
+                row.acceptedItems(),
+                row.resolvedItems(),
+                row.ignoredItems(),
+                row.adjustedItems(),
+                row.totalVariance(),
+                row.pendingSignOffAgeDays(),
+                row.generatedAt(),
+                "",
+                "",
+                "",
+                ""
+        ));
+        return builder.toString();
+    }
+
+    private Page<BankReconciliationReviewRegisterEntry> loadReviewRegister(
+            BankReconciliationReviewRegisterFilters normalized,
+            PageRequest pageable
+    ) {
         Page<PaymentReconciliationSession> sessions = sessionRepository.findAll(specification(normalized), pageable);
         List<UUID> sessionIds = sessions.getContent().stream().map(PaymentReconciliationSession::getId).toList();
         Map<UUID, List<PaymentReconciliationItem>> itemsBySession = sessionIds.isEmpty()
@@ -64,6 +144,32 @@ public class BankReconciliationReviewRegisterApplicationService {
                 .toList();
 
         return new PageImpl<>(entries, pageable, sessions.getTotalElements());
+    }
+
+    private static void appendRow(StringBuilder builder, Object... values) {
+        for (int index = 0; index < values.length; index++) {
+            if (index > 0) {
+                builder.append(',');
+            }
+            appendValue(builder, values[index]);
+        }
+        builder.append('\n');
+    }
+
+    private static void appendValue(StringBuilder builder, Object value) {
+        if (value == null) {
+            return;
+        }
+        String text = value.toString();
+        boolean quoted = text.contains(",") || text.contains("\"") || text.contains("\n") || text.contains("\r");
+        if (!quoted) {
+            builder.append(text);
+            return;
+        }
+
+        builder.append('"');
+        builder.append(text.replace("\"", "\"\""));
+        builder.append('"');
     }
 
     private static BankReconciliationReviewRegisterFilters normalize(BankReconciliationReviewRegisterFilters filters) {
