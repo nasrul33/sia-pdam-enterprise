@@ -1,8 +1,10 @@
 package id.pdam.sia.reporting.web;
 
+import id.pdam.sia.reporting.application.PaymentReconciliationReviewStatus;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.access.prepost.PreAuthorize;
 
+import java.time.Instant;
 import java.lang.reflect.Method;
 import java.util.UUID;
 
@@ -17,6 +19,21 @@ class ReportingControllerPermissionTest {
         );
         assertPermission(
                 ReportingController.class.getMethod("exportPaymentReconciliationEvidence", UUID.class),
+                "hasAuthority('payment.reconcile')"
+        );
+    }
+
+    @Test
+    void bankReconciliationReviewRegisterRequiresPaymentReconcilePermission() throws NoSuchMethodException {
+        assertPermission(
+                ReportingController.class.getMethod(
+                        "paymentReconciliationReviewRegister",
+                        PaymentReconciliationReviewStatus.class,
+                        Instant.class,
+                        Instant.class,
+                        int.class,
+                        int.class
+                ),
                 "hasAuthority('payment.reconcile')"
         );
     }

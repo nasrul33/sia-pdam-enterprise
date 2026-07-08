@@ -4,10 +4,13 @@ import type {
   ClosedPaymentReconciliationResolutionStatus,
   PaymentReconciliationMatchStatus,
   PaymentReconciliationResolutionStatus,
+  PaymentReconciliationReviewStatus,
   PaymentReconciliationSessionStatus,
   PaymentStatus,
   PaymentWebhookStatus
 } from "./payment-schema";
+
+export const reconciliationSignOffSlaDays = 3;
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -31,6 +34,13 @@ type ReconciliationSessionItemSubject = {
   resolutionStatus: PaymentReconciliationResolutionStatus;
   amountVariance: number | null;
   adjustmentJournalEntryId?: string | null;
+};
+
+type ReconciliationReviewRegisterSubject = {
+  reviewStatus: PaymentReconciliationReviewStatus;
+  exceptionItems: number;
+  adjustedItems: number;
+  pendingSignOffAgeDays: number;
 };
 
 export type PaymentWorkspaceSummary = {
@@ -221,6 +231,15 @@ export type PaymentReconciliationSessionItemSummary = PaymentReconciliationMatch
   adjustedItems: number;
 };
 
+export type PaymentReconciliationReviewRegisterSummary = {
+  totalEvidence: number;
+  pendingSignOff: number;
+  signedOff: number;
+  overduePendingSignOff: number;
+  exceptionItems: number;
+  adjustedItems: number;
+};
+
 export type PaymentReconciliationExportDraft = {
   status: PaymentStatus | "ALL";
   paidAtFrom: string;
@@ -254,6 +273,11 @@ export type PaymentReconciliationSignOffDraft = {
   actor: string | null;
   createdBy: string | null;
   completedBy: string | null;
+};
+
+export type PaymentReconciliationReviewRegisterFilterDraft = {
+  completedFrom: string;
+  completedTo: string;
 };
 
 export type CounterPaymentAllocationDraft = {
@@ -356,6 +380,21 @@ export function summarizeReconciliationSessionItems(
     ignoredItems: items.filter((item) => item.resolutionStatus === "IGNORED").length,
     exceptionItems: items.filter((item) => item.matchStatus !== "EXACT_MATCH" && item.matchStatus !== "PROBABLE_MATCH").length,
     adjustedItems: items.filter((item) => Boolean(item.adjustmentJournalEntryId)).length
+  };
+}
+
+export function summarizeReconciliationReviewRegister(
+  entries: readonly ReconciliationReviewRegisterSubject[]
+): PaymentReconciliationReviewRegisterSummary {
+  return {
+    totalEvidence: entries.length,
+    pendingSignOff: entries.filter((entry) => entry.reviewStatus === "PENDING_SIGN_OFF").length,
+    signedOff: entries.filter((entry) => entry.reviewStatus === "SIGNED_OFF").length,
+    overduePendingSignOff: entries.filter((entry) =>
+      entry.reviewStatus === "PENDING_SIGN_OFF" && entry.pendingSignOffAgeDays >= reconciliationSignOffSlaDays
+    ).length,
+    exceptionItems: entries.reduce((total, entry) => total + entry.exceptionItems, 0),
+    adjustedItems: entries.reduce((total, entry) => total + entry.adjustedItems, 0)
   };
 }
 
@@ -495,6 +534,26 @@ export function reconciliationSignOffErrors(draft: PaymentReconciliationSignOffD
   }
   if (reason.length > 500) {
     errors.push("Alasan sign-off maksimal 500 karakter.");
+  }
+
+  return errors;
+}
+
+export function reconciliationReviewRegisterFilterErrors(
+  draft: PaymentReconciliationReviewRegisterFilterDraft
+): string[] {
+  const errors: string[] = [];
+  const fromTime = parseOptionalDateTime(draft.completedFrom);
+  const toTime = parseOptionalDateTime(draft.completedTo);
+
+  if (draft.completedFrom.trim() && fromTime === null) {
+    errors.push("Tanggal awal review wajib valid.");
+  }
+  if (draft.completedTo.trim() && toTime === null) {
+    errors.push("Tanggal akhir review wajib valid.");
+  }
+  if (fromTime !== null && toTime !== null && toTime < fromTime) {
+    errors.push("Tanggal akhir review tidak boleh sebelum tanggal awal.");
   }
 
   return errors;

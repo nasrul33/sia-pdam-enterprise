@@ -2,9 +2,16 @@ package id.pdam.sia.reporting.web;
 
 import id.pdam.sia.reporting.application.BankReconciliationEvidenceReport;
 import id.pdam.sia.reporting.application.BankReconciliationEvidenceReportApplicationService;
+import id.pdam.sia.reporting.application.BankReconciliationReviewRegisterApplicationService;
+import id.pdam.sia.reporting.application.BankReconciliationReviewRegisterEntry;
+import id.pdam.sia.reporting.application.BankReconciliationReviewRegisterFilters;
+import id.pdam.sia.reporting.application.PaymentReconciliationReviewStatus;
 import id.pdam.sia.reporting.application.PostedLedgerReportApplicationService;
 import id.pdam.sia.reporting.application.TrialBalanceReport;
 import id.pdam.sia.shared.security.Permissions;
+import id.pdam.sia.shared.web.PageResponse;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ContentDisposition;
@@ -20,6 +27,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
+import java.time.Instant;
 import java.util.UUID;
 
 @Validated
@@ -30,13 +38,16 @@ public class ReportingController {
 
     private final PostedLedgerReportApplicationService postedLedgerReportApplicationService;
     private final BankReconciliationEvidenceReportApplicationService bankReconciliationEvidenceReportApplicationService;
+    private final BankReconciliationReviewRegisterApplicationService bankReconciliationReviewRegisterApplicationService;
 
     public ReportingController(
             PostedLedgerReportApplicationService postedLedgerReportApplicationService,
-            BankReconciliationEvidenceReportApplicationService bankReconciliationEvidenceReportApplicationService
+            BankReconciliationEvidenceReportApplicationService bankReconciliationEvidenceReportApplicationService,
+            BankReconciliationReviewRegisterApplicationService bankReconciliationReviewRegisterApplicationService
     ) {
         this.postedLedgerReportApplicationService = postedLedgerReportApplicationService;
         this.bankReconciliationEvidenceReportApplicationService = bankReconciliationEvidenceReportApplicationService;
+        this.bankReconciliationReviewRegisterApplicationService = bankReconciliationReviewRegisterApplicationService;
     }
 
     @GetMapping("/trial-balance")
@@ -64,5 +75,21 @@ public class ReportingController {
                         .build()
                         .toString())
                 .body(bankReconciliationEvidenceReportApplicationService.evidenceCsv(report));
+    }
+
+    @GetMapping("/payment-reconciliation-review-register")
+    @PreAuthorize(Permissions.PAYMENT_RECONCILE)
+    public PageResponse<BankReconciliationReviewRegisterEntry> paymentReconciliationReviewRegister(
+            @RequestParam(required = false) PaymentReconciliationReviewStatus signOffStatus,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant completedFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant completedTo,
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "10") @Min(1) @Max(100) int size
+    ) {
+        return PageResponse.from(bankReconciliationReviewRegisterApplicationService.reviewRegister(
+                new BankReconciliationReviewRegisterFilters(signOffStatus, completedFrom, completedTo),
+                page,
+                size
+        ));
     }
 }

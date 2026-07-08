@@ -3,6 +3,7 @@ import {
   paymentReconciliationSessionPageSchema,
   paymentReconciliationSessionSchema,
   paymentReconciliationEvidenceReportSchema,
+  paymentReconciliationReviewRegisterPageSchema,
   paymentPageSchema,
   paymentReconciliationMatchReportSchema,
   paymentSettlementSchema,
@@ -13,6 +14,7 @@ import {
   type PaymentFilters,
   type PaymentReconciliationExportFilters,
   type PaymentReconciliationMatchPayload,
+  type PaymentReconciliationReviewRegisterFilters,
   type PaymentReconciliationSessionFilters,
   type PaymentWebhookEventFilters,
   type ResolvePaymentReconciliationItemPayload,
@@ -82,6 +84,24 @@ function reconciliationSessionParams(filters: PaymentReconciliationSessionFilter
   return params;
 }
 
+function reconciliationReviewRegisterParams(filters: PaymentReconciliationReviewRegisterFilters): URLSearchParams {
+  const params = new URLSearchParams();
+  params.set("page", String(filters.page));
+  params.set("size", String(filters.size));
+
+  if (filters.signOffStatus) {
+    params.set("signOffStatus", filters.signOffStatus);
+  }
+  if (filters.completedFrom) {
+    params.set("completedFrom", filters.completedFrom);
+  }
+  if (filters.completedTo) {
+    params.set("completedTo", filters.completedTo);
+  }
+
+  return params;
+}
+
 export async function listPayments(filters: PaymentFilters) {
   const payload = await apiGet<unknown>(`/api/payments?${paymentParams(filters).toString()}`);
   return paymentPageSchema.parse(payload);
@@ -120,6 +140,13 @@ export async function getPaymentReconciliationSession(sessionId: string) {
 export async function getPaymentReconciliationEvidenceReport(sessionId: string) {
   const payload = await apiGet<unknown>(`/api/reports/payment-reconciliation-evidence/${sessionId}`);
   return paymentReconciliationEvidenceReportSchema.parse(payload);
+}
+
+export async function listPaymentReconciliationReviewRegister(filters: PaymentReconciliationReviewRegisterFilters) {
+  const payload = await apiGet<unknown>(
+    `/api/reports/payment-reconciliation-review-register?${reconciliationReviewRegisterParams(filters).toString()}`
+  );
+  return paymentReconciliationReviewRegisterPageSchema.parse(payload);
 }
 
 export async function exportPaymentReconciliationEvidenceCsv(sessionId: string) {

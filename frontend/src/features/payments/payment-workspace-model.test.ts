@@ -16,10 +16,12 @@ import {
   reconciliationAdjustmentErrors,
   paymentReconciliationExportErrors,
   reconciliationEvidenceExportErrors,
+  reconciliationReviewRegisterFilterErrors,
   reconciliationSignOffErrors,
   reconciliationCompletionErrors,
   reconciliationResolutionErrors,
   reversePaymentErrors,
+  summarizeReconciliationReviewRegister,
   summarizeReconciliationMatches,
   summarizeReconciliationSessionItems,
   summarizePaymentList,
@@ -418,6 +420,65 @@ test("reconciliationSignOffErrors enforces completed evidence, reason, duplicate
       actor: "finance.manager",
       createdBy: "finance.creator",
       completedBy: "finance.completer"
+    }),
+    []
+  );
+});
+
+test("summarizeReconciliationReviewRegister tracks signed-off SLA and exception load", () => {
+  assert.deepEqual(
+    summarizeReconciliationReviewRegister([
+      {
+        reviewStatus: "PENDING_SIGN_OFF",
+        exceptionItems: 3,
+        adjustedItems: 1,
+        pendingSignOffAgeDays: 4
+      },
+      {
+        reviewStatus: "PENDING_SIGN_OFF",
+        exceptionItems: 1,
+        adjustedItems: 0,
+        pendingSignOffAgeDays: 1
+      },
+      {
+        reviewStatus: "SIGNED_OFF",
+        exceptionItems: 2,
+        adjustedItems: 2,
+        pendingSignOffAgeDays: 0
+      }
+    ]),
+    {
+      totalEvidence: 3,
+      pendingSignOff: 2,
+      signedOff: 1,
+      overduePendingSignOff: 1,
+      exceptionItems: 6,
+      adjustedItems: 3
+    }
+  );
+});
+
+test("reconciliationReviewRegisterFilterErrors validates review date range", () => {
+  assert.deepEqual(
+    reconciliationReviewRegisterFilterErrors({
+      completedFrom: "bad-date",
+      completedTo: "2026-07-31T00:00"
+    }),
+    ["Tanggal awal review wajib valid."]
+  );
+
+  assert.deepEqual(
+    reconciliationReviewRegisterFilterErrors({
+      completedFrom: "2026-08-01T00:00",
+      completedTo: "2026-07-31T00:00"
+    }),
+    ["Tanggal akhir review tidak boleh sebelum tanggal awal."]
+  );
+
+  assert.deepEqual(
+    reconciliationReviewRegisterFilterErrors({
+      completedFrom: "2026-07-01T00:00",
+      completedTo: "2026-07-31T23:59"
     }),
     []
   );

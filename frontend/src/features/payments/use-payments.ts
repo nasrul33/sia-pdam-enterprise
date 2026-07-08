@@ -7,6 +7,7 @@ import {
   getPaymentReconciliationEvidenceReport,
   getPaymentReconciliationSession,
   getPayment,
+  listPaymentReconciliationReviewRegister,
   listPaymentReconciliationSessions,
   listPaymentWebhookEvents,
   listPayments,
@@ -22,6 +23,7 @@ import type {
   CreatePaymentReconciliationSessionPayload,
   PaymentFilters,
   PaymentReconciliationMatchPayload,
+  PaymentReconciliationReviewRegisterFilters,
   PaymentReconciliationSessionFilters,
   PaymentWebhookEventFilters,
   ResolvePaymentReconciliationItemPayload,
@@ -81,6 +83,17 @@ export function usePaymentReconciliationEvidenceReport(sessionId: string | null,
     queryKey: [...queryKeys.payments, "reconciliation-evidence", sessionId],
     queryFn: () => getPaymentReconciliationEvidenceReport(sessionId ?? ""),
     enabled: enabled && Boolean(sessionId)
+  });
+}
+
+export function usePaymentReconciliationReviewRegister(
+  filters: PaymentReconciliationReviewRegisterFilters,
+  enabled = true
+) {
+  return useQuery({
+    queryKey: [...queryKeys.payments, "reconciliation-review-register", filters],
+    queryFn: () => listPaymentReconciliationReviewRegister(filters),
+    enabled
   });
 }
 

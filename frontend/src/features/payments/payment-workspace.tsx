@@ -47,11 +47,13 @@ import {
   parseMoneyInput,
   reconciliationAdjustmentErrors,
   reconciliationEvidenceExportErrors,
+  reconciliationReviewRegisterFilterErrors,
   reconciliationSignOffErrors,
   paymentReconciliationExportErrors,
   reconciliationCompletionErrors,
   reconciliationResolutionErrors,
   reversePaymentErrors,
+  summarizeReconciliationReviewRegister,
   summarizeReconciliationSessionItems,
   summarizeReconciliationMatches,
   summarizePaymentList,
@@ -71,6 +73,8 @@ import type {
   PaymentReconciliationMatchReport,
   PaymentReconciliationMatchStatus,
   PaymentReconciliationResolutionStatus,
+  PaymentReconciliationReviewRegisterEntry,
+  PaymentReconciliationReviewStatus,
   PaymentReconciliationSessionItem,
   PaymentReconciliationSessionStatus,
   PaymentReconciliationSessionSummary,
@@ -82,7 +86,7 @@ import type {
   ReversePaymentPayload,
   SettleCounterPaymentPayload
 } from "./payment-schema";
-import { paymentStatusValues, paymentWebhookStatusValues } from "./payment-schema";
+import { paymentReconciliationReviewStatusValues, paymentStatusValues, paymentWebhookStatusValues } from "./payment-schema";
 import { exportPaymentReconciliationCsv, exportPaymentReconciliationEvidenceCsv } from "./payment-api";
 import {
   useCompletePaymentReconciliationSession,
@@ -91,6 +95,7 @@ import {
   useMatchPaymentReconciliation,
   usePayment,
   usePaymentReconciliationEvidenceReport,
+  usePaymentReconciliationReviewRegister,
   usePaymentReconciliationSession,
   usePaymentReconciliationSessions,
   usePaymentWebhookEvents,
@@ -162,6 +167,16 @@ const reconciliationSessionStatusTones: Record<PaymentReconciliationSessionStatu
   OPEN: "warning",
   COMPLETED: "success",
   CANCELLED: "neutral"
+};
+
+const reconciliationReviewStatusLabels: Record<PaymentReconciliationReviewStatus, string> = {
+  PENDING_SIGN_OFF: "Pending Sign-off",
+  SIGNED_OFF: "Signed Off"
+};
+
+const reconciliationReviewStatusTones: Record<PaymentReconciliationReviewStatus, "success" | "warning" | "danger" | "neutral" | "info"> = {
+  PENDING_SIGN_OFF: "warning",
+  SIGNED_OFF: "success"
 };
 
 const reconciliationResolutionStatusLabels: Record<PaymentReconciliationResolutionStatus, string> = {
@@ -289,6 +304,15 @@ function toInstant(value: string): string {
 function toOptionalInstant(value: string): string | undefined {
   const normalized = value.trim();
   return normalized ? new Date(normalized).toISOString() : undefined;
+}
+
+function toSafeOptionalInstant(value: string): string | undefined {
+  const normalized = value.trim();
+  if (!normalized) {
+    return undefined;
+  }
+  const time = new Date(normalized).getTime();
+  return Number.isNaN(time) ? undefined : new Date(time).toISOString();
 }
 
 function periodFromInstant(value: string): string {
@@ -793,6 +817,239 @@ function TraceItem({ label, value }: Readonly<{ label: string; value: string }>)
     <div className="rounded-lg border border-slate-200 bg-white p-3">
       <dt className="text-xs font-bold uppercase text-slate-600">{label}</dt>
       <dd className="mt-1 break-words font-mono text-xs font-semibold text-slate-900">{value}</dd>
+    </div>
+  );
+}
+
+function PaymentReconciliationReviewRegisterPanel({ allowed }: Readonly<{ allowed: boolean }>) {
+  const [signOffStatus, setSignOffStatus] = useState<StatusFilter<PaymentReconciliationReviewStatus>>("ALL");
+  const [completedFrom, setCompletedFrom] = useState("");
+  const [completedTo, setCompletedTo] = useState("");
+  const [page, setPage] = useState(0);
+  const filterErrors = reconciliationReviewRegisterFilterErrors({ completedFrom, completedTo });
+  const filtersValid = filterErrors.length === 0;
+  const filters = useMemo(
+    () => ({
+      page,
+      size: 5,
+      signOffStatus: signOffStatus === "ALL" ? undefined : signOffStatus,
+      completedFrom: filtersValid ? toSafeOptionalInstant(completedFrom) : undefined,
+      completedTo: filtersValid ? toSafeOptionalInstant(completedTo) : undefined
+    }),
+    [completedFrom, completedTo, filtersValid, page, signOffStatus]
+  );
+  const reviewRegisterQuery = usePaymentReconciliationReviewRegister(filters, allowed && filtersValid);
+  const entries = useMemo(() => reviewRegisterQuery.data?.items ?? [], [reviewRegisterQuery.data?.items]);
+  const summary = useMemo(() => summarizeReconciliationReviewRegister(entries), [entries]);
+
+  function resetFilters() {
+    setSignOffStatus("ALL");
+    setCompletedFrom("");
+    setCompletedTo("");
+    setPage(0);
+  }
+
+  if (!allowed) {
+    return (
+      <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex items-center gap-2">
+          <LockKeyhole className="size-5 text-slate-600" aria-hidden="true" />
+          <h2 className="text-base font-bold text-slate-950">Review Register Terkunci</h2>
+        </div>
+        <p className="mt-2 text-sm leading-6 text-slate-700">
+          Authority <span className="font-mono font-bold">payment.reconcile</span> diperlukan untuk membaca register review rekonsiliasi.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-4">
+        <div className="flex items-center gap-2">
+          <FileSearch className="size-5 text-sky-700" aria-hidden="true" />
+          <h2 className="text-base font-bold text-slate-950">Reconciliation Review Register</h2>
+        </div>
+        {reviewRegisterQuery.isFetching ? (
+          <span className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600">
+            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+            Memperbarui
+          </span>
+        ) : null}
+      </div>
+
+      <div className="grid gap-3 p-4">
+        <div className="grid gap-2 md:grid-cols-3 xl:grid-cols-6">
+          <MetricPill label="Evidence" value={summary.totalEvidence} tone="info" />
+          <MetricPill label="Pending" value={summary.pendingSignOff} tone="warning" />
+          <MetricPill label="Signed" value={summary.signedOff} tone="success" />
+          <MetricPill label="SLA" value={summary.overduePendingSignOff} tone={summary.overduePendingSignOff > 0 ? "danger" : "success"} />
+          <MetricPill label="Exception" value={summary.exceptionItems} tone={summary.exceptionItems > 0 ? "warning" : "success"} />
+          <MetricPill label="Adjusted" value={summary.adjustedItems} tone={summary.adjustedItems > 0 ? "info" : "neutral"} />
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-[180px_1fr_1fr_auto]">
+          <label className="block">
+            <span className="text-xs font-bold uppercase text-slate-600">Sign-off</span>
+            <select
+              className={inputClass}
+              value={signOffStatus}
+              onChange={(event) => {
+                setSignOffStatus(event.target.value as StatusFilter<PaymentReconciliationReviewStatus>);
+                setPage(0);
+              }}
+            >
+              <option value="ALL">Semua</option>
+              {paymentReconciliationReviewStatusValues.map((value) => (
+                <option key={value} value={value}>
+                  {reconciliationReviewStatusLabels[value]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="text-xs font-bold uppercase text-slate-600">Completed From</span>
+            <input
+              type="datetime-local"
+              className={inputClass}
+              value={completedFrom}
+              onChange={(event) => {
+                setCompletedFrom(event.target.value);
+                setPage(0);
+              }}
+            />
+          </label>
+          <label className="block">
+            <span className="text-xs font-bold uppercase text-slate-600">Completed To</span>
+            <input
+              type="datetime-local"
+              className={inputClass}
+              value={completedTo}
+              onChange={(event) => {
+                setCompletedTo(event.target.value);
+                setPage(0);
+              }}
+            />
+          </label>
+          <div className="flex items-end">
+            <button type="button" className={secondaryButtonClass} onClick={resetFilters}>
+              <RotateCcw className="size-4" aria-hidden="true" />
+              Reset
+            </button>
+          </div>
+        </div>
+
+        {filterErrors.length > 0 ? <InlineMessage type="error" message={filterErrors[0]} /> : null}
+
+        {reviewRegisterQuery.isLoading ? <LoadingSkeleton /> : null}
+
+        {reviewRegisterQuery.isError ? (
+          <div className="grid gap-3">
+            <InlineMessage
+              type="error"
+              message={apiErrorMessage(reviewRegisterQuery.error, "Register review rekonsiliasi tidak tersedia.")}
+            />
+            <button type="button" className={secondaryButtonClass} onClick={() => void reviewRegisterQuery.refetch()}>
+              <RotateCcw className="size-4" aria-hidden="true" />
+              Muat Ulang
+            </button>
+          </div>
+        ) : null}
+
+        {!reviewRegisterQuery.isLoading && !reviewRegisterQuery.isError && entries.length === 0 ? (
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <p className="text-sm font-bold text-slate-950">Register review belum memiliki evidence</p>
+            <p className="mt-1 text-sm leading-6 text-slate-600">
+              Completed reconciliation session akan muncul setelah evidence tersedia.
+            </p>
+          </div>
+        ) : null}
+
+        {!reviewRegisterQuery.isLoading && !reviewRegisterQuery.isError && entries.length > 0 ? (
+          <ReconciliationReviewRegisterTable entries={entries} />
+        ) : null}
+
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-3">
+          <span className="text-sm font-semibold text-slate-600">
+            {reviewRegisterQuery.data?.totalItems ?? 0} evidence
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className={secondaryButtonClass}
+              disabled={page <= 0 || reviewRegisterQuery.isFetching}
+              onClick={() => setPage((current) => Math.max(current - 1, 0))}
+            >
+              Previous
+            </button>
+            <span className="text-sm font-bold text-slate-700">
+              {(reviewRegisterQuery.data?.page ?? page) + 1} / {Math.max(reviewRegisterQuery.data?.totalPages ?? 1, 1)}
+            </span>
+            <button
+              type="button"
+              className={secondaryButtonClass}
+              disabled={(reviewRegisterQuery.data?.page ?? page) + 1 >= Math.max(reviewRegisterQuery.data?.totalPages ?? 1, 1) || reviewRegisterQuery.isFetching}
+              onClick={() => setPage((current) => current + 1)}
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReconciliationReviewRegisterTable({
+  entries
+}: Readonly<{ entries: PaymentReconciliationReviewRegisterEntry[] }>) {
+  return (
+    <div className="overflow-x-auto rounded-lg border border-slate-200">
+      <table className="min-w-full divide-y divide-slate-200 text-sm">
+        <thead className="bg-slate-50">
+          <tr>
+            <th className="px-4 py-3 text-left font-bold text-slate-700">Session</th>
+            <th className="px-4 py-3 text-left font-bold text-slate-700">Completion</th>
+            <th className="px-4 py-3 text-left font-bold text-slate-700">Review</th>
+            <th className="px-4 py-3 text-right font-bold text-slate-700">Exception</th>
+            <th className="px-4 py-3 text-right font-bold text-slate-700">Adjustment</th>
+            <th className="px-4 py-3 text-right font-bold text-slate-700">Variance</th>
+            <th className="px-4 py-3 text-right font-bold text-slate-700">SLA</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100 bg-white">
+          {entries.map((entry) => (
+            <tr key={entry.sessionId} className="hover:bg-slate-50">
+              <td className="min-w-56 px-4 py-3">
+                <p className="font-mono text-xs font-bold text-slate-950">{entry.sessionNumber}</p>
+                <p className="mt-1 text-xs font-semibold text-slate-600">{entry.bankAccountReference ?? "-"}</p>
+              </td>
+              <td className="min-w-44 px-4 py-3 text-slate-700">
+                <p className="text-xs font-semibold">{formatDateTime(entry.completedAt)}</p>
+                <p className="mt-1 text-xs text-slate-600">Creator: {entry.createdBy}</p>
+              </td>
+              <td className="min-w-44 px-4 py-3">
+                <StatusBadge
+                  label={reconciliationReviewStatusLabels[entry.reviewStatus]}
+                  tone={reconciliationReviewStatusTones[entry.reviewStatus]}
+                />
+                <p className="mt-1 text-xs text-slate-600">{entry.signedOffBy ?? "Belum approval"}</p>
+              </td>
+              <td className="whitespace-nowrap px-4 py-3 text-right font-bold text-slate-950">{entry.exceptionItems}</td>
+              <td className="whitespace-nowrap px-4 py-3 text-right font-bold text-slate-950">{entry.adjustedItems}</td>
+              <td className="whitespace-nowrap px-4 py-3 text-right font-bold text-slate-950">
+                <MoneyText value={entry.totalVariance} />
+              </td>
+              <td className="whitespace-nowrap px-4 py-3 text-right">
+                <StatusBadge
+                  label={entry.reviewStatus === "SIGNED_OFF" ? "Closed" : `${entry.pendingSignOffAgeDays} hari`}
+                  tone={entry.reviewStatus === "SIGNED_OFF" ? "success" : entry.pendingSignOffAgeDays >= 3 ? "danger" : "warning"}
+                />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -2783,6 +3040,7 @@ export function PaymentWorkspace() {
                 error={paymentDetailQuery.error}
                 onClear={() => setSelectedPaymentId(null)}
               />
+              <PaymentReconciliationReviewRegisterPanel allowed={canReconcilePayments(permissions)} />
               <PaymentFilterToolbar
                 provider={provider}
                 status={status}
