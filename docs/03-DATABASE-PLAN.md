@@ -35,6 +35,8 @@
 - payment_webhook_events
 - payment_reconciliation_sessions
 - payment_reconciliation_items
+- payment_reconciliation_handoff_notes
+- payment_reconciliation_handoff_note_revisions
 - receivable_aging_snapshots
 - collection_actions
 - ledger_entries
@@ -55,5 +57,10 @@
 | V10__payment_read_permission_seed.sql | payment read permission catalog | idempotent `payment.read` supervisory/auditor grants without default user credentials |
 | V11__payment_reconciliation_permission_seed.sql | payment reconciliation permission catalog | idempotent `payment.reconcile` supervisory/auditor grants without default user credentials |
 | V12__payment_reconciliation_sessions.sql | payment reconciliation session review | non-posting session/item tables, status checks, resolution indexes, and no cascade into financial history |
+| V13__payment_reconciliation_adjustment_trace.sql | reconciliation adjustment trace | adjustment journal link, actor, timestamp, and reason on reconciliation items |
+| V14__payment_reconciliation_sign_off.sql | reconciliation sign-off evidence | one-time completed-session sign-off fields and DB check for complete sign-off metadata |
+| V15__payment_reconciliation_signoff_permission_seed.sql | sign-off permission catalog | idempotent `payment.reconciliation.signoff` grant only for approver roles |
+| V16__payment_reconciliation_handoff_notes.sql | reviewer handoff notes | current note table plus immutable revision table with status/text/reason checks and session/revision indexes |
+| V17__payment_reconciliation_handoff_note_permission_seed.sql | handoff note permission catalog | idempotent `payment.reconciliation.handoff-note` grants for super-admin, finance supervisor, and internal auditor |
 
 Smoke test on PostgreSQL 16 confirms migrations apply from an empty schema and Hibernate validation passes afterward.

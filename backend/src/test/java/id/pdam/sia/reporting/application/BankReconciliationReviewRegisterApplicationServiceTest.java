@@ -8,6 +8,9 @@ import id.pdam.sia.payment.domain.PaymentReconciliationResolutionStatus;
 import id.pdam.sia.payment.domain.PaymentReconciliationSession;
 import id.pdam.sia.payment.repository.PaymentReconciliationItemRepository;
 import id.pdam.sia.payment.repository.PaymentReconciliationSessionRepository;
+import id.pdam.sia.reporting.domain.PaymentReconciliationHandoffNote;
+import id.pdam.sia.reporting.domain.PaymentReconciliationHandoffStatus;
+import id.pdam.sia.reporting.repository.PaymentReconciliationHandoffNoteRepository;
 import id.pdam.sia.shared.exception.BusinessException;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -38,8 +41,10 @@ class BankReconciliationReviewRegisterApplicationServiceTest {
 
     private final PaymentReconciliationSessionRepository sessionRepository = mock(PaymentReconciliationSessionRepository.class);
     private final PaymentReconciliationItemRepository itemRepository = mock(PaymentReconciliationItemRepository.class);
+    private final PaymentReconciliationHandoffNoteRepository handoffNoteRepository =
+            mock(PaymentReconciliationHandoffNoteRepository.class);
     private final BankReconciliationReviewRegisterApplicationService service =
-            new BankReconciliationReviewRegisterApplicationService(sessionRepository, itemRepository);
+            new BankReconciliationReviewRegisterApplicationService(sessionRepository, itemRepository, handoffNoteRepository);
 
     @Test
     void reviewRegisterSummarizesCompletedSessionsAndSignedOffState() {
@@ -77,6 +82,8 @@ class BankReconciliationReviewRegisterApplicationServiceTest {
         ));
         when(itemRepository.findBySessionIdInOrderBySessionIdAscRowNumberAsc(anyCollection()))
                 .thenReturn(List.of(exceptionItem, signedItem));
+        when(handoffNoteRepository.findBySessionIdInOrderBySessionIdAscUpdatedAtDesc(anyCollection()))
+                .thenReturn(List.of());
 
         Page<BankReconciliationReviewRegisterEntry> result = service.reviewRegister(
                 new BankReconciliationReviewRegisterFilters(null, null, null),
@@ -141,6 +148,8 @@ class BankReconciliationReviewRegisterApplicationServiceTest {
         ));
         when(itemRepository.findBySessionIdInOrderBySessionIdAscRowNumberAsc(anyCollection()))
                 .thenReturn(List.of(item));
+        when(handoffNoteRepository.findBySessionIdInOrderBySessionIdAscUpdatedAtDesc(anyCollection()))
+                .thenReturn(List.of());
 
         String csv = service.reviewRegisterCsv(new BankReconciliationReviewRegisterFilters(
                 PaymentReconciliationReviewStatus.PENDING_SIGN_OFF,
@@ -163,6 +172,39 @@ class BankReconciliationReviewRegisterApplicationServiceTest {
         );
         assertThat(pageableCaptor.getValue().getPageSize()).isEqualTo(10_000);
         assertThat(pageableCaptor.getValue().getSort().getOrderFor("completedAt")).isNotNull();
+    }
+
+    @Test
+    void reviewRegisterCsvPopulatesLatestHandoffNoteColumns() {
+        PaymentReconciliationSession session = completedSession("REC-20260731-HANDOFF");
+        PaymentReconciliationHandoffNote note = new PaymentReconciliationHandoffNote(
+                session.getId(),
+                "Reviewer meminta bukti mutasi settlement provider.",
+                "finance.ops",
+                java.time.LocalDate.parse("2026-08-03"),
+                PaymentReconciliationHandoffStatus.IN_PROGRESS,
+                "auditor.internal"
+        );
+        when(sessionRepository.findAll(
+                org.mockito.ArgumentMatchers.<Specification<PaymentReconciliationSession>>any(),
+                any(Pageable.class)
+        )).thenReturn(new PageImpl<>(
+                List.of(session),
+                PageRequest.of(0, 10_000),
+                1
+        ));
+        when(itemRepository.findBySessionIdInOrderBySessionIdAscRowNumberAsc(anyCollection()))
+                .thenReturn(List.of());
+        when(handoffNoteRepository.findBySessionIdInOrderBySessionIdAscUpdatedAtDesc(anyCollection()))
+                .thenReturn(List.of(note));
+
+        String csv = service.reviewRegisterCsv(new BankReconciliationReviewRegisterFilters(null, null, null));
+
+        assertThat(csv)
+                .contains("Reviewer meminta bukti mutasi settlement provider.")
+                .contains("finance.ops")
+                .contains("2026-08-03")
+                .contains("IN_PROGRESS");
     }
 
     @Test
@@ -195,6 +237,7 @@ class BankReconciliationReviewRegisterApplicationServiceTest {
 
         assertThat(result.getContent()).isEmpty();
         verify(itemRepository, never()).findBySessionIdInOrderBySessionIdAscRowNumberAsc(anyCollection());
+        verify(handoffNoteRepository, never()).findBySessionIdInOrderBySessionIdAscUpdatedAtDesc(anyCollection());
     }
 
     @SuppressWarnings("unchecked")

@@ -38,6 +38,10 @@
 | collection-action.execute | `POST /api/collection-actions/{id}/start`, `POST /api/collection-actions/{id}/complete` | Petugas Piutang |
 | collection-action.cancel | `POST /api/collection-actions/{id}/cancel` | Supervisor Piutang |
 | payment.counter | `POST /api/payments/counter` | Kasir |
+| payment.read | `GET /api/payments`, `GET /api/payments/{id}` | Finance Supervisor, Auditor Internal |
+| payment.reconcile | Payment reconciliation, evidence, review register, and handoff-note read endpoints | Finance Supervisor, Auditor Internal |
+| payment.reconciliation.handoff-note | Create/revise reconciliation reviewer handoff notes | Finance Supervisor, Auditor Internal |
+| payment.reconciliation.signoff | Sign off completed reconciliation evidence | Finance Supervisor |
 | payment.reverse | `POST /api/payments/{id}/reverse` | Finance Supervisor |
 | payment.webhook.read | `GET /api/payment-webhook-events` | Finance Supervisor, Auditor Internal |
 | account.manage | `POST /api/accounts` | Finance Supervisor |
@@ -53,20 +57,21 @@
 - Flyway V7 seeds operational roles and collection action permissions.
 - Flyway V8 seeds payment permissions and role grants.
 - Flyway V9 seeds accounting and billing command permissions and role grants.
+- Flyway V10-V17 extend payment read, reconciliation, sign-off, and handoff-note permissions without default user credentials.
 - No default user or default password is seeded by migration.
 - Initial user provisioning must use a controlled operational/admin process with a prefixed password hash, preferably `{bcrypt}`.
 
 | Role | Seeded Permissions |
 |---|---|
-| super-admin | collection-action.read, collection-action.create, collection-action.execute, collection-action.cancel, payment.counter, payment.reverse, payment.webhook.read, account.manage, period.manage, period.close, journal.create, journal.post, billing.generate, invoice.issue |
+| super-admin | collection-action.read, collection-action.create, collection-action.execute, collection-action.cancel, payment.counter, payment.read, payment.reconcile, payment.reconciliation.handoff-note, payment.reconciliation.signoff, payment.reverse, payment.webhook.read, account.manage, period.manage, period.close, journal.create, journal.post, billing.generate, invoice.issue |
 | petugas-piutang | collection-action.read, collection-action.create, collection-action.execute |
 | supervisor-piutang | collection-action.read, collection-action.create, collection-action.cancel |
 | kasir | payment.counter |
 | finance-staff | journal.create |
-| finance-supervisor | payment.reverse, payment.webhook.read, account.manage, period.manage, period.close, journal.create, journal.post |
+| finance-supervisor | payment.read, payment.reconcile, payment.reconciliation.handoff-note, payment.reconciliation.signoff, payment.reverse, payment.webhook.read, account.manage, period.manage, period.close, journal.create, journal.post |
 | billing-officer | billing.generate |
 | billing-supervisor | billing.generate, invoice.issue |
-| auditor-internal | collection-action.read, payment.webhook.read |
+| auditor-internal | collection-action.read, payment.read, payment.reconcile, payment.reconciliation.handoff-note, payment.webhook.read |
 
 ## Authentication Source
 

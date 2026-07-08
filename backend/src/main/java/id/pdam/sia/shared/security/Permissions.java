@@ -8,6 +8,7 @@ public final class Permissions {
     public static final String PAYMENT_COUNTER = "hasAuthority('payment.counter')";
     public static final String PAYMENT_READ = "hasAuthority('payment.read')";
     public static final String PAYMENT_RECONCILE = "hasAuthority('payment.reconcile')";
+    public static final String PAYMENT_RECONCILIATION_HANDOFF_NOTE = "hasAuthority('payment.reconciliation.handoff-note')";
     public static final String PAYMENT_RECONCILIATION_SIGNOFF = "hasAuthority('payment.reconciliation.signoff')";
     public static final String PAYMENT_REVERSE = "hasAuthority('payment.reverse')";
     public static final String PAYMENT_WEBHOOK_READ = "hasAuthority('payment.webhook.read')";
@@ -19,6 +20,8 @@ public final class Permissions {
     public static final String PAYMENT_RECONCILE_AND_JOURNAL_POST = PAYMENT_RECONCILE + " and " + JOURNAL_POST;
     public static final String PAYMENT_RECONCILE_AND_RECONCILIATION_SIGNOFF =
             PAYMENT_RECONCILE + " and " + PAYMENT_RECONCILIATION_SIGNOFF;
+    public static final String PAYMENT_RECONCILE_AND_RECONCILIATION_HANDOFF_NOTE =
+            PAYMENT_RECONCILE + " and " + PAYMENT_RECONCILIATION_HANDOFF_NOTE;
     public static final String BILLING_GENERATE = "hasAuthority('billing.generate')";
     public static final String INVOICE_ISSUE = "hasAuthority('invoice.issue')";
 

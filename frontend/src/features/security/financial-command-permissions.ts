@@ -9,6 +9,7 @@ export const financialCommandPermissions = {
   paymentCounter: "payment.counter",
   paymentRead: "payment.read",
   paymentReconcile: "payment.reconcile",
+  paymentReconciliationHandoffNote: "payment.reconciliation.handoff-note",
   paymentReconciliationSignoff: "payment.reconciliation.signoff",
   paymentReverse: "payment.reverse",
   paymentWebhookRead: "payment.webhook.read"
@@ -31,6 +32,7 @@ export type PaymentCommandPermissionState = {
   canSettleCounterPayments: boolean;
   canReadPayments: boolean;
   canReconcilePayments: boolean;
+  canManageReconciliationHandoffNotes: boolean;
   canSignOffPaymentReconciliations: boolean;
   canReversePayments: boolean;
   canReadWebhookEvents: boolean;
@@ -72,6 +74,7 @@ export function resolveFinancialCommandPermissions(authorities: readonly string[
     canSettleCounterPayments: authoritySet.has(financialCommandPermissions.paymentCounter),
     canReadPayments: authoritySet.has(financialCommandPermissions.paymentRead),
     canReconcilePayments: authoritySet.has(financialCommandPermissions.paymentReconcile),
+    canManageReconciliationHandoffNotes: authoritySet.has(financialCommandPermissions.paymentReconciliationHandoffNote),
     canSignOffPaymentReconciliations: authoritySet.has(financialCommandPermissions.paymentReconciliationSignoff),
     canReversePayments: authoritySet.has(financialCommandPermissions.paymentReverse),
     canReadWebhookEvents: authoritySet.has(financialCommandPermissions.paymentWebhookRead)
@@ -92,6 +95,7 @@ export function resolveFinancialCommandPermissions(authorities: readonly string[
       payment.canSettleCounterPayments ||
       payment.canReadPayments ||
       payment.canReconcilePayments ||
+      payment.canManageReconciliationHandoffNotes ||
       payment.canSignOffPaymentReconciliations ||
       payment.canReversePayments ||
       payment.canReadWebhookEvents
@@ -171,6 +175,12 @@ export function visibleFinancialCommandGroups(state: FinancialCommandPermissionS
           label: "Payment Reconcile",
           permission: financialCommandPermissions.paymentReconcile,
           allowed: state.payment.canReconcilePayments,
+          risk: "medium"
+        },
+        {
+          label: "Reconciliation Handoff Notes",
+          permission: financialCommandPermissions.paymentReconciliationHandoffNote,
+          allowed: state.payment.canManageReconciliationHandoffNotes,
           risk: "medium"
         },
         {

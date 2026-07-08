@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { financialCommandPermissions, resolveFinancialCommandPermissions } from "../security/financial-command-permissions.ts";
 import {
   allocationTotalAmount,
+  canManageReconciliationHandoffNotes,
   canReadPayments,
   canReconcilePayments,
   canReversePayment,
@@ -18,6 +19,7 @@ import {
   reconciliationEvidenceExportErrors,
   reconciliationReviewRegisterFilterErrors,
   reconciliationReviewRegisterExportFilename,
+  reconciliationHandoffNoteErrors,
   reconciliationSignOffErrors,
   reconciliationCompletionErrors,
   reconciliationResolutionErrors,
@@ -84,6 +86,7 @@ test("payment command guards require matching authorities", () => {
     financialCommandPermissions.paymentCounter,
     financialCommandPermissions.paymentRead,
     financialCommandPermissions.paymentReconcile,
+    financialCommandPermissions.paymentReconciliationHandoffNote,
     financialCommandPermissions.paymentReconciliationSignoff,
     financialCommandPermissions.paymentReverse
   ]).payment;
@@ -91,9 +94,11 @@ test("payment command guards require matching authorities", () => {
   assert.equal(canSettleCounterPayment(paymentPermissions), true);
   assert.equal(canReadPayments(paymentPermissions), true);
   assert.equal(canReconcilePayments(paymentPermissions), true);
+  assert.equal(canManageReconciliationHandoffNotes(paymentPermissions), true);
   assert.equal(canSignOffPaymentReconciliations(paymentPermissions), true);
   assert.equal(canReversePayment(paymentPermissions), true);
   assert.equal(canReconcilePayments(resolveFinancialCommandPermissions([]).payment), false);
+  assert.equal(canManageReconciliationHandoffNotes(resolveFinancialCommandPermissions([]).payment), false);
   assert.equal(canReadPayments(resolveFinancialCommandPermissions([]).payment), false);
   assert.equal(canSettleCounterPayment(resolveFinancialCommandPermissions([]).payment), false);
   assert.equal(canSignOffPaymentReconciliations(resolveFinancialCommandPermissions([]).payment), false);
@@ -505,6 +510,37 @@ test("reconciliationReviewRegisterExportFilename includes status and date scope"
       completedTo: ""
     }),
     "payment-reconciliation-review-register-all-all-all.csv"
+  );
+});
+
+test("reconciliationHandoffNoteErrors validates controlled note revisions", () => {
+  assert.deepEqual(
+    reconciliationHandoffNoteErrors({
+      noteId: null,
+      noteText: "",
+      handoffOwner: "x".repeat(129),
+      handoffDueDate: "bad-date",
+      handoffStatus: "OPEN",
+      reason: ""
+    }),
+    [
+      "Catatan handoff wajib diisi.",
+      "Owner handoff maksimal 128 karakter.",
+      "Due date handoff wajib valid.",
+      "Alasan perubahan handoff wajib diisi."
+    ]
+  );
+
+  assert.deepEqual(
+    reconciliationHandoffNoteErrors({
+      noteId: "77777777-7777-4777-8777-777777777777",
+      noteText: "Reviewer meminta bukti mutasi settlement provider.",
+      handoffOwner: "finance.ops",
+      handoffDueDate: "2026-08-03",
+      handoffStatus: "IN_PROGRESS",
+      reason: "Follow up hasil review register."
+    }),
+    []
   );
 });
 

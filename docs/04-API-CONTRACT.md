@@ -175,6 +175,9 @@ The payment register is read-only. It exposes settlement/reversal traceability b
 | GET | /api/payment-reconciliation/sessions/{sessionId} | read reconciliation session detail and items | payment.reconcile |
 | POST | /api/payment-reconciliation/sessions/{sessionId}/items/{itemId}/resolve | close one reconciliation item with resolution status and reason | payment.reconcile |
 | POST | /api/payment-reconciliation/sessions/{sessionId}/complete | complete an open reconciliation session | payment.reconcile |
+| GET | /api/reports/payment-reconciliation-review-register/{sessionId}/handoff-notes | read controlled reviewer handoff notes and revision history | payment.reconcile |
+| POST | /api/reports/payment-reconciliation-review-register/{sessionId}/handoff-notes | create reviewer handoff note for completed evidence | payment.reconcile + payment.reconciliation.handoff-note |
+| POST | /api/reports/payment-reconciliation-review-register/{sessionId}/handoff-notes/{noteId}/revisions | revise reviewer handoff note and append revision history | payment.reconcile + payment.reconciliation.handoff-note |
 
 `GET /api/payment-reconciliation/export` returns `text/csv`, limits export to 10,000 rows, and only allows `SETTLED` or `REVERSED` payment status. The action is audited because it exports sensitive kas-bank reconciliation data.
 
@@ -236,6 +239,20 @@ Allowed resolution statuses are `ACCEPTED`, `RESOLVED`, and `IGNORED`; `OPEN` is
 ```
 
 Completion is allowed only when every item is no longer `OPEN`. Session workflows are operational review records only; they do not create journal entries, ledger entries, payment reversals, or accounting adjustments automatically.
+
+Reviewer handoff notes are allowed only for `COMPLETED` reconciliation sessions. The command payload is:
+
+```json
+{
+  "noteText": "Reviewer meminta bukti mutasi settlement provider.",
+  "handoffOwner": "finance.ops",
+  "handoffDueDate": "2026-08-03",
+  "handoffStatus": "IN_PROGRESS",
+  "reason": "Follow up hasil review register."
+}
+```
+
+Allowed handoff statuses are `OPEN`, `IN_PROGRESS`, and `CLEARED`. Create and revise commands append `payment_reconciliation_handoff_note_revisions`, record actor/timestamp/reason, and must not mutate signed-off evidence fields, reconciliation items, journals, payments, or ledger rows.
 
 ## Receivable Aging
 

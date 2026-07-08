@@ -6,6 +6,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.time.Instant;
 import java.lang.reflect.Method;
+import java.security.Principal;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -44,6 +45,33 @@ class ReportingControllerPermissionTest {
                         Instant.class
                 ),
                 "hasAuthority('payment.reconcile')"
+        );
+    }
+
+    @Test
+    void bankReconciliationHandoffNotesUseReadAndMutationPermissions() throws NoSuchMethodException {
+        assertPermission(
+                ReportingController.class.getMethod("paymentReconciliationHandoffNotes", UUID.class),
+                "hasAuthority('payment.reconcile')"
+        );
+        assertPermission(
+                ReportingController.class.getMethod(
+                        "createPaymentReconciliationHandoffNote",
+                        UUID.class,
+                        PaymentReconciliationHandoffNoteRequest.class,
+                        Principal.class
+                ),
+                "hasAuthority('payment.reconcile') and hasAuthority('payment.reconciliation.handoff-note')"
+        );
+        assertPermission(
+                ReportingController.class.getMethod(
+                        "revisePaymentReconciliationHandoffNote",
+                        UUID.class,
+                        UUID.class,
+                        PaymentReconciliationHandoffNoteRequest.class,
+                        Principal.class
+                ),
+                "hasAuthority('payment.reconcile') and hasAuthority('payment.reconciliation.handoff-note')"
         );
     }
 

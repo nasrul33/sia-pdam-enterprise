@@ -2,6 +2,7 @@ import type { Account } from "@/features/accounting/accounting-schema";
 import type { PaymentCommandPermissionState } from "@/features/security/financial-command-permissions";
 import type {
   ClosedPaymentReconciliationResolutionStatus,
+  PaymentReconciliationHandoffStatus,
   PaymentReconciliationMatchStatus,
   PaymentReconciliationResolutionStatus,
   PaymentReconciliationReviewStatus,
@@ -281,6 +282,15 @@ export type PaymentReconciliationReviewRegisterFilterDraft = {
   completedTo: string;
 };
 
+export type PaymentReconciliationHandoffNoteDraft = {
+  noteId: string | null;
+  noteText: string;
+  handoffOwner: string;
+  handoffDueDate: string;
+  handoffStatus: PaymentReconciliationHandoffStatus;
+  reason: string;
+};
+
 export type CounterPaymentAllocationDraft = {
   invoiceId: string;
   amount: string;
@@ -344,6 +354,10 @@ export function canReconcilePayments(permissions: PaymentCommandPermissionState)
 
 export function canSignOffPaymentReconciliations(permissions: PaymentCommandPermissionState): boolean {
   return permissions.canSignOffPaymentReconciliations;
+}
+
+export function canManageReconciliationHandoffNotes(permissions: PaymentCommandPermissionState): boolean {
+  return permissions.canManageReconciliationHandoffNotes;
 }
 
 export function canReversePayment(permissions: PaymentCommandPermissionState): boolean {
@@ -567,6 +581,35 @@ export function reconciliationReviewRegisterExportFilename(
   const fromSegment = filenameDateSegment(draft.completedFrom);
   const toSegment = filenameDateSegment(draft.completedTo);
   return `payment-reconciliation-review-register-${statusSegment}-${fromSegment}-${toSegment}.csv`;
+}
+
+export function reconciliationHandoffNoteErrors(draft: PaymentReconciliationHandoffNoteDraft): string[] {
+  const errors: string[] = [];
+  const noteText = draft.noteText.trim();
+  const handoffOwner = draft.handoffOwner.trim();
+  const handoffDueDate = draft.handoffDueDate.trim();
+  const reason = draft.reason.trim();
+
+  if (!noteText) {
+    errors.push("Catatan handoff wajib diisi.");
+  }
+  if (noteText.length > 2000) {
+    errors.push("Catatan handoff maksimal 2000 karakter.");
+  }
+  if (handoffOwner.length > 128) {
+    errors.push("Owner handoff maksimal 128 karakter.");
+  }
+  if (handoffDueDate && Number.isNaN(new Date(`${handoffDueDate}T00:00:00`).getTime())) {
+    errors.push("Due date handoff wajib valid.");
+  }
+  if (!reason) {
+    errors.push("Alasan perubahan handoff wajib diisi.");
+  }
+  if (reason.length > 500) {
+    errors.push("Alasan perubahan handoff maksimal 500 karakter.");
+  }
+
+  return errors;
 }
 
 export function toClosedResolutionStatus(

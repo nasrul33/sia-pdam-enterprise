@@ -2,6 +2,7 @@ package id.pdam.sia.reporting.web;
 
 import id.pdam.sia.reporting.application.BankReconciliationEvidenceReport;
 import id.pdam.sia.reporting.application.BankReconciliationEvidenceReportApplicationService;
+import id.pdam.sia.reporting.application.BankReconciliationHandoffNoteApplicationService;
 import id.pdam.sia.reporting.application.BankReconciliationReviewRegisterApplicationService;
 import id.pdam.sia.reporting.application.BankReconciliationReviewRegisterEntry;
 import id.pdam.sia.reporting.application.BankReconciliationReviewRegisterFilters;
@@ -13,6 +14,7 @@ import id.pdam.sia.shared.web.PageResponse;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -24,10 +26,14 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.security.Principal;
 import java.time.LocalDate;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 @Validated
@@ -39,15 +45,18 @@ public class ReportingController {
     private final PostedLedgerReportApplicationService postedLedgerReportApplicationService;
     private final BankReconciliationEvidenceReportApplicationService bankReconciliationEvidenceReportApplicationService;
     private final BankReconciliationReviewRegisterApplicationService bankReconciliationReviewRegisterApplicationService;
+    private final BankReconciliationHandoffNoteApplicationService bankReconciliationHandoffNoteApplicationService;
 
     public ReportingController(
             PostedLedgerReportApplicationService postedLedgerReportApplicationService,
             BankReconciliationEvidenceReportApplicationService bankReconciliationEvidenceReportApplicationService,
-            BankReconciliationReviewRegisterApplicationService bankReconciliationReviewRegisterApplicationService
+            BankReconciliationReviewRegisterApplicationService bankReconciliationReviewRegisterApplicationService,
+            BankReconciliationHandoffNoteApplicationService bankReconciliationHandoffNoteApplicationService
     ) {
         this.postedLedgerReportApplicationService = postedLedgerReportApplicationService;
         this.bankReconciliationEvidenceReportApplicationService = bankReconciliationEvidenceReportApplicationService;
         this.bankReconciliationReviewRegisterApplicationService = bankReconciliationReviewRegisterApplicationService;
+        this.bankReconciliationHandoffNoteApplicationService = bankReconciliationHandoffNoteApplicationService;
     }
 
     @GetMapping("/trial-balance")
@@ -109,5 +118,48 @@ public class ReportingController {
                 .body(bankReconciliationReviewRegisterApplicationService.reviewRegisterCsv(
                         new BankReconciliationReviewRegisterFilters(signOffStatus, completedFrom, completedTo)
                 ));
+    }
+
+    @GetMapping("/payment-reconciliation-review-register/{sessionId}/handoff-notes")
+    @PreAuthorize(Permissions.PAYMENT_RECONCILE)
+    public List<PaymentReconciliationHandoffNoteResponse> paymentReconciliationHandoffNotes(@PathVariable UUID sessionId) {
+        return bankReconciliationHandoffNoteApplicationService.handoffNotes(sessionId)
+                .stream()
+                .map(PaymentReconciliationHandoffNoteResponse::from)
+                .toList();
+    }
+
+    @PostMapping("/payment-reconciliation-review-register/{sessionId}/handoff-notes")
+    @PreAuthorize(Permissions.PAYMENT_RECONCILE_AND_RECONCILIATION_HANDOFF_NOTE)
+    public PaymentReconciliationHandoffNoteResponse createPaymentReconciliationHandoffNote(
+            @PathVariable UUID sessionId,
+            @Valid @RequestBody PaymentReconciliationHandoffNoteRequest request,
+            Principal principal
+    ) {
+        return PaymentReconciliationHandoffNoteResponse.from(bankReconciliationHandoffNoteApplicationService.createNote(
+                sessionId,
+                request.toCommand(),
+                actor(principal)
+        ));
+    }
+
+    @PostMapping("/payment-reconciliation-review-register/{sessionId}/handoff-notes/{noteId}/revisions")
+    @PreAuthorize(Permissions.PAYMENT_RECONCILE_AND_RECONCILIATION_HANDOFF_NOTE)
+    public PaymentReconciliationHandoffNoteResponse revisePaymentReconciliationHandoffNote(
+            @PathVariable UUID sessionId,
+            @PathVariable UUID noteId,
+            @Valid @RequestBody PaymentReconciliationHandoffNoteRequest request,
+            Principal principal
+    ) {
+        return PaymentReconciliationHandoffNoteResponse.from(bankReconciliationHandoffNoteApplicationService.reviseNote(
+                sessionId,
+                noteId,
+                request.toCommand(),
+                actor(principal)
+        ));
+    }
+
+    private static String actor(Principal principal) {
+        return principal == null ? "system" : principal.getName();
     }
 }

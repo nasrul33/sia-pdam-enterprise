@@ -42,6 +42,7 @@ test("resolveFinancialCommandPermissions maps payment command authorities", () =
       financialCommandPermissions.paymentCounter,
       financialCommandPermissions.paymentRead,
       financialCommandPermissions.paymentReconcile,
+      financialCommandPermissions.paymentReconciliationHandoffNote,
       financialCommandPermissions.paymentReconciliationSignoff,
       financialCommandPermissions.paymentWebhookRead
     ]).payment,
@@ -49,6 +50,7 @@ test("resolveFinancialCommandPermissions maps payment command authorities", () =
       canSettleCounterPayments: true,
       canReadPayments: true,
       canReconcilePayments: true,
+      canManageReconciliationHandoffNotes: true,
       canSignOffPaymentReconciliations: true,
       canReversePayments: false,
       canReadWebhookEvents: true
@@ -61,6 +63,7 @@ test("visibleFinancialCommandGroups marks individual commands by permission", ()
     financialCommandPermissions.journalCreate,
     financialCommandPermissions.invoiceIssue,
     financialCommandPermissions.paymentReconcile,
+    financialCommandPermissions.paymentReconciliationHandoffNote,
     financialCommandPermissions.paymentReconciliationSignoff,
     financialCommandPermissions.paymentReverse
   ]);
@@ -83,6 +86,7 @@ test("visibleFinancialCommandGroups marks individual commands by permission", ()
         title: "Payment",
         allowed: [
           financialCommandPermissions.paymentReconcile,
+          financialCommandPermissions.paymentReconciliationHandoffNote,
           financialCommandPermissions.paymentReconciliationSignoff,
           financialCommandPermissions.paymentReverse
         ]

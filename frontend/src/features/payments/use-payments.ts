@@ -2,17 +2,20 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query/query-keys";
 import {
   completePaymentReconciliationSession,
+  createPaymentReconciliationHandoffNote,
   createPaymentReconciliationAdjustment,
   createPaymentReconciliationSession,
   getPaymentReconciliationEvidenceReport,
   getPaymentReconciliationSession,
   getPayment,
+  listPaymentReconciliationHandoffNotes,
   listPaymentReconciliationReviewRegister,
   listPaymentReconciliationSessions,
   listPaymentWebhookEvents,
   listPayments,
   matchPaymentReconciliation,
   resolvePaymentReconciliationItem,
+  revisePaymentReconciliationHandoffNote,
   reversePayment,
   signOffPaymentReconciliationSession,
   settleCounterPayment
@@ -22,6 +25,7 @@ import type {
   CreatePaymentReconciliationAdjustmentPayload,
   CreatePaymentReconciliationSessionPayload,
   PaymentFilters,
+  PaymentReconciliationHandoffNotePayload,
   PaymentReconciliationMatchPayload,
   PaymentReconciliationReviewRegisterFilters,
   PaymentReconciliationSessionFilters,
@@ -97,6 +101,14 @@ export function usePaymentReconciliationReviewRegister(
   });
 }
 
+export function usePaymentReconciliationHandoffNotes(sessionId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: [...queryKeys.payments, "reconciliation-handoff-notes", sessionId],
+    queryFn: () => listPaymentReconciliationHandoffNotes(sessionId ?? ""),
+    enabled: enabled && Boolean(sessionId)
+  });
+}
+
 export function useCreatePaymentReconciliationSession() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -152,6 +164,28 @@ export function useSignOffPaymentReconciliationSession() {
   return useMutation({
     mutationFn: (input: { sessionId: string; payload: SignOffPaymentReconciliationSessionPayload }) =>
       signOffPaymentReconciliationSession(input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.payments });
+    }
+  });
+}
+
+export function useCreatePaymentReconciliationHandoffNote() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { sessionId: string; payload: PaymentReconciliationHandoffNotePayload }) =>
+      createPaymentReconciliationHandoffNote(input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.payments });
+    }
+  });
+}
+
+export function useRevisePaymentReconciliationHandoffNote() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { sessionId: string; noteId: string; payload: PaymentReconciliationHandoffNotePayload }) =>
+      revisePaymentReconciliationHandoffNote(input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.payments });
     }

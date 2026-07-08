@@ -3,6 +3,8 @@ import {
   paymentReconciliationSessionPageSchema,
   paymentReconciliationSessionSchema,
   paymentReconciliationEvidenceReportSchema,
+  paymentReconciliationHandoffNoteListSchema,
+  paymentReconciliationHandoffNoteSchema,
   paymentReconciliationReviewRegisterPageSchema,
   paymentPageSchema,
   paymentReconciliationMatchReportSchema,
@@ -13,6 +15,7 @@ import {
   type CreatePaymentReconciliationSessionPayload,
   type PaymentFilters,
   type PaymentReconciliationExportFilters,
+  type PaymentReconciliationHandoffNotePayload,
   type PaymentReconciliationMatchPayload,
   type PaymentReconciliationReviewRegisterFilters,
   type PaymentReconciliationSessionFilters,
@@ -168,6 +171,34 @@ export async function listPaymentReconciliationReviewRegister(filters: PaymentRe
 export async function exportPaymentReconciliationReviewRegisterCsv(filters: PaymentReconciliationReviewRegisterFilters) {
   const query = reconciliationReviewRegisterExportParams(filters).toString();
   return apiGetText(`/api/reports/payment-reconciliation-review-register/export${query ? `?${query}` : ""}`);
+}
+
+export async function listPaymentReconciliationHandoffNotes(sessionId: string) {
+  const payload = await apiGet<unknown>(`/api/reports/payment-reconciliation-review-register/${sessionId}/handoff-notes`);
+  return paymentReconciliationHandoffNoteListSchema.parse(payload);
+}
+
+export async function createPaymentReconciliationHandoffNote(input: {
+  sessionId: string;
+  payload: PaymentReconciliationHandoffNotePayload;
+}) {
+  const response = await apiPost<PaymentReconciliationHandoffNotePayload, unknown>(
+    `/api/reports/payment-reconciliation-review-register/${input.sessionId}/handoff-notes`,
+    input.payload
+  );
+  return paymentReconciliationHandoffNoteSchema.parse(response);
+}
+
+export async function revisePaymentReconciliationHandoffNote(input: {
+  sessionId: string;
+  noteId: string;
+  payload: PaymentReconciliationHandoffNotePayload;
+}) {
+  const response = await apiPost<PaymentReconciliationHandoffNotePayload, unknown>(
+    `/api/reports/payment-reconciliation-review-register/${input.sessionId}/handoff-notes/${input.noteId}/revisions`,
+    input.payload
+  );
+  return paymentReconciliationHandoffNoteSchema.parse(response);
 }
 
 export async function exportPaymentReconciliationEvidenceCsv(sessionId: string) {

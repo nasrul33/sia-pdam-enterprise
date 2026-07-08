@@ -5,6 +5,8 @@ import id.pdam.sia.payment.domain.PaymentReconciliationSession;
 import id.pdam.sia.payment.domain.PaymentReconciliationSessionStatus;
 import id.pdam.sia.payment.repository.PaymentReconciliationItemRepository;
 import id.pdam.sia.payment.repository.PaymentReconciliationSessionRepository;
+import id.pdam.sia.reporting.domain.PaymentReconciliationHandoffNote;
+import id.pdam.sia.reporting.repository.PaymentReconciliationHandoffNoteRepository;
 import id.pdam.sia.shared.exception.BusinessException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -29,13 +31,16 @@ public class BankReconciliationReviewRegisterApplicationService {
 
     private final PaymentReconciliationSessionRepository sessionRepository;
     private final PaymentReconciliationItemRepository itemRepository;
+    private final PaymentReconciliationHandoffNoteRepository handoffNoteRepository;
 
     public BankReconciliationReviewRegisterApplicationService(
             PaymentReconciliationSessionRepository sessionRepository,
-            PaymentReconciliationItemRepository itemRepository
+            PaymentReconciliationItemRepository itemRepository,
+            PaymentReconciliationHandoffNoteRepository handoffNoteRepository
     ) {
         this.sessionRepository = sessionRepository;
         this.itemRepository = itemRepository;
+        this.handoffNoteRepository = handoffNoteRepository;
     }
 
     @Transactional(readOnly = true)
@@ -113,10 +118,10 @@ public class BankReconciliationReviewRegisterApplicationService {
                 row.totalVariance(),
                 row.pendingSignOffAgeDays(),
                 row.generatedAt(),
-                "",
-                "",
-                "",
-                ""
+                row.reviewerNotes(),
+                row.handoffOwner(),
+                row.handoffDueDate(),
+                row.handoffStatus()
         ));
         return builder.toString();
     }
@@ -133,12 +138,18 @@ public class BankReconciliationReviewRegisterApplicationService {
                         .findBySessionIdInOrderBySessionIdAscRowNumberAsc(sessionIds)
                         .stream()
                         .collect(Collectors.groupingBy(PaymentReconciliationItem::getSessionId));
+        Map<UUID, List<PaymentReconciliationHandoffNote>> handoffNotesBySession = sessionIds.isEmpty()
+                ? Map.of()
+                : safeNotes(handoffNoteRepository.findBySessionIdInOrderBySessionIdAscUpdatedAtDesc(sessionIds))
+                        .stream()
+                        .collect(Collectors.groupingBy(PaymentReconciliationHandoffNote::getSessionId));
         Instant generatedAt = Instant.now();
 
         List<BankReconciliationReviewRegisterEntry> entries = sessions.getContent().stream()
                 .map(session -> BankReconciliationReviewRegisterEntry.from(
                         session,
                         itemsBySession.getOrDefault(session.getId(), List.of()),
+                        handoffNotesBySession.getOrDefault(session.getId(), List.of()),
                         generatedAt
                 ))
                 .toList();
@@ -185,6 +196,10 @@ public class BankReconciliationReviewRegisterApplicationService {
             );
         }
         return safeFilters;
+    }
+
+    private static List<PaymentReconciliationHandoffNote> safeNotes(List<PaymentReconciliationHandoffNote> notes) {
+        return notes == null ? List.of() : notes;
     }
 
     private static Specification<PaymentReconciliationSession> specification(BankReconciliationReviewRegisterFilters filters) {

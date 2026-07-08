@@ -10,6 +10,7 @@ import {
   ListFilter,
   Loader2,
   LockKeyhole,
+  PencilLine,
   Plus,
   ReceiptText,
   RotateCcw,
@@ -35,6 +36,7 @@ import { cn } from "@/lib/utils";
 import { resolveFinancialCommandPermissions } from "@/features/security/financial-command-permissions";
 import {
   allocationTotalAmount,
+  canManageReconciliationHandoffNotes,
   canReadPayments,
   canReconcilePayments,
   canReversePayment,
@@ -49,6 +51,7 @@ import {
   reconciliationEvidenceExportErrors,
   reconciliationReviewRegisterExportFilename,
   reconciliationReviewRegisterFilterErrors,
+  reconciliationHandoffNoteErrors,
   reconciliationSignOffErrors,
   paymentReconciliationExportErrors,
   reconciliationCompletionErrors,
@@ -64,6 +67,7 @@ import {
   type BankStatementCsvRow,
   type CounterPaymentAllocationDraft,
   type CounterPaymentDraft,
+  type PaymentReconciliationHandoffNoteDraft,
   type PaymentReconciliationAdjustmentDraft,
   type ReversePaymentDraft
 } from "./payment-workspace-model";
@@ -71,6 +75,9 @@ import type {
   ClosedPaymentReconciliationResolutionStatus,
   CreatePaymentReconciliationAdjustmentPayload,
   PaymentReconciliationEvidenceReport,
+  PaymentReconciliationHandoffNote,
+  PaymentReconciliationHandoffNotePayload,
+  PaymentReconciliationHandoffStatus,
   PaymentReconciliationMatchReport,
   PaymentReconciliationMatchStatus,
   PaymentReconciliationResolutionStatus,
@@ -87,7 +94,12 @@ import type {
   ReversePaymentPayload,
   SettleCounterPaymentPayload
 } from "./payment-schema";
-import { paymentReconciliationReviewStatusValues, paymentStatusValues, paymentWebhookStatusValues } from "./payment-schema";
+import {
+  paymentReconciliationHandoffStatusValues,
+  paymentReconciliationReviewStatusValues,
+  paymentStatusValues,
+  paymentWebhookStatusValues
+} from "./payment-schema";
 import {
   exportPaymentReconciliationCsv,
   exportPaymentReconciliationEvidenceCsv,
@@ -95,17 +107,20 @@ import {
 } from "./payment-api";
 import {
   useCompletePaymentReconciliationSession,
+  useCreatePaymentReconciliationHandoffNote,
   useCreatePaymentReconciliationAdjustment,
   useCreatePaymentReconciliationSession,
   useMatchPaymentReconciliation,
   usePayment,
   usePaymentReconciliationEvidenceReport,
+  usePaymentReconciliationHandoffNotes,
   usePaymentReconciliationReviewRegister,
   usePaymentReconciliationSession,
   usePaymentReconciliationSessions,
   usePaymentWebhookEvents,
   usePayments,
   useResolvePaymentReconciliationItem,
+  useRevisePaymentReconciliationHandoffNote,
   useReversePayment,
   useSignOffPaymentReconciliationSession,
   useSettleCounterPayment
@@ -182,6 +197,18 @@ const reconciliationReviewStatusLabels: Record<PaymentReconciliationReviewStatus
 const reconciliationReviewStatusTones: Record<PaymentReconciliationReviewStatus, "success" | "warning" | "danger" | "neutral" | "info"> = {
   PENDING_SIGN_OFF: "warning",
   SIGNED_OFF: "success"
+};
+
+const reconciliationHandoffStatusLabels: Record<PaymentReconciliationHandoffStatus, string> = {
+  OPEN: "Open",
+  IN_PROGRESS: "In Progress",
+  CLEARED: "Cleared"
+};
+
+const reconciliationHandoffStatusTones: Record<PaymentReconciliationHandoffStatus, "success" | "warning" | "danger" | "neutral" | "info"> = {
+  OPEN: "warning",
+  IN_PROGRESS: "info",
+  CLEARED: "success"
 };
 
 const reconciliationResolutionStatusLabels: Record<PaymentReconciliationResolutionStatus, string> = {
@@ -262,6 +289,15 @@ const defaultReconciliationAdjustmentForm: PaymentReconciliationAdjustmentDraft 
   reason: ""
 };
 
+const defaultReconciliationHandoffNoteForm: PaymentReconciliationHandoffNoteDraft = {
+  noteId: null,
+  noteText: "",
+  handoffOwner: "",
+  handoffDueDate: "",
+  handoffStatus: "OPEN",
+  reason: ""
+};
+
 function normalizeInput(value: string): string {
   return value.trim();
 }
@@ -332,6 +368,27 @@ function defaultAdjustmentAmount(item: PaymentReconciliationSessionItem): string
   const variance = item.amountVariance === null ? 0 : Math.abs(item.amountVariance);
   const amount = variance > 0 ? variance : item.statementAmount;
   return amount > 0 ? String(amount) : "";
+}
+
+function handoffNoteFormFromNote(note: PaymentReconciliationHandoffNote): PaymentReconciliationHandoffNoteDraft {
+  return {
+    noteId: note.id,
+    noteText: note.noteText,
+    handoffOwner: note.handoffOwner ?? "",
+    handoffDueDate: note.handoffDueDate ?? "",
+    handoffStatus: note.handoffStatus,
+    reason: ""
+  };
+}
+
+function handoffNotePayload(form: PaymentReconciliationHandoffNoteDraft): PaymentReconciliationHandoffNotePayload {
+  return {
+    noteText: normalizeInput(form.noteText),
+    handoffOwner: optionalString(form.handoffOwner),
+    handoffDueDate: optionalString(form.handoffDueDate),
+    handoffStatus: form.handoffStatus,
+    reason: normalizeInput(form.reason)
+  };
 }
 
 function isAdjustmentCandidate(item: PaymentReconciliationSessionItem): boolean {
@@ -430,6 +487,7 @@ function PaymentCommandPanel({ permissions }: Readonly<{ permissions: PaymentPer
       <CommandStatus label="Counter Settlement" allowed={permissions.canSettleCounterPayments} highRisk />
       <CommandStatus label="Payment Read" allowed={permissions.canReadPayments} />
       <CommandStatus label="Payment Reconcile" allowed={permissions.canReconcilePayments} />
+      <CommandStatus label="Reconciliation Handoff Notes" allowed={permissions.canManageReconciliationHandoffNotes} />
       <CommandStatus label="Reconciliation Sign-off" allowed={permissions.canSignOffPaymentReconciliations} highRisk />
       <CommandStatus label="Payment Reversal" allowed={permissions.canReversePayments} highRisk />
       <CommandStatus label="Webhook Event Read" allowed={permissions.canReadWebhookEvents} />
@@ -826,13 +884,17 @@ function TraceItem({ label, value }: Readonly<{ label: string; value: string }>)
   );
 }
 
-function PaymentReconciliationReviewRegisterPanel({ allowed }: Readonly<{ allowed: boolean }>) {
+function PaymentReconciliationReviewRegisterPanel({
+  allowed,
+  canManageNotes
+}: Readonly<{ allowed: boolean; canManageNotes: boolean }>) {
   const [signOffStatus, setSignOffStatus] = useState<StatusFilter<PaymentReconciliationReviewStatus>>("ALL");
   const [completedFrom, setCompletedFrom] = useState("");
   const [completedTo, setCompletedTo] = useState("");
   const [page, setPage] = useState(0);
   const [isExportingHandoff, setIsExportingHandoff] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [selectedReviewSessionId, setSelectedReviewSessionId] = useState<string | null>(null);
   const filterErrors = reconciliationReviewRegisterFilterErrors({ signOffStatus, completedFrom, completedTo });
   const filtersValid = filterErrors.length === 0;
   const filters = useMemo(
@@ -847,6 +909,10 @@ function PaymentReconciliationReviewRegisterPanel({ allowed }: Readonly<{ allowe
   );
   const reviewRegisterQuery = usePaymentReconciliationReviewRegister(filters, allowed && filtersValid);
   const entries = useMemo(() => reviewRegisterQuery.data?.items ?? [], [reviewRegisterQuery.data?.items]);
+  const selectedReviewEntry = useMemo(
+    () => entries.find((entry) => entry.sessionId === selectedReviewSessionId) ?? null,
+    [entries, selectedReviewSessionId]
+  );
   const summary = useMemo(() => summarizeReconciliationReviewRegister(entries), [entries]);
 
   function resetFilters() {
@@ -855,6 +921,7 @@ function PaymentReconciliationReviewRegisterPanel({ allowed }: Readonly<{ allowe
     setCompletedTo("");
     setPage(0);
     setExportError(null);
+    setSelectedReviewSessionId(null);
   }
 
   async function handleExportHandoff() {
@@ -1008,7 +1075,18 @@ function PaymentReconciliationReviewRegisterPanel({ allowed }: Readonly<{ allowe
         ) : null}
 
         {!reviewRegisterQuery.isLoading && !reviewRegisterQuery.isError && entries.length > 0 ? (
-          <ReconciliationReviewRegisterTable entries={entries} />
+          <>
+            <ReconciliationReviewRegisterTable
+              entries={entries}
+              selectedSessionId={selectedReviewSessionId}
+              onSelect={setSelectedReviewSessionId}
+            />
+            <ReconciliationHandoffNotesPanel
+              key={selectedReviewEntry?.sessionId ?? "no-reconciliation-review-selection"}
+              entry={selectedReviewEntry}
+              canManageNotes={canManageNotes}
+            />
+          </>
         ) : null}
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-3">
@@ -1043,8 +1121,14 @@ function PaymentReconciliationReviewRegisterPanel({ allowed }: Readonly<{ allowe
 }
 
 function ReconciliationReviewRegisterTable({
-  entries
-}: Readonly<{ entries: PaymentReconciliationReviewRegisterEntry[] }>) {
+  entries,
+  selectedSessionId,
+  onSelect
+}: Readonly<{
+  entries: PaymentReconciliationReviewRegisterEntry[];
+  selectedSessionId: string | null;
+  onSelect: (sessionId: string) => void;
+}>) {
   return (
     <div className="overflow-x-auto rounded-lg border border-slate-200">
       <table className="min-w-full divide-y divide-slate-200 text-sm">
@@ -1057,11 +1141,16 @@ function ReconciliationReviewRegisterTable({
             <th className="px-4 py-3 text-right font-bold text-slate-700">Adjustment</th>
             <th className="px-4 py-3 text-right font-bold text-slate-700">Variance</th>
             <th className="px-4 py-3 text-right font-bold text-slate-700">SLA</th>
+            <th className="px-4 py-3 text-left font-bold text-slate-700">Handoff</th>
+            <th className="px-4 py-3 text-right font-bold text-slate-700">Action</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100 bg-white">
           {entries.map((entry) => (
-            <tr key={entry.sessionId} className="hover:bg-slate-50">
+            <tr
+              key={entry.sessionId}
+              className={cn("hover:bg-slate-50", selectedSessionId === entry.sessionId ? "bg-sky-50" : "bg-white")}
+            >
               <td className="min-w-56 px-4 py-3">
                 <p className="font-mono text-xs font-bold text-slate-950">{entry.sessionNumber}</p>
                 <p className="mt-1 text-xs font-semibold text-slate-600">{entry.bankAccountReference ?? "-"}</p>
@@ -1088,10 +1177,323 @@ function ReconciliationReviewRegisterTable({
                   tone={entry.reviewStatus === "SIGNED_OFF" ? "success" : entry.pendingSignOffAgeDays >= 3 ? "danger" : "warning"}
                 />
               </td>
+              <td className="min-w-56 px-4 py-3">
+                {entry.handoffStatus ? (
+                  <div className="grid gap-1">
+                    <StatusBadge
+                      label={reconciliationHandoffStatusLabels[entry.handoffStatus]}
+                      tone={reconciliationHandoffStatusTones[entry.handoffStatus]}
+                    />
+                    <p className="max-w-72 break-words text-xs font-semibold text-slate-700">{entry.reviewerNotes}</p>
+                    <p className="text-xs text-slate-600">
+                      {entry.handoffOwner ?? "No owner"} {entry.handoffDueDate ? `- ${entry.handoffDueDate}` : ""}
+                    </p>
+                  </div>
+                ) : (
+                  <StatusBadge label="No Note" tone="neutral" />
+                )}
+              </td>
+              <td className="whitespace-nowrap px-4 py-3 text-right">
+                <button type="button" className={secondaryButtonClass} onClick={() => onSelect(entry.sessionId)}>
+                  <Eye className="size-4" aria-hidden="true" />
+                  Notes
+                  {entry.handoffNoteCount > 0 ? ` (${entry.handoffNoteCount})` : ""}
+                </button>
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function ReconciliationHandoffNotesPanel({
+  entry,
+  canManageNotes
+}: Readonly<{
+  entry: PaymentReconciliationReviewRegisterEntry | null;
+  canManageNotes: boolean;
+}>) {
+  const [form, setForm] = useState<PaymentReconciliationHandoffNoteDraft>(defaultReconciliationHandoffNoteForm);
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const notesQuery = usePaymentReconciliationHandoffNotes(entry?.sessionId ?? null, Boolean(entry));
+  const createMutation = useCreatePaymentReconciliationHandoffNote();
+  const reviseMutation = useRevisePaymentReconciliationHandoffNote();
+  const notes = notesQuery.data ?? [];
+  const isRevisionMode = Boolean(form.noteId);
+  const busy = createMutation.isPending || reviseMutation.isPending;
+  const disabled = !entry || !canManageNotes || busy;
+  const errorMessage =
+    localError ??
+    (createMutation.isError ? apiErrorMessage(createMutation.error, "Gagal menyimpan handoff note.") : null) ??
+    (reviseMutation.isError ? apiErrorMessage(reviseMutation.error, "Gagal merevisi handoff note.") : null);
+
+  function resetForm() {
+    setForm(defaultReconciliationHandoffNoteForm);
+    setLocalError(null);
+    setSuccessMessage(null);
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLocalError(null);
+    setSuccessMessage(null);
+    createMutation.reset();
+    reviseMutation.reset();
+
+    if (!entry) {
+      setLocalError("Pilih session review register terlebih dahulu.");
+      return;
+    }
+    if (!canManageNotes) {
+      setLocalError("User tidak memiliki permission payment.reconciliation.handoff-note.");
+      return;
+    }
+
+    const errors = reconciliationHandoffNoteErrors(form);
+    if (errors.length > 0) {
+      setLocalError(errors[0]);
+      return;
+    }
+
+    const payload = handoffNotePayload(form);
+    try {
+      if (form.noteId) {
+        await reviseMutation.mutateAsync({
+          sessionId: entry.sessionId,
+          noteId: form.noteId,
+          payload
+        });
+        setSuccessMessage("Handoff note berhasil direvisi dan revision history tersimpan.");
+      } else {
+        await createMutation.mutateAsync({
+          sessionId: entry.sessionId,
+          payload
+        });
+        setSuccessMessage("Handoff note berhasil dibuat.");
+      }
+      setForm(defaultReconciliationHandoffNoteForm);
+    } catch {
+      return;
+    }
+  }
+
+  if (!entry) {
+    return (
+      <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+        <div className="flex items-center gap-2">
+          <ReceiptText className="size-5 text-slate-600" aria-hidden="true" />
+          <p className="text-sm font-bold text-slate-950">Pilih session untuk melihat handoff notes</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 p-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <ReceiptText className="size-5 text-sky-700" aria-hidden="true" />
+            <h3 className="text-sm font-bold text-slate-950">Controlled Handoff Notes</h3>
+          </div>
+          <p className="mt-1 font-mono text-xs font-semibold text-slate-600">{entry.sessionNumber}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {notesQuery.isFetching ? (
+            <span className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600">
+              <Loader2 className="size-3 animate-spin" aria-hidden="true" />
+              Refresh
+            </span>
+          ) : null}
+          <StatusBadge label={canManageNotes ? "Mutation Aktif" : "Read Only"} tone={canManageNotes ? "success" : "neutral"} />
+        </div>
+      </div>
+
+      <div className="grid gap-4 p-4">
+        {notesQuery.isLoading ? <LoadingSkeleton /> : null}
+        {notesQuery.isError ? (
+          <div className="grid gap-3">
+            <InlineMessage type="error" message={apiErrorMessage(notesQuery.error, "Handoff notes tidak tersedia.")} />
+            <button type="button" className={secondaryButtonClass} onClick={() => void notesQuery.refetch()}>
+              <RotateCcw className="size-4" aria-hidden="true" />
+              Muat Ulang
+            </button>
+          </div>
+        ) : null}
+
+        {!notesQuery.isLoading && !notesQuery.isError && notes.length === 0 ? (
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <p className="text-sm font-bold text-slate-950">Belum ada handoff note</p>
+            <p className="mt-1 text-sm leading-6 text-slate-600">
+              Catatan reviewer akan tersimpan dengan actor, timestamp, reason, dan revision history.
+            </p>
+          </div>
+        ) : null}
+
+        {!notesQuery.isLoading && !notesQuery.isError && notes.length > 0 ? (
+          <div className="grid gap-3">
+            {notes.map((note) => (
+              <div key={note.id} className="rounded-lg border border-slate-200 bg-white p-3">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StatusBadge
+                        label={reconciliationHandoffStatusLabels[note.handoffStatus]}
+                        tone={reconciliationHandoffStatusTones[note.handoffStatus]}
+                      />
+                      <span className="text-xs font-semibold text-slate-600">
+                        {note.handoffOwner ?? "No owner"} {note.handoffDueDate ? `- due ${note.handoffDueDate}` : ""}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm font-semibold leading-6 text-slate-950">{note.noteText}</p>
+                    <p className="mt-1 text-xs font-semibold text-slate-600">
+                      Updated by {note.updatedBy} - {formatDateTime(note.updatedAt)}
+                    </p>
+                  </div>
+                  {canManageNotes ? (
+                    <button
+                      type="button"
+                      className={secondaryButtonClass}
+                      disabled={busy}
+                      onClick={() => {
+                        setForm(handoffNoteFormFromNote(note));
+                        setLocalError(null);
+                        setSuccessMessage(null);
+                      }}
+                    >
+                      <PencilLine className="size-4" aria-hidden="true" />
+                      Revise
+                    </button>
+                  ) : null}
+                </div>
+                {note.revisions.length > 0 ? (
+                  <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200">
+                    <table className="min-w-full divide-y divide-slate-200 text-xs">
+                      <thead className="bg-slate-50">
+                        <tr>
+                          <th className="px-3 py-2 text-left font-bold text-slate-700">Rev</th>
+                          <th className="px-3 py-2 text-left font-bold text-slate-700">Reason</th>
+                          <th className="px-3 py-2 text-left font-bold text-slate-700">Actor</th>
+                          <th className="px-3 py-2 text-left font-bold text-slate-700">Changed</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 bg-white">
+                        {note.revisions.map((revision) => (
+                          <tr key={revision.id}>
+                            <td className="whitespace-nowrap px-3 py-2 font-mono font-bold text-slate-950">
+                              #{revision.revisionNumber}
+                            </td>
+                            <td className="min-w-64 px-3 py-2 font-semibold text-slate-700">{revision.reason}</td>
+                            <td className="whitespace-nowrap px-3 py-2 text-slate-600">{revision.changedBy}</td>
+                            <td className="whitespace-nowrap px-3 py-2 text-slate-600">{formatDateTime(revision.changedAt)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {canManageNotes ? (
+          <form onSubmit={handleSubmit} className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold uppercase text-slate-600">
+                  {isRevisionMode ? "Revise Handoff Note" : "Create Handoff Note"}
+                </p>
+                <p className="mt-1 text-sm font-semibold text-slate-700">
+                  {isRevisionMode ? shortId(form.noteId) : "New controlled note"}
+                </p>
+              </div>
+              <button type="button" className={secondaryButtonClass} disabled={busy} onClick={resetForm}>
+                <RotateCcw className="size-4" aria-hidden="true" />
+                Reset
+              </button>
+            </div>
+            <label className="block">
+              <span className="text-xs font-bold uppercase text-slate-600">Reviewer Note</span>
+              <textarea
+                className={textareaClass}
+                value={form.noteText}
+                maxLength={2000}
+                disabled={disabled}
+                onChange={(event) => setForm((current) => ({ ...current, noteText: event.target.value }))}
+              />
+            </label>
+            <div className="grid gap-3 md:grid-cols-3">
+              <label className="block">
+                <span className="text-xs font-bold uppercase text-slate-600">Owner</span>
+                <input
+                  className={inputClass}
+                  value={form.handoffOwner}
+                  maxLength={128}
+                  disabled={disabled}
+                  onChange={(event) => setForm((current) => ({ ...current, handoffOwner: event.target.value }))}
+                />
+              </label>
+              <label className="block">
+                <span className="text-xs font-bold uppercase text-slate-600">Due Date</span>
+                <input
+                  type="date"
+                  className={inputClass}
+                  value={form.handoffDueDate}
+                  disabled={disabled}
+                  onChange={(event) => setForm((current) => ({ ...current, handoffDueDate: event.target.value }))}
+                />
+              </label>
+              <label className="block">
+                <span className="text-xs font-bold uppercase text-slate-600">Status</span>
+                <select
+                  className={inputClass}
+                  value={form.handoffStatus}
+                  disabled={disabled}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      handoffStatus: event.target.value as PaymentReconciliationHandoffStatus
+                    }))
+                  }
+                >
+                  {paymentReconciliationHandoffStatusValues.map((value) => (
+                    <option key={value} value={value}>
+                      {reconciliationHandoffStatusLabels[value]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <label className="block">
+              <span className="text-xs font-bold uppercase text-slate-600">Reason</span>
+              <textarea
+                className={textareaClass}
+                value={form.reason}
+                maxLength={500}
+                disabled={disabled}
+                onChange={(event) => setForm((current) => ({ ...current, reason: event.target.value }))}
+              />
+            </label>
+            {errorMessage ? <InlineMessage type="error" message={errorMessage} /> : null}
+            {successMessage ? <InlineMessage type="success" message={successMessage} /> : null}
+            <button type="submit" className={primaryButtonClass} disabled={disabled}>
+              {busy ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Plus className="size-4" aria-hidden="true" />}
+              {isRevisionMode ? "Simpan Revisi" : "Simpan Note"}
+            </button>
+          </form>
+        ) : (
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <p className="text-sm font-bold text-slate-950">Mode baca saja</p>
+            <p className="mt-1 text-sm leading-6 text-slate-600">
+              Authority <span className="font-mono font-bold">payment.reconciliation.handoff-note</span> diperlukan untuk membuat atau merevisi catatan.
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -2907,6 +3309,8 @@ export function PaymentWorkspace() {
     permissions.canReconcilePayments && financialPermissions.accounting.canPostJournals;
   const canSignOffReconciliationEvidence =
     permissions.canReconcilePayments && canSignOffPaymentReconciliations(permissions);
+  const canManageReconciliationNotes =
+    permissions.canReconcilePayments && canManageReconciliationHandoffNotes(permissions);
   const accountsEnabled =
     queryEnabled &&
     (permissions.canSettleCounterPayments || permissions.canReversePayments || canCreateReconciliationAdjustments);
@@ -3082,7 +3486,10 @@ export function PaymentWorkspace() {
                 error={paymentDetailQuery.error}
                 onClear={() => setSelectedPaymentId(null)}
               />
-              <PaymentReconciliationReviewRegisterPanel allowed={canReconcilePayments(permissions)} />
+              <PaymentReconciliationReviewRegisterPanel
+                allowed={canReconcilePayments(permissions)}
+                canManageNotes={canManageReconciliationNotes}
+              />
               <PaymentFilterToolbar
                 provider={provider}
                 status={status}
