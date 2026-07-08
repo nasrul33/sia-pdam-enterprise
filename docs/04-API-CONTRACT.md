@@ -177,6 +177,8 @@ The payment register is read-only. It exposes settlement/reversal traceability b
 | POST | /api/payment-reconciliation/sessions/{sessionId}/complete | complete an open reconciliation session | payment.reconcile |
 | GET | /api/reports/payment-reconciliation-handoff-notes | list controlled handoff note workload with `handoffStatus`, `handoffOwner`, `dueFrom`, `dueTo`, and pagination filters | payment.reconcile |
 | GET | /api/reports/payment-reconciliation-handoff-notes/export | export controlled handoff note workload as CSV with the same filters | payment.reconcile |
+| GET | /api/reports/payment-reconciliation-handoff-notes/owner-sla | group controlled handoff workload by owner/status with overdue escalation priority | payment.reconcile |
+| GET | /api/reports/payment-reconciliation-handoff-notes/owner-sla/export | export owner/status handoff SLA escalation as CSV | payment.reconcile |
 | GET | /api/reports/payment-reconciliation-review-register/{sessionId}/handoff-notes | read controlled reviewer handoff notes and revision history | payment.reconcile |
 | POST | /api/reports/payment-reconciliation-review-register/{sessionId}/handoff-notes | create reviewer handoff note for completed evidence | payment.reconcile + payment.reconciliation.handoff-note |
 | POST | /api/reports/payment-reconciliation-review-register/{sessionId}/handoff-notes/{noteId}/revisions | revise reviewer handoff note and append revision history | payment.reconcile + payment.reconciliation.handoff-note |
@@ -256,9 +258,13 @@ Reviewer handoff notes are allowed only for `COMPLETED` reconciliation sessions.
 
 Allowed handoff statuses are `OPEN`, `IN_PROGRESS`, and `CLEARED`. Create and revise commands append `payment_reconciliation_handoff_note_revisions`, record actor/timestamp/reason, and must not mutate signed-off evidence fields, reconciliation items, journals, payments, or ledger rows.
 
-`GET /api/reports/payment-reconciliation-handoff-notes` returns a paginated read-only workload of controlled handoff notes, joined to reconciliation session trace fields. Filters are optional: `handoffStatus=OPEN|IN_PROGRESS|CLEARED`, case-insensitive partial `handoffOwner`, `dueFrom`, `dueTo`, `page`, and `size`. Invalid due-date ranges are rejected before query execution. Each row includes `noteId`, `sessionId`, `sessionNumber`, `bankAccountReference`, completion/sign-off trace, current note metadata, `revisionCount`, `overdueDays`, actors, timestamps, and `generatedAt`.
+`GET /api/reports/payment-reconciliation-handoff-notes` returns a paginated read-only workload of controlled handoff notes, joined to reconciliation session trace fields. Filters are optional: `handoffStatus=OPEN|IN_PROGRESS|CLEARED`, case-insensitive partial `handoffOwner`, `unassignedOnly=true`, `dueFrom`, `dueTo`, `page`, and `size`. `handoffOwner` and `unassignedOnly=true` are mutually exclusive. Invalid due-date ranges are rejected before query execution. Each row includes `noteId`, `sessionId`, `sessionNumber`, `bankAccountReference`, completion/sign-off trace, current note metadata, `revisionCount`, `overdueDays`, actors, timestamps, and `generatedAt`.
 
 `GET /api/reports/payment-reconciliation-handoff-notes/export` returns `text/csv`, uses the same filters without `page/size`, limits export to 10,000 rows, and includes reviewer note text, owner, due date, status, overdue days, revision count, session trace, and generated timestamp. This endpoint is read-only and must not create notes, revisions, approval records, journals, payments, or ledger rows.
+
+`GET /api/reports/payment-reconciliation-handoff-notes/owner-sla` returns a read-only owner escalation report using the same `handoffStatus`, `handoffOwner`, `unassignedOnly`, `dueFrom`, and `dueTo` filters. The response groups loaded workload rows by owner, includes `openNotes`, `inProgressNotes`, `clearedNotes`, `overdueNotes`, `nearestDueDate`, `maxOverdueDays`, `latestUpdatedAt`, `escalationPriority=CRITICAL|OVERDUE|ACTIVE|CLEARED`, `truncated`, and `generatedAt`. The report is bounded to 10,000 source rows; `truncated=true` means finance must narrow filters before official escalation.
+
+`GET /api/reports/payment-reconciliation-handoff-notes/owner-sla/export` returns `text/csv` for the owner SLA report with owner/status counts and escalation priority. It is read-only and must not create notes, revisions, approval records, journals, payments, or ledger rows.
 
 ## Receivable Aging
 

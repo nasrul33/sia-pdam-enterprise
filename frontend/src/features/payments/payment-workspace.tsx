@@ -19,6 +19,7 @@ import {
   Trash2,
   Undo2,
   UploadCloud,
+  UsersRound,
   WalletCards
 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -53,6 +54,8 @@ import {
   reconciliationReviewRegisterExportFilename,
   reconciliationReviewRegisterFilterErrors,
   reconciliationHandoffNoteErrors,
+  reconciliationHandoffOwnerDrilldownFilter,
+  reconciliationHandoffOwnerSlaExportFilename,
   reconciliationHandoffWorkloadExportFilename,
   reconciliationHandoffWorkloadFilterErrors,
   reconciliationSignOffErrors,
@@ -80,8 +83,10 @@ import type {
   ClosedPaymentReconciliationResolutionStatus,
   CreatePaymentReconciliationAdjustmentPayload,
   PaymentReconciliationEvidenceReport,
+  PaymentReconciliationHandoffEscalationPriority,
   PaymentReconciliationHandoffNote,
   PaymentReconciliationHandoffNotePayload,
+  PaymentReconciliationHandoffOwnerSlaEntry,
   PaymentReconciliationHandoffStatus,
   PaymentReconciliationHandoffWorkloadEntry,
   PaymentReconciliationMatchReport,
@@ -109,6 +114,7 @@ import {
 import {
   exportPaymentReconciliationCsv,
   exportPaymentReconciliationEvidenceCsv,
+  exportPaymentReconciliationHandoffOwnerSlaCsv,
   exportPaymentReconciliationHandoffWorkloadCsv,
   exportPaymentReconciliationReviewRegisterCsv
 } from "./payment-api";
@@ -121,6 +127,7 @@ import {
   usePayment,
   usePaymentReconciliationEvidenceReport,
   usePaymentReconciliationHandoffNotes,
+  usePaymentReconciliationHandoffOwnerSla,
   usePaymentReconciliationHandoffWorkload,
   usePaymentReconciliationReviewRegister,
   usePaymentReconciliationSession,
@@ -219,6 +226,20 @@ const reconciliationHandoffStatusTones: Record<PaymentReconciliationHandoffStatu
   CLEARED: "success"
 };
 
+const reconciliationHandoffPriorityLabels: Record<PaymentReconciliationHandoffEscalationPriority, string> = {
+  CRITICAL: "Critical",
+  OVERDUE: "Overdue",
+  ACTIVE: "Active",
+  CLEARED: "Cleared"
+};
+
+const reconciliationHandoffPriorityTones: Record<PaymentReconciliationHandoffEscalationPriority, "success" | "warning" | "danger" | "neutral" | "info"> = {
+  CRITICAL: "danger",
+  OVERDUE: "warning",
+  ACTIVE: "info",
+  CLEARED: "success"
+};
+
 const reconciliationResolutionStatusLabels: Record<PaymentReconciliationResolutionStatus, string> = {
   OPEN: "Open",
   ACCEPTED: "Accepted",
@@ -309,6 +330,7 @@ const defaultReconciliationHandoffNoteForm: PaymentReconciliationHandoffNoteDraf
 const defaultReconciliationHandoffWorkloadFilter: PaymentReconciliationHandoffWorkloadFilterDraft = {
   handoffStatus: "ALL",
   handoffOwner: "",
+  unassignedOnly: false,
   dueFrom: "",
   dueTo: ""
 };
@@ -1519,23 +1541,33 @@ function PaymentReconciliationHandoffWorkloadPanel({ allowed }: Readonly<{ allow
   );
   const [page, setPage] = useState(0);
   const [isExporting, setIsExporting] = useState(false);
+  const [isExportingOwnerSla, setIsExportingOwnerSla] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const filterErrors = reconciliationHandoffWorkloadFilterErrors(filter);
   const filtersValid = filterErrors.length === 0;
+  const ownerSlaFilters = useMemo(
+    () => ({
+      handoffStatus: filter.handoffStatus === "ALL" ? undefined : filter.handoffStatus,
+      handoffOwner: filtersValid && !filter.unassignedOnly ? optionalString(filter.handoffOwner) ?? undefined : undefined,
+      unassignedOnly: filter.unassignedOnly || undefined,
+      dueFrom: filtersValid ? optionalString(filter.dueFrom) ?? undefined : undefined,
+      dueTo: filtersValid ? optionalString(filter.dueTo) ?? undefined : undefined
+    }),
+    [filter, filtersValid]
+  );
   const filters = useMemo(
     () => ({
       page,
       size: 8,
-      handoffStatus: filter.handoffStatus === "ALL" ? undefined : filter.handoffStatus,
-      handoffOwner: filtersValid ? optionalString(filter.handoffOwner) ?? undefined : undefined,
-      dueFrom: filtersValid ? optionalString(filter.dueFrom) ?? undefined : undefined,
-      dueTo: filtersValid ? optionalString(filter.dueTo) ?? undefined : undefined
+      ...ownerSlaFilters
     }),
-    [filter, filtersValid, page]
+    [ownerSlaFilters, page]
   );
   const workloadQuery = usePaymentReconciliationHandoffWorkload(filters, allowed && filtersValid);
+  const ownerSlaQuery = usePaymentReconciliationHandoffOwnerSla(ownerSlaFilters, allowed && filtersValid);
   const entries = useMemo(() => workloadQuery.data?.items ?? [], [workloadQuery.data?.items]);
   const summary = useMemo(() => summarizeReconciliationHandoffWorkload(entries), [entries]);
+  const ownerSlaEntries = useMemo(() => ownerSlaQuery.data?.owners ?? [], [ownerSlaQuery.data?.owners]);
 
   function resetFilters() {
     setFilter(defaultReconciliationHandoffWorkloadFilter);
@@ -1565,6 +1597,41 @@ function PaymentReconciliationHandoffWorkloadPanel({ allowed }: Readonly<{ allow
     }
   }
 
+  async function handleOwnerSlaExport() {
+    setExportError(null);
+    if (!filtersValid) {
+      setExportError(filterErrors[0] ?? "Filter export escalation handoff tidak valid.");
+      return;
+    }
+
+    setIsExportingOwnerSla(true);
+    try {
+      const csv = await exportPaymentReconciliationHandoffOwnerSlaCsv(ownerSlaFilters);
+      downloadTextFile(
+        reconciliationHandoffOwnerSlaExportFilename(filter),
+        csv,
+        "text/csv;charset=utf-8"
+      );
+    } catch (error) {
+      setExportError(apiErrorMessage(error, "Gagal export escalation owner handoff."));
+    } finally {
+      setIsExportingOwnerSla(false);
+    }
+  }
+
+  function applyOwnerDrilldown(
+    entry: PaymentReconciliationHandoffOwnerSlaEntry,
+    handoffStatus: PaymentReconciliationHandoffStatus | "ALL" = "ALL"
+  ) {
+    setFilter((current) => reconciliationHandoffOwnerDrilldownFilter(current, {
+      handoffOwner: entry.handoffOwner,
+      unassigned: entry.unassigned,
+      handoffStatus
+    }));
+    setPage(0);
+    setExportError(null);
+  }
+
   if (!allowed) {
     return (
       <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
@@ -1587,12 +1654,21 @@ function PaymentReconciliationHandoffWorkloadPanel({ allowed }: Readonly<{ allow
           <h2 className="text-base font-bold text-slate-950">Handoff SLA Workload</h2>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {workloadQuery.isFetching ? (
+          {workloadQuery.isFetching || ownerSlaQuery.isFetching ? (
             <span className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600">
               <Loader2 className="size-4 animate-spin" aria-hidden="true" />
               Memperbarui
             </span>
           ) : null}
+          <button
+            type="button"
+            className={secondaryButtonClass}
+            disabled={!filtersValid || isExportingOwnerSla}
+            onClick={handleOwnerSlaExport}
+          >
+            {isExportingOwnerSla ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <UsersRound className="size-4" aria-hidden="true" />}
+            Export Escalation
+          </button>
           <button
             type="button"
             className={secondaryButtonClass}
@@ -1614,7 +1690,7 @@ function PaymentReconciliationHandoffWorkloadPanel({ allowed }: Readonly<{ allow
           <MetricPill label="Overdue" value={summary.overdueNotes} tone={summary.overdueNotes > 0 ? "danger" : "success"} />
         </div>
 
-        <div className="grid gap-3 md:grid-cols-[180px_1fr_1fr_1fr_auto]">
+        <div className="grid gap-3 lg:grid-cols-[170px_1fr_150px_1fr_1fr_auto]">
           <label className="block">
             <span className="text-xs font-bold uppercase text-slate-600">Status</span>
             <select
@@ -1642,12 +1718,29 @@ function PaymentReconciliationHandoffWorkloadPanel({ allowed }: Readonly<{ allow
               className={inputClass}
               value={filter.handoffOwner}
               maxLength={128}
+              disabled={filter.unassignedOnly}
               placeholder="finance.ops"
               onChange={(event) => {
-                setFilter((current) => ({ ...current, handoffOwner: event.target.value }));
+                setFilter((current) => ({ ...current, handoffOwner: event.target.value, unassignedOnly: false }));
                 setPage(0);
               }}
             />
+          </label>
+          <label className="flex items-end gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+            <input
+              type="checkbox"
+              className="size-4 rounded border-slate-300"
+              checked={filter.unassignedOnly}
+              onChange={(event) => {
+                setFilter((current) => ({
+                  ...current,
+                  handoffOwner: event.target.checked ? "" : current.handoffOwner,
+                  unassignedOnly: event.target.checked
+                }));
+                setPage(0);
+              }}
+            />
+            <span className="text-sm font-bold text-slate-700">Tanpa owner</span>
           </label>
           <label className="block">
             <span className="text-xs font-bold uppercase text-slate-600">Due From</span>
@@ -1683,7 +1776,32 @@ function PaymentReconciliationHandoffWorkloadPanel({ allowed }: Readonly<{ allow
 
         {filterErrors.length > 0 ? <InlineMessage type="error" message={filterErrors[0]} /> : null}
         {exportError ? <InlineMessage type="error" message={exportError} /> : null}
+        {ownerSlaQuery.data?.truncated ? (
+          <InlineMessage
+            type="error"
+            message="Owner escalation dibatasi 10.000 baris pertama. Persempit filter due date atau owner sebelum dipakai untuk eskalasi resmi."
+          />
+        ) : null}
         {workloadQuery.isLoading ? <LoadingSkeleton /> : null}
+
+        {ownerSlaQuery.isLoading ? <LoadingSkeleton /> : null}
+
+        {ownerSlaQuery.isError ? (
+          <div className="grid gap-3">
+            <InlineMessage
+              type="error"
+              message={apiErrorMessage(ownerSlaQuery.error, "Owner escalation handoff tidak tersedia.")}
+            />
+            <button type="button" className={secondaryButtonClass} onClick={() => void ownerSlaQuery.refetch()}>
+              <RotateCcw className="size-4" aria-hidden="true" />
+              Muat Ulang Owner
+            </button>
+          </div>
+        ) : null}
+
+        {!ownerSlaQuery.isLoading && !ownerSlaQuery.isError && ownerSlaEntries.length > 0 ? (
+          <ReconciliationHandoffOwnerSlaTable entries={ownerSlaEntries} onDrillDown={applyOwnerDrilldown} />
+        ) : null}
 
         {workloadQuery.isError ? (
           <div className="grid gap-3">
@@ -1738,6 +1856,80 @@ function PaymentReconciliationHandoffWorkloadPanel({ allowed }: Readonly<{ allow
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ReconciliationHandoffOwnerSlaTable({
+  entries,
+  onDrillDown
+}: Readonly<{
+  entries: PaymentReconciliationHandoffOwnerSlaEntry[];
+  onDrillDown: (
+    entry: PaymentReconciliationHandoffOwnerSlaEntry,
+    handoffStatus?: PaymentReconciliationHandoffStatus | "ALL"
+  ) => void;
+}>) {
+  const smallButtonClass =
+    "inline-flex h-8 items-center justify-center rounded-md border border-slate-300 bg-white px-2 text-xs font-bold text-slate-800 transition hover:bg-slate-50";
+
+  return (
+    <div className="overflow-x-auto rounded-lg border border-slate-200">
+      <table className="min-w-full divide-y divide-slate-200 text-sm">
+        <thead className="bg-slate-50">
+          <tr>
+            <th className="px-4 py-3 text-left font-bold text-slate-700">Owner Queue</th>
+            <th className="px-4 py-3 text-left font-bold text-slate-700">Priority</th>
+            <th className="px-4 py-3 text-right font-bold text-slate-700">Status Breakdown</th>
+            <th className="px-4 py-3 text-left font-bold text-slate-700">SLA</th>
+            <th className="px-4 py-3 text-left font-bold text-slate-700">Action</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100 bg-white">
+          {entries.map((entry) => (
+            <tr key={`${entry.ownerLabel}-${entry.unassigned ? "unassigned" : "assigned"}`} className="hover:bg-slate-50">
+              <td className="min-w-56 px-4 py-3">
+                <p className="text-sm font-bold text-slate-950">{entry.ownerLabel}</p>
+                <p className="mt-1 text-xs font-semibold text-slate-600">{entry.totalNotes} notes</p>
+              </td>
+              <td className="min-w-36 px-4 py-3">
+                <StatusBadge
+                  label={reconciliationHandoffPriorityLabels[entry.escalationPriority]}
+                  tone={reconciliationHandoffPriorityTones[entry.escalationPriority]}
+                />
+              </td>
+              <td className="min-w-72 px-4 py-3">
+                <div className="flex flex-wrap justify-end gap-2">
+                  <button type="button" className={smallButtonClass} onClick={() => onDrillDown(entry, "OPEN")}>
+                    Open {entry.openNotes}
+                  </button>
+                  <button type="button" className={smallButtonClass} onClick={() => onDrillDown(entry, "IN_PROGRESS")}>
+                    Progress {entry.inProgressNotes}
+                  </button>
+                  <button type="button" className={smallButtonClass} onClick={() => onDrillDown(entry, "CLEARED")}>
+                    Cleared {entry.clearedNotes}
+                  </button>
+                </div>
+              </td>
+              <td className="min-w-48 px-4 py-3">
+                <p className="text-sm font-bold text-slate-950">
+                  {entry.overdueNotes} overdue / max {entry.maxOverdueDays} hari
+                </p>
+                <p className="mt-1 text-xs font-semibold text-slate-600">
+                  Due terdekat: {entry.nearestDueDate ?? "-"}
+                </p>
+                <p className="mt-1 text-xs text-slate-600">Update: {formatDateTime(entry.latestUpdatedAt)}</p>
+              </td>
+              <td className="min-w-36 px-4 py-3">
+                <button type="button" className={secondaryButtonClass} onClick={() => onDrillDown(entry)}>
+                  <ListFilter className="size-4" aria-hidden="true" />
+                  Buka Queue
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

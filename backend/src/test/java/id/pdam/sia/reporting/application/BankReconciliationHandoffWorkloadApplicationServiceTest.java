@@ -67,6 +67,7 @@ class BankReconciliationHandoffWorkloadApplicationServiceTest {
                 new PaymentReconciliationHandoffWorkloadFilters(
                         PaymentReconciliationHandoffStatus.IN_PROGRESS,
                         " Finance ",
+                        false,
                         LocalDate.now(ZoneOffset.UTC).minusDays(7),
                         LocalDate.now(ZoneOffset.UTC).plusDays(1)
                 ),
@@ -111,6 +112,7 @@ class BankReconciliationHandoffWorkloadApplicationServiceTest {
         String csv = service.workloadCsv(new PaymentReconciliationHandoffWorkloadFilters(
                 PaymentReconciliationHandoffStatus.CLEARED,
                 "finance.ops",
+                false,
                 null,
                 null
         ));
@@ -131,6 +133,7 @@ class BankReconciliationHandoffWorkloadApplicationServiceTest {
                 new PaymentReconciliationHandoffWorkloadFilters(
                         null,
                         null,
+                        false,
                         LocalDate.parse("2026-08-10"),
                         LocalDate.parse("2026-08-01")
                 ),
@@ -153,7 +156,7 @@ class BankReconciliationHandoffWorkloadApplicationServiceTest {
         )).thenReturn(Page.empty(PageRequest.of(0, 10)));
 
         Page<PaymentReconciliationHandoffWorkloadEntry> result = service.workload(
-                new PaymentReconciliationHandoffWorkloadFilters(null, null, null, null),
+                new PaymentReconciliationHandoffWorkloadFilters(null, null, false, null, null),
                 0,
                 10
         );
@@ -161,6 +164,96 @@ class BankReconciliationHandoffWorkloadApplicationServiceTest {
         assertThat(result.getContent()).isEmpty();
         verify(sessionRepository, never()).findAllById(anyCollection());
         verify(revisionRepository, never()).countRevisionsByNoteIdIn(anyCollection());
+    }
+
+    @Test
+    void ownerSlaGroupsStatusCountsPrioritizesOverdueOwnersAndExportsEscalationRows() {
+        PaymentReconciliationSession session = completedSession("REC-20260801-OWNER");
+        PaymentReconciliationHandoffNote criticalOpen = new PaymentReconciliationHandoffNote(
+                session.getId(),
+                "Critical owner note",
+                "finance.ops",
+                LocalDate.now(ZoneOffset.UTC).minusDays(8),
+                PaymentReconciliationHandoffStatus.OPEN,
+                "auditor.internal"
+        );
+        PaymentReconciliationHandoffNote activeProgress = new PaymentReconciliationHandoffNote(
+                session.getId(),
+                "Progress owner note",
+                "finance.ops",
+                LocalDate.now(ZoneOffset.UTC).plusDays(1),
+                PaymentReconciliationHandoffStatus.IN_PROGRESS,
+                "auditor.internal"
+        );
+        PaymentReconciliationHandoffNote unassignedOpen = new PaymentReconciliationHandoffNote(
+                session.getId(),
+                "Unassigned note",
+                null,
+                LocalDate.now(ZoneOffset.UTC).minusDays(2),
+                PaymentReconciliationHandoffStatus.OPEN,
+                "auditor.internal"
+        );
+        PaymentReconciliationHandoffNote cleared = new PaymentReconciliationHandoffNote(
+                session.getId(),
+                "Cleared note",
+                "auditor.internal",
+                LocalDate.now(ZoneOffset.UTC).minusDays(30),
+                PaymentReconciliationHandoffStatus.CLEARED,
+                "auditor.internal"
+        );
+        when(noteRepository.findAll(
+                org.mockito.ArgumentMatchers.<Specification<PaymentReconciliationHandoffNote>>any(),
+                any(Pageable.class)
+        )).thenReturn(new PageImpl<>(
+                List.of(criticalOpen, activeProgress, unassignedOpen, cleared),
+                PageRequest.of(0, 10_000),
+                4
+        ));
+
+        PaymentReconciliationHandoffOwnerSlaReport report = service.ownerSla(
+                new PaymentReconciliationHandoffWorkloadFilters(null, null, false, null, null)
+        );
+        String csv = service.ownerSlaCsv(new PaymentReconciliationHandoffWorkloadFilters(null, null, false, null, null));
+
+        assertThat(report.totalNotes()).isEqualTo(4);
+        assertThat(report.openNotes()).isEqualTo(2);
+        assertThat(report.inProgressNotes()).isEqualTo(1);
+        assertThat(report.clearedNotes()).isEqualTo(1);
+        assertThat(report.overdueNotes()).isEqualTo(2);
+        assertThat(report.owners())
+                .extracting(PaymentReconciliationHandoffOwnerSlaEntry::ownerLabel)
+                .containsExactly("finance.ops", "UNASSIGNED", "auditor.internal");
+        PaymentReconciliationHandoffOwnerSlaEntry financeOps = report.owners().getFirst();
+        assertThat(financeOps.totalNotes()).isEqualTo(2);
+        assertThat(financeOps.openNotes()).isEqualTo(1);
+        assertThat(financeOps.inProgressNotes()).isEqualTo(1);
+        assertThat(financeOps.maxOverdueDays()).isEqualTo(8);
+        assertThat(financeOps.escalationPriority()).isEqualTo("CRITICAL");
+        assertThat(report.owners().get(1).unassigned()).isTrue();
+        assertThat(csv)
+                .startsWith("owner,unassigned,total_notes,open_notes")
+                .contains("finance.ops,false,2,1,1,0,1")
+                .contains("UNASSIGNED,true,1,1,0,0,1")
+                .contains("CRITICAL");
+    }
+
+    @Test
+    void rejectsOwnerFilterWhenUnassignedScopeIsSelected() {
+        assertThatThrownBy(() -> service.ownerSla(
+                new PaymentReconciliationHandoffWorkloadFilters(
+                        null,
+                        "finance.ops",
+                        true,
+                        null,
+                        null
+                )
+        ))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("owner filter conflicts");
+        verify(noteRepository, never()).findAll(
+                org.mockito.ArgumentMatchers.<Specification<PaymentReconciliationHandoffNote>>any(),
+                any(Pageable.class)
+        );
     }
 
     @SuppressWarnings("unchecked")

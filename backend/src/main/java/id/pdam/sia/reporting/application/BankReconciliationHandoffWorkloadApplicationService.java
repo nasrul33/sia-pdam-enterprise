@@ -19,6 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -27,6 +29,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class BankReconciliationHandoffWorkloadApplicationService {
+    static final String UNASSIGNED_OWNER_KEY = "__UNASSIGNED__";
+
     private static final int MAX_EXPORT_ROWS = 10_000;
     private static final Sort WORKLOAD_SORT = Sort.by(Sort.Direction.ASC, "handoffDueDate")
             .and(Sort.by(Sort.Direction.ASC, "handoffStatus"))
@@ -107,11 +111,81 @@ public class BankReconciliationHandoffWorkloadApplicationService {
         return builder.toString();
     }
 
+    @Transactional(readOnly = true)
+    public PaymentReconciliationHandoffOwnerSlaReport ownerSla(PaymentReconciliationHandoffWorkloadFilters filters) {
+        PaymentReconciliationHandoffWorkloadFilters normalized = normalize(filters);
+        Page<PaymentReconciliationHandoffNote> notes = loadNotes(
+                normalized,
+                PageRequest.of(0, MAX_EXPORT_ROWS, WORKLOAD_SORT)
+        );
+        Instant generatedAt = Instant.now();
+        LocalDate generatedDate = LocalDate.now(ZoneOffset.UTC);
+        List<PaymentReconciliationHandoffOwnerSlaEntry> owners = notes.getContent().stream()
+                .collect(Collectors.groupingBy(BankReconciliationHandoffWorkloadApplicationService::ownerKey))
+                .entrySet()
+                .stream()
+                .map(entry -> PaymentReconciliationHandoffOwnerSlaEntry.from(
+                        entry.getKey(),
+                        entry.getValue(),
+                        generatedDate,
+                        generatedAt
+                ))
+                .sorted(ownerSlaSort())
+                .toList();
+        return new PaymentReconciliationHandoffOwnerSlaReport(
+                owners,
+                owners.stream().mapToLong(PaymentReconciliationHandoffOwnerSlaEntry::totalNotes).sum(),
+                owners.stream().mapToLong(PaymentReconciliationHandoffOwnerSlaEntry::openNotes).sum(),
+                owners.stream().mapToLong(PaymentReconciliationHandoffOwnerSlaEntry::inProgressNotes).sum(),
+                owners.stream().mapToLong(PaymentReconciliationHandoffOwnerSlaEntry::clearedNotes).sum(),
+                owners.stream().mapToLong(PaymentReconciliationHandoffOwnerSlaEntry::overdueNotes).sum(),
+                notes.getTotalElements() > notes.getContent().size(),
+                generatedAt
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public String ownerSlaCsv(PaymentReconciliationHandoffWorkloadFilters filters) {
+        PaymentReconciliationHandoffOwnerSlaReport report = ownerSla(filters);
+        StringBuilder builder = new StringBuilder();
+        appendRow(
+                builder,
+                "owner",
+                "unassigned",
+                "total_notes",
+                "open_notes",
+                "in_progress_notes",
+                "cleared_notes",
+                "overdue_notes",
+                "nearest_due_date",
+                "max_overdue_days",
+                "escalation_priority",
+                "latest_updated_at",
+                "generated_at"
+        );
+        report.owners().forEach(owner -> appendRow(
+                builder,
+                owner.ownerLabel(),
+                owner.unassigned(),
+                owner.totalNotes(),
+                owner.openNotes(),
+                owner.inProgressNotes(),
+                owner.clearedNotes(),
+                owner.overdueNotes(),
+                owner.nearestDueDate(),
+                owner.maxOverdueDays(),
+                owner.escalationPriority(),
+                owner.latestUpdatedAt(),
+                owner.generatedAt()
+        ));
+        return builder.toString();
+    }
+
     private Page<PaymentReconciliationHandoffWorkloadEntry> loadWorkload(
             PaymentReconciliationHandoffWorkloadFilters filters,
             PageRequest pageable
     ) {
-        Page<PaymentReconciliationHandoffNote> notes = noteRepository.findAll(specification(filters), pageable);
+        Page<PaymentReconciliationHandoffNote> notes = loadNotes(filters, pageable);
         List<UUID> sessionIds = notes.getContent().stream()
                 .map(PaymentReconciliationHandoffNote::getSessionId)
                 .distinct()
@@ -148,12 +222,26 @@ public class BankReconciliationHandoffWorkloadApplicationService {
         return new PageImpl<>(entries, pageable, notes.getTotalElements());
     }
 
+    private Page<PaymentReconciliationHandoffNote> loadNotes(
+            PaymentReconciliationHandoffWorkloadFilters filters,
+            PageRequest pageable
+    ) {
+        return noteRepository.findAll(specification(filters), pageable);
+    }
+
     private static PaymentReconciliationHandoffWorkloadFilters normalize(
             PaymentReconciliationHandoffWorkloadFilters filters
     ) {
         PaymentReconciliationHandoffWorkloadFilters safeFilters = filters == null
-                ? new PaymentReconciliationHandoffWorkloadFilters(null, null, null, null)
+                ? new PaymentReconciliationHandoffWorkloadFilters(null, null, false, null, null)
                 : filters;
+        String normalizedOwner = normalizeOwner(safeFilters.handoffOwner());
+        if (safeFilters.unassignedOnly() && normalizedOwner != null) {
+            throw new BusinessException(
+                    "PAYMENT_RECONCILIATION_HANDOFF_OWNER_FILTER_CONFLICT",
+                    "Reconciliation handoff owner filter conflicts with unassigned-only scope."
+            );
+        }
         if (safeFilters.dueFrom() != null
                 && safeFilters.dueTo() != null
                 && safeFilters.dueTo().isBefore(safeFilters.dueFrom())) {
@@ -164,7 +252,8 @@ public class BankReconciliationHandoffWorkloadApplicationService {
         }
         return new PaymentReconciliationHandoffWorkloadFilters(
                 safeFilters.handoffStatus(),
-                normalizeOwner(safeFilters.handoffOwner()),
+                normalizedOwner,
+                safeFilters.unassignedOnly(),
                 safeFilters.dueFrom(),
                 safeFilters.dueTo()
         );
@@ -195,7 +284,7 @@ public class BankReconciliationHandoffWorkloadApplicationService {
             PaymentReconciliationHandoffWorkloadFilters filters
     ) {
         return statusSpecification(filters.handoffStatus())
-                .and(ownerSpecification(filters.handoffOwner()))
+                .and(ownerSpecification(filters.handoffOwner(), filters.unassignedOnly()))
                 .and(dueFromSpecification(filters.dueFrom()))
                 .and(dueToSpecification(filters.dueTo()));
     }
@@ -208,10 +297,15 @@ public class BankReconciliationHandoffWorkloadApplicationService {
                 : criteriaBuilder.equal(root.get("handoffStatus"), status);
     }
 
-    private static Specification<PaymentReconciliationHandoffNote> ownerSpecification(String owner) {
-        return (root, query, criteriaBuilder) -> owner == null
-                ? criteriaBuilder.conjunction()
-                : criteriaBuilder.like(criteriaBuilder.lower(root.get("handoffOwner")), "%" + owner + "%");
+    private static Specification<PaymentReconciliationHandoffNote> ownerSpecification(String owner, boolean unassignedOnly) {
+        return (root, query, criteriaBuilder) -> {
+            if (unassignedOnly) {
+                return criteriaBuilder.isNull(root.get("handoffOwner"));
+            }
+            return owner == null
+                    ? criteriaBuilder.conjunction()
+                    : criteriaBuilder.like(criteriaBuilder.lower(root.get("handoffOwner")), "%" + owner + "%");
+        };
     }
 
     private static Specification<PaymentReconciliationHandoffNote> dueFromSpecification(LocalDate dueFrom) {
@@ -224,6 +318,29 @@ public class BankReconciliationHandoffWorkloadApplicationService {
         return (root, query, criteriaBuilder) -> dueTo == null
                 ? criteriaBuilder.conjunction()
                 : criteriaBuilder.lessThanOrEqualTo(root.get("handoffDueDate"), dueTo);
+    }
+
+    static long overdueDays(PaymentReconciliationHandoffNote note, LocalDate generatedDate) {
+        if (note.getHandoffStatus() == PaymentReconciliationHandoffStatus.CLEARED || note.getHandoffDueDate() == null) {
+            return 0;
+        }
+        if (!note.getHandoffDueDate().isBefore(generatedDate)) {
+            return 0;
+        }
+        return Math.max(0, ChronoUnit.DAYS.between(note.getHandoffDueDate(), generatedDate));
+    }
+
+    private static String ownerKey(PaymentReconciliationHandoffNote note) {
+        return note.getHandoffOwner() == null ? UNASSIGNED_OWNER_KEY : note.getHandoffOwner();
+    }
+
+    private static Comparator<PaymentReconciliationHandoffOwnerSlaEntry> ownerSlaSort() {
+        return Comparator.comparingLong(PaymentReconciliationHandoffOwnerSlaEntry::maxOverdueDays)
+                .reversed()
+                .thenComparing(Comparator.comparingLong(PaymentReconciliationHandoffOwnerSlaEntry::overdueNotes).reversed())
+                .thenComparing(Comparator.comparingLong((PaymentReconciliationHandoffOwnerSlaEntry owner) ->
+                        owner.openNotes() + owner.inProgressNotes()).reversed())
+                .thenComparing(PaymentReconciliationHandoffOwnerSlaEntry::ownerLabel);
     }
 
     private static void appendRow(StringBuilder builder, Object... values) {

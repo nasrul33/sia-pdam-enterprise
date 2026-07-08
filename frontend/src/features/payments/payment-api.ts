@@ -5,6 +5,7 @@ import {
   paymentReconciliationEvidenceReportSchema,
   paymentReconciliationHandoffNoteListSchema,
   paymentReconciliationHandoffNoteSchema,
+  paymentReconciliationHandoffOwnerSlaReportSchema,
   paymentReconciliationHandoffWorkloadPageSchema,
   paymentReconciliationReviewRegisterPageSchema,
   paymentPageSchema,
@@ -17,6 +18,7 @@ import {
   type PaymentFilters,
   type PaymentReconciliationExportFilters,
   type PaymentReconciliationHandoffNotePayload,
+  type PaymentReconciliationHandoffOwnerSlaFilters,
   type PaymentReconciliationHandoffWorkloadFilters,
   type PaymentReconciliationMatchPayload,
   type PaymentReconciliationReviewRegisterFilters,
@@ -134,6 +136,9 @@ function reconciliationHandoffWorkloadParams(filters: PaymentReconciliationHando
   if (filters.handoffOwner) {
     params.set("handoffOwner", filters.handoffOwner);
   }
+  if (filters.unassignedOnly) {
+    params.set("unassignedOnly", "true");
+  }
   if (filters.dueFrom) {
     params.set("dueFrom", filters.dueFrom);
   }
@@ -152,6 +157,31 @@ function reconciliationHandoffWorkloadExportParams(filters: PaymentReconciliatio
   }
   if (filters.handoffOwner) {
     params.set("handoffOwner", filters.handoffOwner);
+  }
+  if (filters.unassignedOnly) {
+    params.set("unassignedOnly", "true");
+  }
+  if (filters.dueFrom) {
+    params.set("dueFrom", filters.dueFrom);
+  }
+  if (filters.dueTo) {
+    params.set("dueTo", filters.dueTo);
+  }
+
+  return params;
+}
+
+function reconciliationHandoffOwnerSlaParams(filters: PaymentReconciliationHandoffOwnerSlaFilters): URLSearchParams {
+  const params = new URLSearchParams();
+
+  if (filters.handoffStatus) {
+    params.set("handoffStatus", filters.handoffStatus);
+  }
+  if (filters.handoffOwner) {
+    params.set("handoffOwner", filters.handoffOwner);
+  }
+  if (filters.unassignedOnly) {
+    params.set("unassignedOnly", "true");
   }
   if (filters.dueFrom) {
     params.set("dueFrom", filters.dueFrom);
@@ -225,6 +255,21 @@ export async function listPaymentReconciliationHandoffWorkload(filters: PaymentR
 export async function exportPaymentReconciliationHandoffWorkloadCsv(filters: PaymentReconciliationHandoffWorkloadFilters) {
   const query = reconciliationHandoffWorkloadExportParams(filters).toString();
   return apiGetText(`/api/reports/payment-reconciliation-handoff-notes/export${query ? `?${query}` : ""}`);
+}
+
+export async function getPaymentReconciliationHandoffOwnerSla(filters: PaymentReconciliationHandoffOwnerSlaFilters) {
+  const query = reconciliationHandoffOwnerSlaParams(filters).toString();
+  const payload = await apiGet<unknown>(
+    `/api/reports/payment-reconciliation-handoff-notes/owner-sla${query ? `?${query}` : ""}`
+  );
+  return paymentReconciliationHandoffOwnerSlaReportSchema.parse(payload);
+}
+
+export async function exportPaymentReconciliationHandoffOwnerSlaCsv(
+  filters: PaymentReconciliationHandoffOwnerSlaFilters
+) {
+  const query = reconciliationHandoffOwnerSlaParams(filters).toString();
+  return apiGetText(`/api/reports/payment-reconciliation-handoff-notes/owner-sla/export${query ? `?${query}` : ""}`);
 }
 
 export async function listPaymentReconciliationHandoffNotes(sessionId: string) {

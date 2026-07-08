@@ -307,6 +307,7 @@ export type PaymentReconciliationHandoffNoteDraft = {
 export type PaymentReconciliationHandoffWorkloadFilterDraft = {
   handoffStatus: PaymentReconciliationHandoffStatus | "ALL";
   handoffOwner: string;
+  unassignedOnly: boolean;
   dueFrom: string;
   dueTo: string;
 };
@@ -663,6 +664,9 @@ export function reconciliationHandoffWorkloadFilterErrors(
   if (draft.handoffOwner.trim().length > 128) {
     errors.push("Filter owner handoff maksimal 128 karakter.");
   }
+  if (draft.unassignedOnly && draft.handoffOwner.trim()) {
+    errors.push("Filter owner tidak boleh diisi saat scope tanpa owner dipilih.");
+  }
 
   return errors;
 }
@@ -671,10 +675,36 @@ export function reconciliationHandoffWorkloadExportFilename(
   draft: PaymentReconciliationHandoffWorkloadFilterDraft
 ): string {
   const statusSegment = draft.handoffStatus.toLowerCase().replaceAll("_", "-");
-  const ownerSegment = sanitizeFilenameSegment(draft.handoffOwner);
+  const ownerSegment = draft.unassignedOnly ? "unassigned" : sanitizeFilenameSegment(draft.handoffOwner);
   const fromSegment = filenameDateSegment(draft.dueFrom);
   const toSegment = filenameDateSegment(draft.dueTo);
   return `payment-reconciliation-handoff-workload-${statusSegment}-${ownerSegment}-${fromSegment}-${toSegment}.csv`;
+}
+
+export function reconciliationHandoffOwnerSlaExportFilename(
+  draft: PaymentReconciliationHandoffWorkloadFilterDraft
+): string {
+  const statusSegment = draft.handoffStatus.toLowerCase().replaceAll("_", "-");
+  const ownerSegment = draft.unassignedOnly ? "unassigned" : sanitizeFilenameSegment(draft.handoffOwner);
+  const fromSegment = filenameDateSegment(draft.dueFrom);
+  const toSegment = filenameDateSegment(draft.dueTo);
+  return `payment-reconciliation-handoff-owner-sla-${statusSegment}-${ownerSegment}-${fromSegment}-${toSegment}.csv`;
+}
+
+export function reconciliationHandoffOwnerDrilldownFilter(
+  current: PaymentReconciliationHandoffWorkloadFilterDraft,
+  input: {
+    handoffOwner: string | null;
+    unassigned: boolean;
+    handoffStatus?: PaymentReconciliationHandoffStatus | "ALL";
+  }
+): PaymentReconciliationHandoffWorkloadFilterDraft {
+  return {
+    ...current,
+    handoffStatus: input.handoffStatus ?? "ALL",
+    handoffOwner: input.unassigned ? "" : input.handoffOwner ?? "",
+    unassignedOnly: input.unassigned
+  };
 }
 
 export function toClosedResolutionStatus(

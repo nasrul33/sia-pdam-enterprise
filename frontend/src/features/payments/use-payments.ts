@@ -8,6 +8,7 @@ import {
   getPaymentReconciliationEvidenceReport,
   getPaymentReconciliationSession,
   getPayment,
+  getPaymentReconciliationHandoffOwnerSla,
   listPaymentReconciliationHandoffNotes,
   listPaymentReconciliationHandoffWorkload,
   listPaymentReconciliationReviewRegister,
@@ -27,6 +28,7 @@ import type {
   CreatePaymentReconciliationSessionPayload,
   PaymentFilters,
   PaymentReconciliationHandoffNotePayload,
+  PaymentReconciliationHandoffOwnerSlaFilters,
   PaymentReconciliationHandoffWorkloadFilters,
   PaymentReconciliationMatchPayload,
   PaymentReconciliationReviewRegisterFilters,
@@ -118,6 +120,17 @@ export function usePaymentReconciliationHandoffWorkload(
   return useQuery({
     queryKey: [...queryKeys.payments, "reconciliation-handoff-workload", filters],
     queryFn: () => listPaymentReconciliationHandoffWorkload(filters),
+    enabled
+  });
+}
+
+export function usePaymentReconciliationHandoffOwnerSla(
+  filters: PaymentReconciliationHandoffOwnerSlaFilters,
+  enabled = true
+) {
+  return useQuery({
+    queryKey: [...queryKeys.payments, "reconciliation-handoff-owner-sla", filters],
+    queryFn: () => getPaymentReconciliationHandoffOwnerSla(filters),
     enabled
   });
 }

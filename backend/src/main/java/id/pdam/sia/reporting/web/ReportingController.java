@@ -5,6 +5,7 @@ import id.pdam.sia.reporting.application.BankReconciliationEvidenceReportApplica
 import id.pdam.sia.reporting.application.BankReconciliationHandoffNoteApplicationService;
 import id.pdam.sia.reporting.application.BankReconciliationHandoffWorkloadApplicationService;
 import id.pdam.sia.reporting.application.BankReconciliationReviewRegisterApplicationService;
+import id.pdam.sia.reporting.application.PaymentReconciliationHandoffOwnerSlaReport;
 import id.pdam.sia.reporting.application.BankReconciliationReviewRegisterEntry;
 import id.pdam.sia.reporting.application.BankReconciliationReviewRegisterFilters;
 import id.pdam.sia.reporting.application.PaymentReconciliationHandoffWorkloadEntry;
@@ -132,13 +133,14 @@ public class ReportingController {
     public PageResponse<PaymentReconciliationHandoffWorkloadEntry> paymentReconciliationHandoffWorkload(
             @RequestParam(required = false) PaymentReconciliationHandoffStatus handoffStatus,
             @RequestParam(required = false) String handoffOwner,
+            @RequestParam(defaultValue = "false") boolean unassignedOnly,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dueFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dueTo,
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "10") @Min(1) @Max(100) int size
     ) {
         return PageResponse.from(bankReconciliationHandoffWorkloadApplicationService.workload(
-                new PaymentReconciliationHandoffWorkloadFilters(handoffStatus, handoffOwner, dueFrom, dueTo),
+                new PaymentReconciliationHandoffWorkloadFilters(handoffStatus, handoffOwner, unassignedOnly, dueFrom, dueTo),
                 page,
                 size
         ));
@@ -149,6 +151,7 @@ public class ReportingController {
     public ResponseEntity<String> exportPaymentReconciliationHandoffWorkload(
             @RequestParam(required = false) PaymentReconciliationHandoffStatus handoffStatus,
             @RequestParam(required = false) String handoffOwner,
+            @RequestParam(defaultValue = "false") boolean unassignedOnly,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dueFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dueTo
     ) {
@@ -159,7 +162,41 @@ public class ReportingController {
                         .build()
                         .toString())
                 .body(bankReconciliationHandoffWorkloadApplicationService.workloadCsv(
-                        new PaymentReconciliationHandoffWorkloadFilters(handoffStatus, handoffOwner, dueFrom, dueTo)
+                        new PaymentReconciliationHandoffWorkloadFilters(handoffStatus, handoffOwner, unassignedOnly, dueFrom, dueTo)
+                ));
+    }
+
+    @GetMapping("/payment-reconciliation-handoff-notes/owner-sla")
+    @PreAuthorize(Permissions.PAYMENT_RECONCILE)
+    public PaymentReconciliationHandoffOwnerSlaReport paymentReconciliationHandoffOwnerSla(
+            @RequestParam(required = false) PaymentReconciliationHandoffStatus handoffStatus,
+            @RequestParam(required = false) String handoffOwner,
+            @RequestParam(defaultValue = "false") boolean unassignedOnly,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dueFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dueTo
+    ) {
+        return bankReconciliationHandoffWorkloadApplicationService.ownerSla(
+                new PaymentReconciliationHandoffWorkloadFilters(handoffStatus, handoffOwner, unassignedOnly, dueFrom, dueTo)
+        );
+    }
+
+    @GetMapping(value = "/payment-reconciliation-handoff-notes/owner-sla/export", produces = "text/csv")
+    @PreAuthorize(Permissions.PAYMENT_RECONCILE)
+    public ResponseEntity<String> exportPaymentReconciliationHandoffOwnerSla(
+            @RequestParam(required = false) PaymentReconciliationHandoffStatus handoffStatus,
+            @RequestParam(required = false) String handoffOwner,
+            @RequestParam(defaultValue = "false") boolean unassignedOnly,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dueFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dueTo
+    ) {
+        return ResponseEntity.ok()
+                .contentType(TEXT_CSV)
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                        .filename("payment-reconciliation-handoff-owner-sla.csv")
+                        .build()
+                        .toString())
+                .body(bankReconciliationHandoffWorkloadApplicationService.ownerSlaCsv(
+                        new PaymentReconciliationHandoffWorkloadFilters(handoffStatus, handoffOwner, unassignedOnly, dueFrom, dueTo)
                 ));
     }
 

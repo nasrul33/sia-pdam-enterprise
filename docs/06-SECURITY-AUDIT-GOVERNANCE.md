@@ -39,7 +39,7 @@
 | collection-action.cancel | `POST /api/collection-actions/{id}/cancel` | Supervisor Piutang |
 | payment.counter | `POST /api/payments/counter` | Kasir |
 | payment.read | `GET /api/payments`, `GET /api/payments/{id}` | Finance Supervisor, Auditor Internal |
-| payment.reconcile | Payment reconciliation, evidence, review register, handoff-note read, and handoff workload export endpoints | Finance Supervisor, Auditor Internal |
+| payment.reconcile | Payment reconciliation, evidence, review register, handoff-note read, handoff workload, and owner SLA export endpoints | Finance Supervisor, Auditor Internal |
 | payment.reconciliation.handoff-note | Create/revise reconciliation reviewer handoff notes | Finance Supervisor, Auditor Internal |
 | payment.reconciliation.signoff | Sign off completed reconciliation evidence | Finance Supervisor |
 | payment.reverse | `POST /api/payments/{id}/reverse` | Finance Supervisor |
@@ -86,7 +86,7 @@
 - Frontend reads `/api/auth/me` for visibility and disabled/locked states only.
 - Collection action UI is gated by `collection-action.*` authorities.
 - Dashboard financial command panel is gated by accounting and billing command authorities.
-- Payment handoff workload list/export visibility is gated by `payment.reconcile`; note create/revise controls remain separately gated by `payment.reconciliation.handoff-note`.
+- Payment handoff workload and owner SLA list/export visibility is gated by `payment.reconcile`; note create/revise controls remain separately gated by `payment.reconciliation.handoff-note`.
 - Backend method security remains authoritative for every financial command.
 
 ## Bootstrap Admin Provisioning

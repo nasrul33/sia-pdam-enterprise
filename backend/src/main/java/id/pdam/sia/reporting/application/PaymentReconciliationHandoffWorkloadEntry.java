@@ -6,7 +6,6 @@ import id.pdam.sia.reporting.domain.PaymentReconciliationHandoffStatus;
 
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
 public record PaymentReconciliationHandoffWorkloadEntry(
@@ -54,22 +53,12 @@ public record PaymentReconciliationHandoffWorkloadEntry(
                 note.getHandoffDueDate(),
                 note.getHandoffStatus(),
                 revisionCount,
-                overdueDays(note, generatedDate),
+                BankReconciliationHandoffWorkloadApplicationService.overdueDays(note, generatedDate),
                 note.getCreatedBy(),
                 note.getUpdatedBy(),
                 note.getCreatedAt(),
                 note.getUpdatedAt(),
                 generatedAt
         );
-    }
-
-    private static long overdueDays(PaymentReconciliationHandoffNote note, LocalDate generatedDate) {
-        if (note.getHandoffStatus() == PaymentReconciliationHandoffStatus.CLEARED || note.getHandoffDueDate() == null) {
-            return 0;
-        }
-        if (!note.getHandoffDueDate().isBefore(generatedDate)) {
-            return 0;
-        }
-        return Math.max(0, ChronoUnit.DAYS.between(note.getHandoffDueDate(), generatedDate));
     }
 }

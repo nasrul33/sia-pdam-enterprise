@@ -57,6 +57,7 @@ class ReportingControllerPermissionTest {
                         "paymentReconciliationHandoffWorkload",
                         PaymentReconciliationHandoffStatus.class,
                         String.class,
+                        boolean.class,
                         LocalDate.class,
                         LocalDate.class,
                         int.class,
@@ -69,6 +70,29 @@ class ReportingControllerPermissionTest {
                         "exportPaymentReconciliationHandoffWorkload",
                         PaymentReconciliationHandoffStatus.class,
                         String.class,
+                        boolean.class,
+                        LocalDate.class,
+                        LocalDate.class
+                ),
+                "hasAuthority('payment.reconcile')"
+        );
+        assertPermission(
+                ReportingController.class.getMethod(
+                        "paymentReconciliationHandoffOwnerSla",
+                        PaymentReconciliationHandoffStatus.class,
+                        String.class,
+                        boolean.class,
+                        LocalDate.class,
+                        LocalDate.class
+                ),
+                "hasAuthority('payment.reconcile')"
+        );
+        assertPermission(
+                ReportingController.class.getMethod(
+                        "exportPaymentReconciliationHandoffOwnerSla",
+                        PaymentReconciliationHandoffStatus.class,
+                        String.class,
+                        boolean.class,
                         LocalDate.class,
                         LocalDate.class
                 ),

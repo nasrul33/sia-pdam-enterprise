@@ -20,6 +20,8 @@ import {
   reconciliationReviewRegisterFilterErrors,
   reconciliationReviewRegisterExportFilename,
   reconciliationHandoffNoteErrors,
+  reconciliationHandoffOwnerDrilldownFilter,
+  reconciliationHandoffOwnerSlaExportFilename,
   reconciliationHandoffWorkloadFilterErrors,
   reconciliationHandoffWorkloadExportFilename,
   summarizeReconciliationHandoffWorkload,
@@ -570,6 +572,7 @@ test("reconciliationHandoffWorkloadFilterErrors validates due date scope", () =>
     reconciliationHandoffWorkloadFilterErrors({
       handoffStatus: "ALL",
       handoffOwner: "finance.ops",
+      unassignedOnly: false,
       dueFrom: "bad-date",
       dueTo: "2026-08-03"
     }),
@@ -580,6 +583,7 @@ test("reconciliationHandoffWorkloadFilterErrors validates due date scope", () =>
     reconciliationHandoffWorkloadFilterErrors({
       handoffStatus: "OPEN",
       handoffOwner: "x".repeat(129),
+      unassignedOnly: false,
       dueFrom: "2026-08-10",
       dueTo: "2026-08-01"
     }),
@@ -593,10 +597,22 @@ test("reconciliationHandoffWorkloadFilterErrors validates due date scope", () =>
     reconciliationHandoffWorkloadFilterErrors({
       handoffStatus: "IN_PROGRESS",
       handoffOwner: "finance.ops",
+      unassignedOnly: false,
       dueFrom: "2026-08-01",
       dueTo: "2026-08-31"
     }),
     []
+  );
+
+  assert.deepEqual(
+    reconciliationHandoffWorkloadFilterErrors({
+      handoffStatus: "ALL",
+      handoffOwner: "finance.ops",
+      unassignedOnly: true,
+      dueFrom: "",
+      dueTo: ""
+    }),
+    ["Filter owner tidak boleh diisi saat scope tanpa owner dipilih."]
   );
 });
 
@@ -605,6 +621,7 @@ test("reconciliationHandoffWorkloadExportFilename includes status owner and due 
     reconciliationHandoffWorkloadExportFilename({
       handoffStatus: "IN_PROGRESS",
       handoffOwner: "Finance Ops",
+      unassignedOnly: false,
       dueFrom: "2026-08-01",
       dueTo: "2026-08-31"
     }),
@@ -615,10 +632,70 @@ test("reconciliationHandoffWorkloadExportFilename includes status owner and due 
     reconciliationHandoffWorkloadExportFilename({
       handoffStatus: "ALL",
       handoffOwner: "",
+      unassignedOnly: false,
       dueFrom: "",
       dueTo: ""
     }),
     "payment-reconciliation-handoff-workload-all-all-owner-all-all.csv"
+  );
+
+  assert.equal(
+    reconciliationHandoffWorkloadExportFilename({
+      handoffStatus: "ALL",
+      handoffOwner: "",
+      unassignedOnly: true,
+      dueFrom: "",
+      dueTo: ""
+    }),
+    "payment-reconciliation-handoff-workload-all-unassigned-all-all.csv"
+  );
+});
+
+test("reconciliationHandoffOwnerSla helpers build escalation export and drilldown filter", () => {
+  const current = {
+    handoffStatus: "ALL" as const,
+    handoffOwner: "",
+    unassignedOnly: false,
+    dueFrom: "2026-08-01",
+    dueTo: "2026-08-31"
+  };
+
+  assert.equal(
+    reconciliationHandoffOwnerSlaExportFilename({
+      ...current,
+      handoffStatus: "OPEN",
+      handoffOwner: "Finance Ops"
+    }),
+    "payment-reconciliation-handoff-owner-sla-open-finance-ops-2026-08-01-2026-08-31.csv"
+  );
+
+  assert.deepEqual(
+    reconciliationHandoffOwnerDrilldownFilter(current, {
+      handoffOwner: "finance.ops",
+      unassigned: false,
+      handoffStatus: "IN_PROGRESS"
+    }),
+    {
+      handoffStatus: "IN_PROGRESS",
+      handoffOwner: "finance.ops",
+      unassignedOnly: false,
+      dueFrom: "2026-08-01",
+      dueTo: "2026-08-31"
+    }
+  );
+
+  assert.deepEqual(
+    reconciliationHandoffOwnerDrilldownFilter(current, {
+      handoffOwner: null,
+      unassigned: true
+    }),
+    {
+      handoffStatus: "ALL",
+      handoffOwner: "",
+      unassignedOnly: true,
+      dueFrom: "2026-08-01",
+      dueTo: "2026-08-31"
+    }
   );
 });
 
