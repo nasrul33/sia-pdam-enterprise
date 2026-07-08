@@ -3,10 +3,14 @@ package id.pdam.sia.reporting.web;
 import id.pdam.sia.reporting.application.BankReconciliationEvidenceReport;
 import id.pdam.sia.reporting.application.BankReconciliationEvidenceReportApplicationService;
 import id.pdam.sia.reporting.application.BankReconciliationHandoffNoteApplicationService;
+import id.pdam.sia.reporting.application.BankReconciliationHandoffWorkloadApplicationService;
 import id.pdam.sia.reporting.application.BankReconciliationReviewRegisterApplicationService;
 import id.pdam.sia.reporting.application.BankReconciliationReviewRegisterEntry;
 import id.pdam.sia.reporting.application.BankReconciliationReviewRegisterFilters;
+import id.pdam.sia.reporting.application.PaymentReconciliationHandoffWorkloadEntry;
+import id.pdam.sia.reporting.application.PaymentReconciliationHandoffWorkloadFilters;
 import id.pdam.sia.reporting.application.PaymentReconciliationReviewStatus;
+import id.pdam.sia.reporting.domain.PaymentReconciliationHandoffStatus;
 import id.pdam.sia.reporting.application.PostedLedgerReportApplicationService;
 import id.pdam.sia.reporting.application.TrialBalanceReport;
 import id.pdam.sia.shared.security.Permissions;
@@ -46,17 +50,20 @@ public class ReportingController {
     private final BankReconciliationEvidenceReportApplicationService bankReconciliationEvidenceReportApplicationService;
     private final BankReconciliationReviewRegisterApplicationService bankReconciliationReviewRegisterApplicationService;
     private final BankReconciliationHandoffNoteApplicationService bankReconciliationHandoffNoteApplicationService;
+    private final BankReconciliationHandoffWorkloadApplicationService bankReconciliationHandoffWorkloadApplicationService;
 
     public ReportingController(
             PostedLedgerReportApplicationService postedLedgerReportApplicationService,
             BankReconciliationEvidenceReportApplicationService bankReconciliationEvidenceReportApplicationService,
             BankReconciliationReviewRegisterApplicationService bankReconciliationReviewRegisterApplicationService,
-            BankReconciliationHandoffNoteApplicationService bankReconciliationHandoffNoteApplicationService
+            BankReconciliationHandoffNoteApplicationService bankReconciliationHandoffNoteApplicationService,
+            BankReconciliationHandoffWorkloadApplicationService bankReconciliationHandoffWorkloadApplicationService
     ) {
         this.postedLedgerReportApplicationService = postedLedgerReportApplicationService;
         this.bankReconciliationEvidenceReportApplicationService = bankReconciliationEvidenceReportApplicationService;
         this.bankReconciliationReviewRegisterApplicationService = bankReconciliationReviewRegisterApplicationService;
         this.bankReconciliationHandoffNoteApplicationService = bankReconciliationHandoffNoteApplicationService;
+        this.bankReconciliationHandoffWorkloadApplicationService = bankReconciliationHandoffWorkloadApplicationService;
     }
 
     @GetMapping("/trial-balance")
@@ -117,6 +124,42 @@ public class ReportingController {
                         .toString())
                 .body(bankReconciliationReviewRegisterApplicationService.reviewRegisterCsv(
                         new BankReconciliationReviewRegisterFilters(signOffStatus, completedFrom, completedTo)
+                ));
+    }
+
+    @GetMapping("/payment-reconciliation-handoff-notes")
+    @PreAuthorize(Permissions.PAYMENT_RECONCILE)
+    public PageResponse<PaymentReconciliationHandoffWorkloadEntry> paymentReconciliationHandoffWorkload(
+            @RequestParam(required = false) PaymentReconciliationHandoffStatus handoffStatus,
+            @RequestParam(required = false) String handoffOwner,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dueFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dueTo,
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "10") @Min(1) @Max(100) int size
+    ) {
+        return PageResponse.from(bankReconciliationHandoffWorkloadApplicationService.workload(
+                new PaymentReconciliationHandoffWorkloadFilters(handoffStatus, handoffOwner, dueFrom, dueTo),
+                page,
+                size
+        ));
+    }
+
+    @GetMapping(value = "/payment-reconciliation-handoff-notes/export", produces = "text/csv")
+    @PreAuthorize(Permissions.PAYMENT_RECONCILE)
+    public ResponseEntity<String> exportPaymentReconciliationHandoffWorkload(
+            @RequestParam(required = false) PaymentReconciliationHandoffStatus handoffStatus,
+            @RequestParam(required = false) String handoffOwner,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dueFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dueTo
+    ) {
+        return ResponseEntity.ok()
+                .contentType(TEXT_CSV)
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                        .filename("payment-reconciliation-handoff-notes.csv")
+                        .build()
+                        .toString())
+                .body(bankReconciliationHandoffWorkloadApplicationService.workloadCsv(
+                        new PaymentReconciliationHandoffWorkloadFilters(handoffStatus, handoffOwner, dueFrom, dueTo)
                 ));
     }
 

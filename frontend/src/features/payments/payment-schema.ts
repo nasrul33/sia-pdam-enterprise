@@ -341,6 +341,36 @@ export const paymentReconciliationHandoffNoteSchema = z.object({
 
 export const paymentReconciliationHandoffNoteListSchema = z.array(paymentReconciliationHandoffNoteSchema);
 
+export const paymentReconciliationHandoffWorkloadEntrySchema = z.object({
+  noteId: z.string().uuid(),
+  sessionId: z.string().uuid(),
+  sessionNumber: z.string().min(1),
+  bankAccountReference: z.string().nullable(),
+  completedAt: z.string().nullable(),
+  reviewStatus: paymentReconciliationReviewStatusSchema,
+  signedOffBy: z.string().nullable(),
+  signedOffAt: z.string().nullable(),
+  noteText: z.string().min(1),
+  handoffOwner: z.string().nullable(),
+  handoffDueDate: z.string().nullable(),
+  handoffStatus: paymentReconciliationHandoffStatusSchema,
+  revisionCount: z.number().int().nonnegative(),
+  overdueDays: z.number().int().nonnegative(),
+  createdBy: z.string().min(1),
+  updatedBy: z.string().min(1),
+  createdAt: z.string().min(1),
+  updatedAt: z.string().min(1),
+  generatedAt: z.string().min(1)
+});
+
+export const paymentReconciliationHandoffWorkloadPageSchema = z.object({
+  items: z.array(paymentReconciliationHandoffWorkloadEntrySchema),
+  page: z.number().int().nonnegative(),
+  size: z.number().int().positive(),
+  totalItems: z.number().int().nonnegative(),
+  totalPages: z.number().int().nonnegative()
+});
+
 export type PaymentStatus = z.infer<typeof paymentStatusSchema>;
 export type PaymentWebhookStatus = z.infer<typeof paymentWebhookStatusSchema>;
 export type PaymentReconciliationSessionStatus = z.infer<typeof paymentReconciliationSessionStatusSchema>;
@@ -368,6 +398,8 @@ export type PaymentReconciliationReviewRegisterEntry = z.infer<typeof paymentRec
 export type PaymentReconciliationReviewRegisterPage = z.infer<typeof paymentReconciliationReviewRegisterPageSchema>;
 export type PaymentReconciliationHandoffNoteRevision = z.infer<typeof paymentReconciliationHandoffNoteRevisionSchema>;
 export type PaymentReconciliationHandoffNote = z.infer<typeof paymentReconciliationHandoffNoteSchema>;
+export type PaymentReconciliationHandoffWorkloadEntry = z.infer<typeof paymentReconciliationHandoffWorkloadEntrySchema>;
+export type PaymentReconciliationHandoffWorkloadPage = z.infer<typeof paymentReconciliationHandoffWorkloadPageSchema>;
 
 export type PaymentFilters = {
   page: number;
@@ -395,6 +427,15 @@ export type PaymentReconciliationReviewRegisterFilters = {
   signOffStatus?: PaymentReconciliationReviewStatus;
   completedFrom?: string;
   completedTo?: string;
+};
+
+export type PaymentReconciliationHandoffWorkloadFilters = {
+  page: number;
+  size: number;
+  handoffStatus?: PaymentReconciliationHandoffStatus;
+  handoffOwner?: string;
+  dueFrom?: string;
+  dueTo?: string;
 };
 
 export type PaymentReconciliationMatchPayload = {

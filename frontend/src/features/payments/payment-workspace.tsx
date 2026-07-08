@@ -2,6 +2,7 @@
 
 import {
   AlertTriangle,
+  CalendarClock,
   CheckCircle2,
   Download,
   Eye,
@@ -52,12 +53,15 @@ import {
   reconciliationReviewRegisterExportFilename,
   reconciliationReviewRegisterFilterErrors,
   reconciliationHandoffNoteErrors,
+  reconciliationHandoffWorkloadExportFilename,
+  reconciliationHandoffWorkloadFilterErrors,
   reconciliationSignOffErrors,
   paymentReconciliationExportErrors,
   reconciliationCompletionErrors,
   reconciliationResolutionErrors,
   reversePaymentErrors,
   summarizeReconciliationReviewRegister,
+  summarizeReconciliationHandoffWorkload,
   summarizeReconciliationSessionItems,
   summarizeReconciliationMatches,
   summarizePaymentList,
@@ -68,6 +72,7 @@ import {
   type CounterPaymentAllocationDraft,
   type CounterPaymentDraft,
   type PaymentReconciliationHandoffNoteDraft,
+  type PaymentReconciliationHandoffWorkloadFilterDraft,
   type PaymentReconciliationAdjustmentDraft,
   type ReversePaymentDraft
 } from "./payment-workspace-model";
@@ -78,6 +83,7 @@ import type {
   PaymentReconciliationHandoffNote,
   PaymentReconciliationHandoffNotePayload,
   PaymentReconciliationHandoffStatus,
+  PaymentReconciliationHandoffWorkloadEntry,
   PaymentReconciliationMatchReport,
   PaymentReconciliationMatchStatus,
   PaymentReconciliationResolutionStatus,
@@ -103,6 +109,7 @@ import {
 import {
   exportPaymentReconciliationCsv,
   exportPaymentReconciliationEvidenceCsv,
+  exportPaymentReconciliationHandoffWorkloadCsv,
   exportPaymentReconciliationReviewRegisterCsv
 } from "./payment-api";
 import {
@@ -114,6 +121,7 @@ import {
   usePayment,
   usePaymentReconciliationEvidenceReport,
   usePaymentReconciliationHandoffNotes,
+  usePaymentReconciliationHandoffWorkload,
   usePaymentReconciliationReviewRegister,
   usePaymentReconciliationSession,
   usePaymentReconciliationSessions,
@@ -296,6 +304,13 @@ const defaultReconciliationHandoffNoteForm: PaymentReconciliationHandoffNoteDraf
   handoffDueDate: "",
   handoffStatus: "OPEN",
   reason: ""
+};
+
+const defaultReconciliationHandoffWorkloadFilter: PaymentReconciliationHandoffWorkloadFilterDraft = {
+  handoffStatus: "ALL",
+  handoffOwner: "",
+  dueFrom: "",
+  dueTo: ""
 };
 
 function normalizeInput(value: string): string {
@@ -1494,6 +1509,295 @@ function ReconciliationHandoffNotesPanel({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function PaymentReconciliationHandoffWorkloadPanel({ allowed }: Readonly<{ allowed: boolean }>) {
+  const [filter, setFilter] = useState<PaymentReconciliationHandoffWorkloadFilterDraft>(
+    defaultReconciliationHandoffWorkloadFilter
+  );
+  const [page, setPage] = useState(0);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const filterErrors = reconciliationHandoffWorkloadFilterErrors(filter);
+  const filtersValid = filterErrors.length === 0;
+  const filters = useMemo(
+    () => ({
+      page,
+      size: 8,
+      handoffStatus: filter.handoffStatus === "ALL" ? undefined : filter.handoffStatus,
+      handoffOwner: filtersValid ? optionalString(filter.handoffOwner) ?? undefined : undefined,
+      dueFrom: filtersValid ? optionalString(filter.dueFrom) ?? undefined : undefined,
+      dueTo: filtersValid ? optionalString(filter.dueTo) ?? undefined : undefined
+    }),
+    [filter, filtersValid, page]
+  );
+  const workloadQuery = usePaymentReconciliationHandoffWorkload(filters, allowed && filtersValid);
+  const entries = useMemo(() => workloadQuery.data?.items ?? [], [workloadQuery.data?.items]);
+  const summary = useMemo(() => summarizeReconciliationHandoffWorkload(entries), [entries]);
+
+  function resetFilters() {
+    setFilter(defaultReconciliationHandoffWorkloadFilter);
+    setPage(0);
+    setExportError(null);
+  }
+
+  async function handleExport() {
+    setExportError(null);
+    if (!filtersValid) {
+      setExportError(filterErrors[0] ?? "Filter export handoff workload tidak valid.");
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      const csv = await exportPaymentReconciliationHandoffWorkloadCsv(filters);
+      downloadTextFile(
+        reconciliationHandoffWorkloadExportFilename(filter),
+        csv,
+        "text/csv;charset=utf-8"
+      );
+    } catch (error) {
+      setExportError(apiErrorMessage(error, "Gagal export workload handoff rekonsiliasi."));
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
+  if (!allowed) {
+    return (
+      <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex items-center gap-2">
+          <LockKeyhole className="size-5 text-slate-600" aria-hidden="true" />
+          <h2 className="text-base font-bold text-slate-950">Handoff Workload Terkunci</h2>
+        </div>
+        <p className="mt-2 text-sm leading-6 text-slate-700">
+          Authority <span className="font-mono font-bold">payment.reconcile</span> diperlukan untuk membaca workload handoff rekonsiliasi.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-4">
+        <div className="flex items-center gap-2">
+          <CalendarClock className="size-5 text-sky-700" aria-hidden="true" />
+          <h2 className="text-base font-bold text-slate-950">Handoff SLA Workload</h2>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {workloadQuery.isFetching ? (
+            <span className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600">
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              Memperbarui
+            </span>
+          ) : null}
+          <button
+            type="button"
+            className={secondaryButtonClass}
+            disabled={!filtersValid || isExporting}
+            onClick={handleExport}
+          >
+            {isExporting ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Download className="size-4" aria-hidden="true" />}
+            Export Workload
+          </button>
+        </div>
+      </div>
+
+      <div className="grid gap-3 p-4">
+        <div className="grid gap-2 md:grid-cols-3 xl:grid-cols-5">
+          <MetricPill label="Notes" value={summary.totalNotes} tone="info" />
+          <MetricPill label="Open" value={summary.openNotes} tone={summary.openNotes > 0 ? "warning" : "success"} />
+          <MetricPill label="Progress" value={summary.inProgressNotes} tone="info" />
+          <MetricPill label="Cleared" value={summary.clearedNotes} tone="success" />
+          <MetricPill label="Overdue" value={summary.overdueNotes} tone={summary.overdueNotes > 0 ? "danger" : "success"} />
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-[180px_1fr_1fr_1fr_auto]">
+          <label className="block">
+            <span className="text-xs font-bold uppercase text-slate-600">Status</span>
+            <select
+              className={inputClass}
+              value={filter.handoffStatus}
+              onChange={(event) => {
+                setFilter((current) => ({
+                  ...current,
+                  handoffStatus: event.target.value as PaymentReconciliationHandoffStatus | "ALL"
+                }));
+                setPage(0);
+              }}
+            >
+              <option value="ALL">Semua</option>
+              {paymentReconciliationHandoffStatusValues.map((value) => (
+                <option key={value} value={value}>
+                  {reconciliationHandoffStatusLabels[value]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="text-xs font-bold uppercase text-slate-600">Owner</span>
+            <input
+              className={inputClass}
+              value={filter.handoffOwner}
+              maxLength={128}
+              placeholder="finance.ops"
+              onChange={(event) => {
+                setFilter((current) => ({ ...current, handoffOwner: event.target.value }));
+                setPage(0);
+              }}
+            />
+          </label>
+          <label className="block">
+            <span className="text-xs font-bold uppercase text-slate-600">Due From</span>
+            <input
+              type="date"
+              className={inputClass}
+              value={filter.dueFrom}
+              onChange={(event) => {
+                setFilter((current) => ({ ...current, dueFrom: event.target.value }));
+                setPage(0);
+              }}
+            />
+          </label>
+          <label className="block">
+            <span className="text-xs font-bold uppercase text-slate-600">Due To</span>
+            <input
+              type="date"
+              className={inputClass}
+              value={filter.dueTo}
+              onChange={(event) => {
+                setFilter((current) => ({ ...current, dueTo: event.target.value }));
+                setPage(0);
+              }}
+            />
+          </label>
+          <div className="flex items-end">
+            <button type="button" className={secondaryButtonClass} onClick={resetFilters}>
+              <RotateCcw className="size-4" aria-hidden="true" />
+              Reset
+            </button>
+          </div>
+        </div>
+
+        {filterErrors.length > 0 ? <InlineMessage type="error" message={filterErrors[0]} /> : null}
+        {exportError ? <InlineMessage type="error" message={exportError} /> : null}
+        {workloadQuery.isLoading ? <LoadingSkeleton /> : null}
+
+        {workloadQuery.isError ? (
+          <div className="grid gap-3">
+            <InlineMessage
+              type="error"
+              message={apiErrorMessage(workloadQuery.error, "Workload handoff rekonsiliasi tidak tersedia.")}
+            />
+            <button type="button" className={secondaryButtonClass} onClick={() => void workloadQuery.refetch()}>
+              <RotateCcw className="size-4" aria-hidden="true" />
+              Muat Ulang
+            </button>
+          </div>
+        ) : null}
+
+        {!workloadQuery.isLoading && !workloadQuery.isError && entries.length === 0 ? (
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <p className="text-sm font-bold text-slate-950">Tidak ada workload handoff</p>
+            <p className="mt-1 text-sm leading-6 text-slate-600">
+              Catatan handoff yang dibuat dari review register akan muncul sesuai filter owner, status, dan due date.
+            </p>
+          </div>
+        ) : null}
+
+        {!workloadQuery.isLoading && !workloadQuery.isError && entries.length > 0 ? (
+          <ReconciliationHandoffWorkloadTable entries={entries} />
+        ) : null}
+
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-3">
+          <span className="text-sm font-semibold text-slate-600">
+            {workloadQuery.data?.totalItems ?? 0} notes
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className={secondaryButtonClass}
+              disabled={page <= 0 || workloadQuery.isFetching}
+              onClick={() => setPage((current) => Math.max(current - 1, 0))}
+            >
+              Previous
+            </button>
+            <span className="text-sm font-bold text-slate-700">
+              {(workloadQuery.data?.page ?? page) + 1} / {Math.max(workloadQuery.data?.totalPages ?? 1, 1)}
+            </span>
+            <button
+              type="button"
+              className={secondaryButtonClass}
+              disabled={(workloadQuery.data?.page ?? page) + 1 >= Math.max(workloadQuery.data?.totalPages ?? 1, 1) || workloadQuery.isFetching}
+              onClick={() => setPage((current) => current + 1)}
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReconciliationHandoffWorkloadTable({
+  entries
+}: Readonly<{ entries: PaymentReconciliationHandoffWorkloadEntry[] }>) {
+  return (
+    <div className="overflow-x-auto rounded-lg border border-slate-200">
+      <table className="min-w-full divide-y divide-slate-200 text-sm">
+        <thead className="bg-slate-50">
+          <tr>
+            <th className="px-4 py-3 text-left font-bold text-slate-700">Session</th>
+            <th className="px-4 py-3 text-left font-bold text-slate-700">Owner / Due</th>
+            <th className="px-4 py-3 text-left font-bold text-slate-700">Status</th>
+            <th className="px-4 py-3 text-left font-bold text-slate-700">Note</th>
+            <th className="px-4 py-3 text-right font-bold text-slate-700">Revision</th>
+            <th className="px-4 py-3 text-left font-bold text-slate-700">Updated</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100 bg-white">
+          {entries.map((entry) => (
+            <tr key={entry.noteId} className="hover:bg-slate-50">
+              <td className="min-w-56 px-4 py-3">
+                <p className="font-mono text-xs font-bold text-slate-950">{entry.sessionNumber}</p>
+                <p className="mt-1 text-xs font-semibold text-slate-600">{entry.bankAccountReference ?? "-"}</p>
+                <p className="mt-1 text-xs text-slate-600">Completed: {formatDateTime(entry.completedAt)}</p>
+              </td>
+              <td className="min-w-44 px-4 py-3">
+                <p className="text-sm font-bold text-slate-950">{entry.handoffOwner ?? "No owner"}</p>
+                <p className="mt-1 text-xs font-semibold text-slate-600">{entry.handoffDueDate ?? "No due date"}</p>
+              </td>
+              <td className="min-w-40 px-4 py-3">
+                <div className="grid gap-2">
+                  <StatusBadge
+                    label={reconciliationHandoffStatusLabels[entry.handoffStatus]}
+                    tone={reconciliationHandoffStatusTones[entry.handoffStatus]}
+                  />
+                  <StatusBadge
+                    label={entry.overdueDays > 0 ? `${entry.overdueDays} hari overdue` : "On Track"}
+                    tone={entry.overdueDays > 0 ? "danger" : "success"}
+                  />
+                  <StatusBadge
+                    label={reconciliationReviewStatusLabels[entry.reviewStatus]}
+                    tone={reconciliationReviewStatusTones[entry.reviewStatus]}
+                  />
+                </div>
+              </td>
+              <td className="min-w-80 px-4 py-3">
+                <p className="max-w-xl break-words text-sm font-semibold leading-6 text-slate-900">{entry.noteText}</p>
+              </td>
+              <td className="whitespace-nowrap px-4 py-3 text-right font-bold text-slate-950">{entry.revisionCount}</td>
+              <td className="min-w-44 px-4 py-3">
+                <p className="text-xs font-semibold text-slate-700">{entry.updatedBy}</p>
+                <p className="mt-1 text-xs text-slate-600">{formatDateTime(entry.updatedAt)}</p>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -3490,6 +3794,7 @@ export function PaymentWorkspace() {
                 allowed={canReconcilePayments(permissions)}
                 canManageNotes={canManageReconciliationNotes}
               />
+              <PaymentReconciliationHandoffWorkloadPanel allowed={canReconcilePayments(permissions)} />
               <PaymentFilterToolbar
                 provider={provider}
                 status={status}

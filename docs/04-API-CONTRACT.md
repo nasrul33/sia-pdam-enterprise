@@ -175,6 +175,8 @@ The payment register is read-only. It exposes settlement/reversal traceability b
 | GET | /api/payment-reconciliation/sessions/{sessionId} | read reconciliation session detail and items | payment.reconcile |
 | POST | /api/payment-reconciliation/sessions/{sessionId}/items/{itemId}/resolve | close one reconciliation item with resolution status and reason | payment.reconcile |
 | POST | /api/payment-reconciliation/sessions/{sessionId}/complete | complete an open reconciliation session | payment.reconcile |
+| GET | /api/reports/payment-reconciliation-handoff-notes | list controlled handoff note workload with `handoffStatus`, `handoffOwner`, `dueFrom`, `dueTo`, and pagination filters | payment.reconcile |
+| GET | /api/reports/payment-reconciliation-handoff-notes/export | export controlled handoff note workload as CSV with the same filters | payment.reconcile |
 | GET | /api/reports/payment-reconciliation-review-register/{sessionId}/handoff-notes | read controlled reviewer handoff notes and revision history | payment.reconcile |
 | POST | /api/reports/payment-reconciliation-review-register/{sessionId}/handoff-notes | create reviewer handoff note for completed evidence | payment.reconcile + payment.reconciliation.handoff-note |
 | POST | /api/reports/payment-reconciliation-review-register/{sessionId}/handoff-notes/{noteId}/revisions | revise reviewer handoff note and append revision history | payment.reconcile + payment.reconciliation.handoff-note |
@@ -253,6 +255,10 @@ Reviewer handoff notes are allowed only for `COMPLETED` reconciliation sessions.
 ```
 
 Allowed handoff statuses are `OPEN`, `IN_PROGRESS`, and `CLEARED`. Create and revise commands append `payment_reconciliation_handoff_note_revisions`, record actor/timestamp/reason, and must not mutate signed-off evidence fields, reconciliation items, journals, payments, or ledger rows.
+
+`GET /api/reports/payment-reconciliation-handoff-notes` returns a paginated read-only workload of controlled handoff notes, joined to reconciliation session trace fields. Filters are optional: `handoffStatus=OPEN|IN_PROGRESS|CLEARED`, case-insensitive partial `handoffOwner`, `dueFrom`, `dueTo`, `page`, and `size`. Invalid due-date ranges are rejected before query execution. Each row includes `noteId`, `sessionId`, `sessionNumber`, `bankAccountReference`, completion/sign-off trace, current note metadata, `revisionCount`, `overdueDays`, actors, timestamps, and `generatedAt`.
+
+`GET /api/reports/payment-reconciliation-handoff-notes/export` returns `text/csv`, uses the same filters without `page/size`, limits export to 10,000 rows, and includes reviewer note text, owner, due date, status, overdue days, revision count, session trace, and generated timestamp. This endpoint is read-only and must not create notes, revisions, approval records, journals, payments, or ledger rows.
 
 ## Receivable Aging
 

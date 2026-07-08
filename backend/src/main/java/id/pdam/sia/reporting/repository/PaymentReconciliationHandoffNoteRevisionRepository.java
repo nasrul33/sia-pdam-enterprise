@@ -2,6 +2,8 @@ package id.pdam.sia.reporting.repository;
 
 import id.pdam.sia.reporting.domain.PaymentReconciliationHandoffNoteRevision;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.Collection;
 import java.util.List;
@@ -16,4 +18,12 @@ public interface PaymentReconciliationHandoffNoteRevisionRepository
     List<PaymentReconciliationHandoffNoteRevision> findByNoteIdInOrderByNoteIdAscRevisionNumberAsc(
             Collection<UUID> noteIds
     );
+
+    @Query("""
+            select revision.noteId as noteId, count(revision.id) as revisionCount
+            from PaymentReconciliationHandoffNoteRevision revision
+            where revision.noteId in :noteIds
+            group by revision.noteId
+            """)
+    List<PaymentReconciliationHandoffNoteRevisionCount> countRevisionsByNoteIdIn(@Param("noteIds") Collection<UUID> noteIds);
 }

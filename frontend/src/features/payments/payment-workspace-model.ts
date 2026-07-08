@@ -44,6 +44,11 @@ type ReconciliationReviewRegisterSubject = {
   pendingSignOffAgeDays: number;
 };
 
+type ReconciliationHandoffWorkloadSubject = {
+  handoffStatus: PaymentReconciliationHandoffStatus;
+  overdueDays: number;
+};
+
 export type PaymentWorkspaceSummary = {
   receivedEvents: number;
   processedEvents: number;
@@ -241,6 +246,14 @@ export type PaymentReconciliationReviewRegisterSummary = {
   adjustedItems: number;
 };
 
+export type PaymentReconciliationHandoffWorkloadSummary = {
+  totalNotes: number;
+  openNotes: number;
+  inProgressNotes: number;
+  clearedNotes: number;
+  overdueNotes: number;
+};
+
 export type PaymentReconciliationExportDraft = {
   status: PaymentStatus | "ALL";
   paidAtFrom: string;
@@ -289,6 +302,13 @@ export type PaymentReconciliationHandoffNoteDraft = {
   handoffDueDate: string;
   handoffStatus: PaymentReconciliationHandoffStatus;
   reason: string;
+};
+
+export type PaymentReconciliationHandoffWorkloadFilterDraft = {
+  handoffStatus: PaymentReconciliationHandoffStatus | "ALL";
+  handoffOwner: string;
+  dueFrom: string;
+  dueTo: string;
 };
 
 export type CounterPaymentAllocationDraft = {
@@ -410,6 +430,18 @@ export function summarizeReconciliationReviewRegister(
     ).length,
     exceptionItems: entries.reduce((total, entry) => total + entry.exceptionItems, 0),
     adjustedItems: entries.reduce((total, entry) => total + entry.adjustedItems, 0)
+  };
+}
+
+export function summarizeReconciliationHandoffWorkload(
+  entries: readonly ReconciliationHandoffWorkloadSubject[]
+): PaymentReconciliationHandoffWorkloadSummary {
+  return {
+    totalNotes: entries.length,
+    openNotes: entries.filter((entry) => entry.handoffStatus === "OPEN").length,
+    inProgressNotes: entries.filter((entry) => entry.handoffStatus === "IN_PROGRESS").length,
+    clearedNotes: entries.filter((entry) => entry.handoffStatus === "CLEARED").length,
+    overdueNotes: entries.filter((entry) => entry.handoffStatus !== "CLEARED" && entry.overdueDays > 0).length
   };
 }
 
@@ -612,6 +644,39 @@ export function reconciliationHandoffNoteErrors(draft: PaymentReconciliationHand
   return errors;
 }
 
+export function reconciliationHandoffWorkloadFilterErrors(
+  draft: PaymentReconciliationHandoffWorkloadFilterDraft
+): string[] {
+  const errors: string[] = [];
+  const fromTime = parseOptionalDate(draft.dueFrom);
+  const toTime = parseOptionalDate(draft.dueTo);
+
+  if (draft.dueFrom.trim() && fromTime === null) {
+    errors.push("Tanggal awal due date wajib valid.");
+  }
+  if (draft.dueTo.trim() && toTime === null) {
+    errors.push("Tanggal akhir due date wajib valid.");
+  }
+  if (fromTime !== null && toTime !== null && toTime < fromTime) {
+    errors.push("Tanggal akhir due date tidak boleh sebelum tanggal awal.");
+  }
+  if (draft.handoffOwner.trim().length > 128) {
+    errors.push("Filter owner handoff maksimal 128 karakter.");
+  }
+
+  return errors;
+}
+
+export function reconciliationHandoffWorkloadExportFilename(
+  draft: PaymentReconciliationHandoffWorkloadFilterDraft
+): string {
+  const statusSegment = draft.handoffStatus.toLowerCase().replaceAll("_", "-");
+  const ownerSegment = sanitizeFilenameSegment(draft.handoffOwner);
+  const fromSegment = filenameDateSegment(draft.dueFrom);
+  const toSegment = filenameDateSegment(draft.dueTo);
+  return `payment-reconciliation-handoff-workload-${statusSegment}-${ownerSegment}-${fromSegment}-${toSegment}.csv`;
+}
+
 export function toClosedResolutionStatus(
   status: PaymentReconciliationResolutionStatus
 ): ClosedPaymentReconciliationResolutionStatus | null {
@@ -769,6 +834,23 @@ function filenameDateSegment(value: string): string {
     return "invalid";
   }
   return new Date(time).toISOString().slice(0, 10);
+}
+
+function sanitizeFilenameSegment(value: string): string {
+  const normalized = value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return normalized || "all-owner";
+}
+
+function parseOptionalDate(value: string): number | null {
+  const normalized = value.trim();
+  if (!normalized) {
+    return null;
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    return null;
+  }
+  const time = new Date(`${normalized}T00:00:00Z`).getTime();
+  return Number.isNaN(time) ? null : time;
 }
 
 function findHeader(headers: readonly string[], candidates: readonly string[]): number {

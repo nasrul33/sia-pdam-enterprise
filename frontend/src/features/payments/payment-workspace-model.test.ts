@@ -20,6 +20,9 @@ import {
   reconciliationReviewRegisterFilterErrors,
   reconciliationReviewRegisterExportFilename,
   reconciliationHandoffNoteErrors,
+  reconciliationHandoffWorkloadFilterErrors,
+  reconciliationHandoffWorkloadExportFilename,
+  summarizeReconciliationHandoffWorkload,
   reconciliationSignOffErrors,
   reconciliationCompletionErrors,
   reconciliationResolutionErrors,
@@ -541,6 +544,81 @@ test("reconciliationHandoffNoteErrors validates controlled note revisions", () =
       reason: "Follow up hasil review register."
     }),
     []
+  );
+});
+
+test("summarizeReconciliationHandoffWorkload tracks owner follow-up SLA", () => {
+  assert.deepEqual(
+    summarizeReconciliationHandoffWorkload([
+      { handoffStatus: "OPEN", overdueDays: 2 },
+      { handoffStatus: "IN_PROGRESS", overdueDays: 1 },
+      { handoffStatus: "IN_PROGRESS", overdueDays: 0 },
+      { handoffStatus: "CLEARED", overdueDays: 5 }
+    ]),
+    {
+      totalNotes: 4,
+      openNotes: 1,
+      inProgressNotes: 2,
+      clearedNotes: 1,
+      overdueNotes: 2
+    }
+  );
+});
+
+test("reconciliationHandoffWorkloadFilterErrors validates due date scope", () => {
+  assert.deepEqual(
+    reconciliationHandoffWorkloadFilterErrors({
+      handoffStatus: "ALL",
+      handoffOwner: "finance.ops",
+      dueFrom: "bad-date",
+      dueTo: "2026-08-03"
+    }),
+    ["Tanggal awal due date wajib valid."]
+  );
+
+  assert.deepEqual(
+    reconciliationHandoffWorkloadFilterErrors({
+      handoffStatus: "OPEN",
+      handoffOwner: "x".repeat(129),
+      dueFrom: "2026-08-10",
+      dueTo: "2026-08-01"
+    }),
+    [
+      "Tanggal akhir due date tidak boleh sebelum tanggal awal.",
+      "Filter owner handoff maksimal 128 karakter."
+    ]
+  );
+
+  assert.deepEqual(
+    reconciliationHandoffWorkloadFilterErrors({
+      handoffStatus: "IN_PROGRESS",
+      handoffOwner: "finance.ops",
+      dueFrom: "2026-08-01",
+      dueTo: "2026-08-31"
+    }),
+    []
+  );
+});
+
+test("reconciliationHandoffWorkloadExportFilename includes status owner and due date scope", () => {
+  assert.equal(
+    reconciliationHandoffWorkloadExportFilename({
+      handoffStatus: "IN_PROGRESS",
+      handoffOwner: "Finance Ops",
+      dueFrom: "2026-08-01",
+      dueTo: "2026-08-31"
+    }),
+    "payment-reconciliation-handoff-workload-in-progress-finance-ops-2026-08-01-2026-08-31.csv"
+  );
+
+  assert.equal(
+    reconciliationHandoffWorkloadExportFilename({
+      handoffStatus: "ALL",
+      handoffOwner: "",
+      dueFrom: "",
+      dueTo: ""
+    }),
+    "payment-reconciliation-handoff-workload-all-all-owner-all-all.csv"
   );
 });
 

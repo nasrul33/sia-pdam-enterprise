@@ -9,6 +9,7 @@ import {
   getPaymentReconciliationSession,
   getPayment,
   listPaymentReconciliationHandoffNotes,
+  listPaymentReconciliationHandoffWorkload,
   listPaymentReconciliationReviewRegister,
   listPaymentReconciliationSessions,
   listPaymentWebhookEvents,
@@ -26,6 +27,7 @@ import type {
   CreatePaymentReconciliationSessionPayload,
   PaymentFilters,
   PaymentReconciliationHandoffNotePayload,
+  PaymentReconciliationHandoffWorkloadFilters,
   PaymentReconciliationMatchPayload,
   PaymentReconciliationReviewRegisterFilters,
   PaymentReconciliationSessionFilters,
@@ -106,6 +108,17 @@ export function usePaymentReconciliationHandoffNotes(sessionId: string | null, e
     queryKey: [...queryKeys.payments, "reconciliation-handoff-notes", sessionId],
     queryFn: () => listPaymentReconciliationHandoffNotes(sessionId ?? ""),
     enabled: enabled && Boolean(sessionId)
+  });
+}
+
+export function usePaymentReconciliationHandoffWorkload(
+  filters: PaymentReconciliationHandoffWorkloadFilters,
+  enabled = true
+) {
+  return useQuery({
+    queryKey: [...queryKeys.payments, "reconciliation-handoff-workload", filters],
+    queryFn: () => listPaymentReconciliationHandoffWorkload(filters),
+    enabled
   });
 }
 

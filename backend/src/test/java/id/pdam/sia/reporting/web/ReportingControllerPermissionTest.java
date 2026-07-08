@@ -1,10 +1,12 @@
 package id.pdam.sia.reporting.web;
 
 import id.pdam.sia.reporting.application.PaymentReconciliationReviewStatus;
+import id.pdam.sia.reporting.domain.PaymentReconciliationHandoffStatus;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.lang.reflect.Method;
 import java.security.Principal;
 import java.util.UUID;
@@ -50,6 +52,28 @@ class ReportingControllerPermissionTest {
 
     @Test
     void bankReconciliationHandoffNotesUseReadAndMutationPermissions() throws NoSuchMethodException {
+        assertPermission(
+                ReportingController.class.getMethod(
+                        "paymentReconciliationHandoffWorkload",
+                        PaymentReconciliationHandoffStatus.class,
+                        String.class,
+                        LocalDate.class,
+                        LocalDate.class,
+                        int.class,
+                        int.class
+                ),
+                "hasAuthority('payment.reconcile')"
+        );
+        assertPermission(
+                ReportingController.class.getMethod(
+                        "exportPaymentReconciliationHandoffWorkload",
+                        PaymentReconciliationHandoffStatus.class,
+                        String.class,
+                        LocalDate.class,
+                        LocalDate.class
+                ),
+                "hasAuthority('payment.reconcile')"
+        );
         assertPermission(
                 ReportingController.class.getMethod("paymentReconciliationHandoffNotes", UUID.class),
                 "hasAuthority('payment.reconcile')"
