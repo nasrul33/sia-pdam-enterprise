@@ -1,4 +1,6 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:18080";
+const DEV_BASIC_AUTH_USERNAME = process.env.NEXT_PUBLIC_DEV_BASIC_AUTH_USERNAME ?? "";
+const DEV_BASIC_AUTH_PASSWORD = process.env.NEXT_PUBLIC_DEV_BASIC_AUTH_PASSWORD ?? "";
 
 export class ApiClientError extends Error {
   constructor(
@@ -25,11 +27,28 @@ function isErrorPayload(payload: unknown): payload is { message?: unknown; code?
   return typeof payload === "object" && payload !== null;
 }
 
-async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
-  const headers = new Headers(init?.headers);
+function applyDefaultHeaders(headers: Headers): Headers {
   if (!headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
+
+  const devAuthorization = devBasicAuthorization();
+  if (devAuthorization && !headers.has("Authorization")) {
+    headers.set("Authorization", devAuthorization);
+  }
+
+  return headers;
+}
+
+function devBasicAuthorization(): string | null {
+  if (!DEV_BASIC_AUTH_USERNAME || !DEV_BASIC_AUTH_PASSWORD) {
+    return null;
+  }
+  return `Basic ${btoa(`${DEV_BASIC_AUTH_USERNAME}:${DEV_BASIC_AUTH_PASSWORD}`)}`;
+}
+
+async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers = applyDefaultHeaders(new Headers(init?.headers));
 
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
@@ -51,10 +70,7 @@ async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 async function apiRequestText(path: string, init?: RequestInit): Promise<string> {
-  const headers = new Headers(init?.headers);
-  if (!headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json");
-  }
+  const headers = applyDefaultHeaders(new Headers(init?.headers));
 
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,

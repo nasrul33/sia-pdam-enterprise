@@ -1,5 +1,6 @@
 package id.pdam.sia.shared.security;
 
+import id.pdam.sia.auth.AuthController;
 import id.pdam.sia.payment.application.PaymentWebhookApplicationService;
 import id.pdam.sia.payment.domain.PaymentWebhookEvent;
 import id.pdam.sia.payment.web.PaymentWebhookController;
@@ -18,10 +19,15 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(PaymentWebhookController.class)
+@WebMvcTest({
+        AuthController.class,
+        PaymentWebhookController.class
+})
 @Import(SecurityConfig.class)
 @ImportAutoConfiguration({
         SecurityAutoConfiguration.class,
@@ -33,6 +39,16 @@ class SecurityConfigTest {
 
     @MockitoBean
     private PaymentWebhookApplicationService paymentWebhookApplicationService;
+
+    @Test
+    void authMeIsPublicAndReturnsAnonymousStateWithoutBasicAuth() throws Exception {
+        mockMvc.perform(get("/api/auth/me"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.username").doesNotExist())
+                .andExpect(jsonPath("$.authenticated").value(false))
+                .andExpect(jsonPath("$.authorities").isArray())
+                .andExpect(jsonPath("$.authorities").isEmpty());
+    }
 
     @Test
     void providerWebhookPostIsPublicAtFilterChainAndValidatedByApplicationService() throws Exception {

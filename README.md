@@ -43,11 +43,18 @@ docker compose config
 docker compose up -d --build
 ```
 
-Login development setelah `.env.example` disalin:
+Login development setelah `.env.example` disalin. Frontend local Docker otomatis mengirim Basic Auth dev ke backend supaya in-app browser tidak bergantung pada popup login:
 
 ```txt
 username: admin
 password: Admin123456789!
+```
+
+Endpoint `/api/auth/me` bisa dibuka langsung untuk cek status sesi. Tanpa credential hasilnya anonymous; dengan credential hasilnya user admin:
+
+```powershell
+curl.exe http://localhost:18080/api/auth/me
+curl.exe -u admin:Admin123456789! http://localhost:18080/api/auth/me
 ```
 
 Jika database lokal Docker lama pernah dibuat dari versi migrasi berbeda dan backend gagal dengan Flyway checksum mismatch, reset volume hanya untuk development:

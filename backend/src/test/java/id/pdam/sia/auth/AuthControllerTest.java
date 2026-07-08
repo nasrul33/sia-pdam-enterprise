@@ -1,11 +1,10 @@
 package id.pdam.sia.auth;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
-import java.lang.reflect.Method;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -36,12 +35,18 @@ class AuthControllerTest {
     }
 
     @Test
-    void currentUserEndpointRequiresAuthentication() throws NoSuchMethodException {
-        Method method = AuthController.class.getMethod("currentUser", org.springframework.security.core.Authentication.class);
+    void currentUserReturnsAnonymousStateWithoutAuthorities() {
+        AuthController controller = new AuthController();
+        AnonymousAuthenticationToken authentication = new AnonymousAuthenticationToken(
+                "anonymous",
+                "anonymousUser",
+                List.of(new SimpleGrantedAuthority("ROLE_ANONYMOUS"))
+        );
 
-        PreAuthorize annotation = method.getAnnotation(PreAuthorize.class);
+        CurrentUserResponse response = controller.currentUser(authentication);
 
-        assertThat(annotation).isNotNull();
-        assertThat(annotation.value()).isEqualTo("isAuthenticated()");
+        assertThat(response.username()).isNull();
+        assertThat(response.authenticated()).isFalse();
+        assertThat(response.authorities()).isEmpty();
     }
 }
