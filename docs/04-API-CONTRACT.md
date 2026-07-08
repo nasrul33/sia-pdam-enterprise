@@ -181,6 +181,7 @@ The payment register is read-only. It exposes settlement/reversal traceability b
 | GET | /api/reports/payment-reconciliation-handoff-notes/owner-sla/export | export owner/status handoff SLA escalation as CSV | payment.reconcile |
 | GET | /api/reports/payment-reconciliation-handoff-notes/aging-buckets | bucket active handoff notes by owner into due-today and overdue aging groups | payment.reconcile |
 | GET | /api/reports/payment-reconciliation-handoff-notes/aging-buckets/export | export stale owner aging buckets as CSV | payment.reconcile |
+| GET | /api/reports/payment-reconciliation-handoff-notes/aging-buckets/evidence-packet/export | export stale handoff note detail packet grouped by owner and aging bucket | payment.reconcile |
 | GET | /api/reports/payment-reconciliation-review-register/{sessionId}/handoff-notes | read controlled reviewer handoff notes and revision history | payment.reconcile |
 | POST | /api/reports/payment-reconciliation-review-register/{sessionId}/handoff-notes | create reviewer handoff note for completed evidence | payment.reconcile + payment.reconciliation.handoff-note |
 | POST | /api/reports/payment-reconciliation-review-register/{sessionId}/handoff-notes/{noteId}/revisions | revise reviewer handoff note and append revision history | payment.reconcile + payment.reconciliation.handoff-note |
@@ -271,6 +272,8 @@ Allowed handoff statuses are `OPEN`, `IN_PROGRESS`, and `CLEARED`. Create and re
 `GET /api/reports/payment-reconciliation-handoff-notes/aging-buckets` returns active handoff notes only (`OPEN` and `IN_PROGRESS`) grouped by owner using the same filters. Each owner row includes `activeNotes`, `dueTodayNotes`, `overdue1To3Notes`, `overdue4To7Notes`, `overdueOver7Notes`, `futureDueNotes`, `noDueDateNotes`, `staleNotes`, `nearestDueDate`, `maxOverdueDays`, `latestUpdatedAt`, `truncated`, and `generatedAt`. `CLEARED` notes are excluded from the active aging report even when historical workload export still supports them.
 
 `GET /api/reports/payment-reconciliation-handoff-notes/aging-buckets/export` returns `text/csv`, bounded to 10,000 source rows, and exports owner rows that have either due-today or stale overdue workload. It is read-only and must not create notes, revisions, approval records, journals, payments, or ledger rows.
+
+`GET /api/reports/payment-reconciliation-handoff-notes/aging-buckets/evidence-packet/export` returns `text/csv`, bounded to 10,000 active source rows, and exports stale overdue detail rows only (`overdueDays > 0`) grouped by `packet_owner` and `aging_bucket=OVERDUE_1_3|OVERDUE_4_7|OVERDUE_OVER_7`. Each row includes owner/unassigned scope, overdue days, note/session IDs, session number, bank account reference, completion/sign-off trace, handoff status/due date, revision count, reviewer note text, created/updated actor timestamps, and `generatedAt`. It is read-only and must not send notifications, create escalation tasks, create notes or revisions, approve evidence, post journals, mutate payments, or write ledger rows.
 
 ## Receivable Aging
 

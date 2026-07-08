@@ -235,6 +235,26 @@ public class ReportingController {
                 ));
     }
 
+    @GetMapping(value = "/payment-reconciliation-handoff-notes/aging-buckets/evidence-packet/export", produces = "text/csv")
+    @PreAuthorize(Permissions.PAYMENT_RECONCILE)
+    public ResponseEntity<String> exportPaymentReconciliationHandoffAgingEvidencePacket(
+            @RequestParam(required = false) PaymentReconciliationHandoffStatus handoffStatus,
+            @RequestParam(required = false) String handoffOwner,
+            @RequestParam(defaultValue = "false") boolean unassignedOnly,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dueFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dueTo
+    ) {
+        return ResponseEntity.ok()
+                .contentType(TEXT_CSV)
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                        .filename("payment-reconciliation-handoff-aging-evidence-packet.csv")
+                        .build()
+                        .toString())
+                .body(bankReconciliationHandoffWorkloadApplicationService.staleEvidencePacketCsv(
+                        new PaymentReconciliationHandoffWorkloadFilters(handoffStatus, handoffOwner, unassignedOnly, dueFrom, dueTo)
+                ));
+    }
+
     @GetMapping("/payment-reconciliation-review-register/{sessionId}/handoff-notes")
     @PreAuthorize(Permissions.PAYMENT_RECONCILE)
     public List<PaymentReconciliationHandoffNoteResponse> paymentReconciliationHandoffNotes(@PathVariable UUID sessionId) {

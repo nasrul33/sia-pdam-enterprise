@@ -20,6 +20,7 @@ import {
   reconciliationReviewRegisterFilterErrors,
   reconciliationReviewRegisterExportFilename,
   reconciliationHandoffNoteErrors,
+  reconciliationHandoffAgingEvidencePacketExportFilename,
   reconciliationHandoffAgingBucketExportFilename,
   reconciliationHandoffOwnerDrilldownFilter,
   reconciliationHandoffOwnerSlaExportFilename,
@@ -746,6 +747,17 @@ test("reconciliationHandoffAgingBucket helpers summarize stale queues and export
       dueTo: "2026-08-31"
     }),
     "payment-reconciliation-handoff-aging-buckets-all-unassigned-2026-08-01-2026-08-31.csv"
+  );
+
+  assert.equal(
+    reconciliationHandoffAgingEvidencePacketExportFilename({
+      handoffStatus: "IN_PROGRESS",
+      handoffOwner: "Finance Ops",
+      unassignedOnly: false,
+      dueFrom: "2026-08-01",
+      dueTo: "2026-08-31"
+    }),
+    "payment-reconciliation-handoff-aging-evidence-packet-in-progress-finance-ops-2026-08-01-2026-08-31.csv"
   );
 });
 

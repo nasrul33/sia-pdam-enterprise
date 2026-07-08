@@ -329,6 +329,101 @@ class BankReconciliationHandoffWorkloadApplicationServiceTest {
     }
 
     @Test
+    void staleEvidencePacketCsvExportsGroupedStaleDetailsWithoutMutatingEvidence() {
+        PaymentReconciliationSession session = completedSession("REC-20260801-PACKET");
+        PaymentReconciliationSession otherSession = completedSession("REC-20260802-PACKET");
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        PaymentReconciliationHandoffNote overdueNineDays = new PaymentReconciliationHandoffNote(
+                session.getId(),
+                "Supervisor evidence, includes comma",
+                "finance.ops",
+                today.minusDays(9),
+                PaymentReconciliationHandoffStatus.OPEN,
+                "auditor.internal"
+        );
+        PaymentReconciliationHandoffNote overdueFiveDays = new PaymentReconciliationHandoffNote(
+                session.getId(),
+                "Evidence for medium stale queue",
+                "finance.ops",
+                today.minusDays(5),
+                PaymentReconciliationHandoffStatus.IN_PROGRESS,
+                "auditor.internal"
+        );
+        PaymentReconciliationHandoffNote overdueTwoDays = new PaymentReconciliationHandoffNote(
+                otherSession.getId(),
+                "Evidence for low stale queue",
+                "finance.ops",
+                today.minusDays(2),
+                PaymentReconciliationHandoffStatus.OPEN,
+                "auditor.internal"
+        );
+        PaymentReconciliationHandoffNote unassignedOverdue = new PaymentReconciliationHandoffNote(
+                otherSession.getId(),
+                "Unassigned stale evidence",
+                null,
+                today.minusDays(4),
+                PaymentReconciliationHandoffStatus.OPEN,
+                "auditor.internal"
+        );
+        PaymentReconciliationHandoffNote dueToday = new PaymentReconciliationHandoffNote(
+                session.getId(),
+                "Due today packet row must stay out",
+                "finance.ops",
+                today,
+                PaymentReconciliationHandoffStatus.OPEN,
+                "auditor.internal"
+        );
+        PaymentReconciliationHandoffNote future = new PaymentReconciliationHandoffNote(
+                session.getId(),
+                "Future packet row must stay out",
+                "finance.ops",
+                today.plusDays(2),
+                PaymentReconciliationHandoffStatus.IN_PROGRESS,
+                "auditor.internal"
+        );
+        PaymentReconciliationHandoffNote cleared = new PaymentReconciliationHandoffNote(
+                session.getId(),
+                "Cleared packet row must stay out",
+                "finance.ops",
+                today.minusDays(30),
+                PaymentReconciliationHandoffStatus.CLEARED,
+                "auditor.internal"
+        );
+        when(noteRepository.findAll(
+                org.mockito.ArgumentMatchers.<Specification<PaymentReconciliationHandoffNote>>any(),
+                any(Pageable.class)
+        )).thenReturn(new PageImpl<>(
+                List.of(overdueNineDays, overdueFiveDays, overdueTwoDays, unassignedOverdue, dueToday, future, cleared),
+                PageRequest.of(0, 10_000),
+                7
+        ));
+        when(sessionRepository.findAllById(anyCollection())).thenReturn(List.of(session, otherSession));
+        when(revisionRepository.countRevisionsByNoteIdIn(anyCollection()))
+                .thenReturn(List.of(count(overdueNineDays.getId(), 2), count(unassignedOverdue.getId(), 1)));
+
+        String csv = service.staleEvidencePacketCsv(
+                new PaymentReconciliationHandoffWorkloadFilters(null, null, false, null, null)
+        );
+
+        assertThat(csv)
+                .startsWith("packet_owner,unassigned,aging_bucket,aging_bucket_label,overdue_days")
+                .containsSubsequence(
+                        "finance.ops,false,OVERDUE_OVER_7,>7 hari overdue,9",
+                        "finance.ops,false,OVERDUE_4_7,4-7 hari overdue,5",
+                        "finance.ops,false,OVERDUE_1_3,1-3 hari overdue,2",
+                        "UNASSIGNED,true,OVERDUE_4_7,4-7 hari overdue,4"
+                )
+                .contains(session.getSessionNumber())
+                .contains(otherSession.getSessionNumber())
+                .contains("\"Supervisor evidence, includes comma\"")
+                .contains("," + overdueNineDays.getId() + ",")
+                .contains(",2,\"Supervisor evidence, includes comma\"")
+                .doesNotContain("Due today packet row must stay out")
+                .doesNotContain("Future packet row must stay out")
+                .doesNotContain("Cleared packet row must stay out");
+    }
+
+    @Test
     void rejectsOwnerFilterWhenUnassignedScopeIsSelected() {
         assertThatThrownBy(() -> service.ownerSla(
                 new PaymentReconciliationHandoffWorkloadFilters(

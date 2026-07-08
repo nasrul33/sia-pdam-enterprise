@@ -121,6 +121,17 @@ class ReportingControllerPermissionTest {
                 "hasAuthority('payment.reconcile')"
         );
         assertPermission(
+                ReportingController.class.getMethod(
+                        "exportPaymentReconciliationHandoffAgingEvidencePacket",
+                        PaymentReconciliationHandoffStatus.class,
+                        String.class,
+                        boolean.class,
+                        LocalDate.class,
+                        LocalDate.class
+                ),
+                "hasAuthority('payment.reconcile')"
+        );
+        assertPermission(
                 ReportingController.class.getMethod("paymentReconciliationHandoffNotes", UUID.class),
                 "hasAuthority('payment.reconcile')"
         );

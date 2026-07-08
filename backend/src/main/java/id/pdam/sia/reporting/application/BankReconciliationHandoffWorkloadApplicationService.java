@@ -262,11 +262,90 @@ public class BankReconciliationHandoffWorkloadApplicationService {
         return builder.toString();
     }
 
+    @Transactional(readOnly = true)
+    public String staleEvidencePacketCsv(PaymentReconciliationHandoffWorkloadFilters filters) {
+        Page<PaymentReconciliationHandoffWorkloadEntry> rows = loadActiveWorkload(
+                normalize(filters),
+                PageRequest.of(0, MAX_EXPORT_ROWS, WORKLOAD_SORT)
+        );
+        StringBuilder builder = new StringBuilder();
+        appendRow(
+                builder,
+                "packet_owner",
+                "unassigned",
+                "aging_bucket",
+                "aging_bucket_label",
+                "overdue_days",
+                "note_id",
+                "session_id",
+                "session_number",
+                "bank_account_reference",
+                "completed_at",
+                "review_status",
+                "signed_off_by",
+                "signed_off_at",
+                "handoff_status",
+                "handoff_due_date",
+                "revision_count",
+                "reviewer_notes",
+                "created_by",
+                "created_at",
+                "updated_by",
+                "updated_at",
+                "generated_at"
+        );
+        rows.getContent()
+                .stream()
+                .filter(row -> row.overdueDays() > 0)
+                .sorted(staleEvidencePacketSort())
+                .forEach(row -> appendRow(
+                        builder,
+                        ownerLabel(row),
+                        row.handoffOwner() == null,
+                        agingBucketCode(row.overdueDays()),
+                        agingBucketLabel(row.overdueDays()),
+                        row.overdueDays(),
+                        row.noteId(),
+                        row.sessionId(),
+                        row.sessionNumber(),
+                        row.bankAccountReference(),
+                        row.completedAt(),
+                        row.reviewStatus(),
+                        row.signedOffBy(),
+                        row.signedOffAt(),
+                        row.handoffStatus(),
+                        row.handoffDueDate(),
+                        row.revisionCount(),
+                        row.noteText(),
+                        row.createdBy(),
+                        row.createdAt(),
+                        row.updatedBy(),
+                        row.updatedAt(),
+                        row.generatedAt()
+                ));
+        return builder.toString();
+    }
+
     private Page<PaymentReconciliationHandoffWorkloadEntry> loadWorkload(
             PaymentReconciliationHandoffWorkloadFilters filters,
             PageRequest pageable
     ) {
         Page<PaymentReconciliationHandoffNote> notes = loadNotes(filters, pageable);
+        return toWorkloadEntries(notes, pageable);
+    }
+
+    private Page<PaymentReconciliationHandoffWorkloadEntry> loadActiveWorkload(
+            PaymentReconciliationHandoffWorkloadFilters filters,
+            PageRequest pageable
+    ) {
+        Page<PaymentReconciliationHandoffNote> notes = loadAgingNotes(filters, pageable);
+        return toWorkloadEntries(notes, pageable);
+    }
+
+    private Page<PaymentReconciliationHandoffWorkloadEntry> toWorkloadEntries(
+            Page<PaymentReconciliationHandoffNote> notes,
+            PageRequest pageable
+    ) {
         List<UUID> sessionIds = notes.getContent().stream()
                 .map(PaymentReconciliationHandoffNote::getSessionId)
                 .distinct()
@@ -445,6 +524,54 @@ public class BankReconciliationHandoffWorkloadApplicationService {
                 .thenComparing(Comparator.comparingLong(PaymentReconciliationHandoffAgingBucketEntry::overdue1To3Notes).reversed())
                 .thenComparing(Comparator.comparingLong(PaymentReconciliationHandoffAgingBucketEntry::dueTodayNotes).reversed())
                 .thenComparing(PaymentReconciliationHandoffAgingBucketEntry::ownerLabel);
+    }
+
+    private static Comparator<PaymentReconciliationHandoffWorkloadEntry> staleEvidencePacketSort() {
+        return Comparator.comparing(
+                        BankReconciliationHandoffWorkloadApplicationService::ownerLabel,
+                        String.CASE_INSENSITIVE_ORDER
+                )
+                .thenComparingInt(row -> agingBucketRank(row.overdueDays()))
+                .thenComparing(Comparator.comparingLong(PaymentReconciliationHandoffWorkloadEntry::overdueDays).reversed())
+                .thenComparing(
+                        PaymentReconciliationHandoffWorkloadEntry::handoffDueDate,
+                        Comparator.nullsLast(Comparator.naturalOrder())
+                )
+                .thenComparing(PaymentReconciliationHandoffWorkloadEntry::sessionNumber);
+    }
+
+    private static String ownerLabel(PaymentReconciliationHandoffWorkloadEntry row) {
+        return row.handoffOwner() == null ? "UNASSIGNED" : row.handoffOwner();
+    }
+
+    private static String agingBucketCode(long overdueDays) {
+        if (overdueDays > 7) {
+            return "OVERDUE_OVER_7";
+        }
+        if (overdueDays > 3) {
+            return "OVERDUE_4_7";
+        }
+        return "OVERDUE_1_3";
+    }
+
+    private static String agingBucketLabel(long overdueDays) {
+        if (overdueDays > 7) {
+            return ">7 hari overdue";
+        }
+        if (overdueDays > 3) {
+            return "4-7 hari overdue";
+        }
+        return "1-3 hari overdue";
+    }
+
+    private static int agingBucketRank(long overdueDays) {
+        if (overdueDays > 7) {
+            return 0;
+        }
+        if (overdueDays > 3) {
+            return 1;
+        }
+        return 2;
     }
 
     private static void appendRow(StringBuilder builder, Object... values) {

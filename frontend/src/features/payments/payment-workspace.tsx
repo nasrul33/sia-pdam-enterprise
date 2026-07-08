@@ -55,6 +55,7 @@ import {
   reconciliationReviewRegisterFilterErrors,
   reconciliationHandoffNoteErrors,
   reconciliationHandoffAgingBucketExportFilename,
+  reconciliationHandoffAgingEvidencePacketExportFilename,
   reconciliationHandoffOwnerDrilldownFilter,
   reconciliationHandoffOwnerSlaExportFilename,
   reconciliationHandoffWorkloadExportFilename,
@@ -117,6 +118,7 @@ import {
 import {
   exportPaymentReconciliationCsv,
   exportPaymentReconciliationEvidenceCsv,
+  exportPaymentReconciliationHandoffAgingEvidencePacketCsv,
   exportPaymentReconciliationHandoffAgingBucketsCsv,
   exportPaymentReconciliationHandoffOwnerSlaCsv,
   exportPaymentReconciliationHandoffWorkloadCsv,
@@ -1548,6 +1550,7 @@ function PaymentReconciliationHandoffWorkloadPanel({ allowed }: Readonly<{ allow
   const [isExporting, setIsExporting] = useState(false);
   const [isExportingOwnerSla, setIsExportingOwnerSla] = useState(false);
   const [isExportingAgingBuckets, setIsExportingAgingBuckets] = useState(false);
+  const [isExportingEvidencePacket, setIsExportingEvidencePacket] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const filterErrors = reconciliationHandoffWorkloadFilterErrors(filter);
   const filtersValid = filterErrors.length === 0;
@@ -1653,6 +1656,28 @@ function PaymentReconciliationHandoffWorkloadPanel({ allowed }: Readonly<{ allow
     }
   }
 
+  async function handleAgingEvidencePacketExport() {
+    setExportError(null);
+    if (!filtersValid) {
+      setExportError(filterErrors[0] ?? "Filter export evidence packet handoff tidak valid.");
+      return;
+    }
+
+    setIsExportingEvidencePacket(true);
+    try {
+      const csv = await exportPaymentReconciliationHandoffAgingEvidencePacketCsv(ownerSlaFilters);
+      downloadTextFile(
+        reconciliationHandoffAgingEvidencePacketExportFilename(filter),
+        csv,
+        "text/csv;charset=utf-8"
+      );
+    } catch (error) {
+      setExportError(apiErrorMessage(error, "Gagal export evidence packet handoff."));
+    } finally {
+      setIsExportingEvidencePacket(false);
+    }
+  }
+
   function applyOwnerDrilldown(
     entry: { handoffOwner: string | null; unassigned: boolean },
     handoffStatus: PaymentReconciliationHandoffStatus | "ALL" = "ALL"
@@ -1694,6 +1719,16 @@ function PaymentReconciliationHandoffWorkloadPanel({ allowed }: Readonly<{ allow
               Memperbarui
             </span>
           ) : null}
+          <button
+            type="button"
+            className={secondaryButtonClass}
+            disabled={!filtersValid || isExportingEvidencePacket}
+            title="Export detail stale handoff per owner dan aging bucket"
+            onClick={handleAgingEvidencePacketExport}
+          >
+            {isExportingEvidencePacket ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <FileSearch className="size-4" aria-hidden="true" />}
+            Export Packet
+          </button>
           <button
             type="button"
             className={secondaryButtonClass}

@@ -288,6 +288,15 @@ export async function exportPaymentReconciliationHandoffAgingBucketsCsv(
   return apiGetText(`/api/reports/payment-reconciliation-handoff-notes/aging-buckets/export${query ? `?${query}` : ""}`);
 }
 
+export async function exportPaymentReconciliationHandoffAgingEvidencePacketCsv(
+  filters: PaymentReconciliationHandoffOwnerSlaFilters
+) {
+  const query = reconciliationHandoffOwnerSlaParams(filters).toString();
+  return apiGetText(
+    `/api/reports/payment-reconciliation-handoff-notes/aging-buckets/evidence-packet/export${query ? `?${query}` : ""}`
+  );
+}
+
 export async function listPaymentReconciliationHandoffNotes(sessionId: string) {
   const payload = await apiGet<unknown>(`/api/reports/payment-reconciliation-review-register/${sessionId}/handoff-notes`);
   return paymentReconciliationHandoffNoteListSchema.parse(payload);

@@ -750,6 +750,16 @@ export function reconciliationHandoffAgingBucketExportFilename(
   return `payment-reconciliation-handoff-aging-buckets-${statusSegment}-${ownerSegment}-${fromSegment}-${toSegment}.csv`;
 }
 
+export function reconciliationHandoffAgingEvidencePacketExportFilename(
+  draft: PaymentReconciliationHandoffWorkloadFilterDraft
+): string {
+  const statusSegment = draft.handoffStatus.toLowerCase().replaceAll("_", "-");
+  const ownerSegment = draft.unassignedOnly ? "unassigned" : sanitizeFilenameSegment(draft.handoffOwner);
+  const fromSegment = filenameDateSegment(draft.dueFrom);
+  const toSegment = filenameDateSegment(draft.dueTo);
+  return `payment-reconciliation-handoff-aging-evidence-packet-${statusSegment}-${ownerSegment}-${fromSegment}-${toSegment}.csv`;
+}
+
 export function reconciliationHandoffOwnerDrilldownFilter(
   current: PaymentReconciliationHandoffWorkloadFilterDraft,
   input: {
