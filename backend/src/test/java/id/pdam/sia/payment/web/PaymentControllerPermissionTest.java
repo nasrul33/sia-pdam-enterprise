@@ -122,6 +122,16 @@ class PaymentControllerPermissionTest {
         );
         assertPermission(
                 PaymentReconciliationController.class.getMethod(
+                        "createAdjustment",
+                        UUID.class,
+                        UUID.class,
+                        CreatePaymentReconciliationAdjustmentRequest.class,
+                        Principal.class
+                ),
+                "hasAuthority('payment.reconcile') and hasAuthority('journal.post')"
+        );
+        assertPermission(
+                PaymentReconciliationController.class.getMethod(
                         "completeSession",
                         UUID.class,
                         CompletePaymentReconciliationSessionRequest.class,

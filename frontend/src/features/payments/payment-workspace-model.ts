@@ -29,6 +29,7 @@ type ReconciliationSessionItemSubject = {
   matchStatus: PaymentReconciliationMatchStatus;
   resolutionStatus: PaymentReconciliationResolutionStatus;
   amountVariance: number | null;
+  adjustmentJournalEntryId?: string | null;
 };
 
 export type PaymentWorkspaceSummary = {
@@ -216,6 +217,7 @@ export type PaymentReconciliationSessionItemSummary = PaymentReconciliationMatch
   resolvedItems: number;
   ignoredItems: number;
   exceptionItems: number;
+  adjustedItems: number;
 };
 
 export type PaymentReconciliationExportDraft = {
@@ -227,6 +229,15 @@ export type PaymentReconciliationExportDraft = {
 export type PaymentReconciliationResolutionDraft = {
   itemId: string;
   resolutionStatus: PaymentReconciliationResolutionStatus;
+  reason: string;
+};
+
+export type PaymentReconciliationAdjustmentDraft = {
+  itemId: string;
+  period: string;
+  amount: string;
+  debitAccountId: string;
+  creditAccountId: string;
   reason: string;
 };
 
@@ -324,7 +335,8 @@ export function summarizeReconciliationSessionItems(
     acceptedItems: items.filter((item) => item.resolutionStatus === "ACCEPTED").length,
     resolvedItems: items.filter((item) => item.resolutionStatus === "RESOLVED").length,
     ignoredItems: items.filter((item) => item.resolutionStatus === "IGNORED").length,
-    exceptionItems: items.filter((item) => item.matchStatus !== "EXACT_MATCH" && item.matchStatus !== "PROBABLE_MATCH").length
+    exceptionItems: items.filter((item) => item.matchStatus !== "EXACT_MATCH" && item.matchStatus !== "PROBABLE_MATCH").length,
+    adjustedItems: items.filter((item) => Boolean(item.adjustmentJournalEntryId)).length
   };
 }
 
@@ -382,6 +394,46 @@ export function reconciliationCompletionErrors(input: { reason: string; openItem
   }
   if (reason.length > 500) {
     errors.push("Alasan completion maksimal 500 karakter.");
+  }
+
+  return errors;
+}
+
+export function reconciliationAdjustmentErrors(input: {
+  draft: PaymentReconciliationAdjustmentDraft;
+  accounts: readonly Account[];
+}): string[] {
+  const errors: string[] = [];
+  const itemId = input.draft.itemId.trim();
+  const period = input.draft.period.trim();
+  const amount = parseMoneyInput(input.draft.amount);
+  const debitAccount = input.accounts.find((account) => account.id === input.draft.debitAccountId);
+  const creditAccount = input.accounts.find((account) => account.id === input.draft.creditAccountId);
+  const reason = input.draft.reason.trim();
+
+  if (!uuidPattern.test(itemId)) {
+    errors.push("Item exception wajib dipilih.");
+  }
+  if (!/^\d{4}-\d{2}$/.test(period)) {
+    errors.push("Periode adjustment wajib format YYYY-MM.");
+  }
+  if (amount === null) {
+    errors.push("Nominal adjustment wajib lebih besar dari nol.");
+  }
+  if (!debitAccount) {
+    errors.push("Akun debit adjustment wajib dipilih.");
+  }
+  if (!creditAccount) {
+    errors.push("Akun kredit adjustment wajib dipilih.");
+  }
+  if (debitAccount && creditAccount && debitAccount.id === creditAccount.id) {
+    errors.push("Akun debit dan kredit adjustment tidak boleh sama.");
+  }
+  if (!reason) {
+    errors.push("Alasan adjustment wajib diisi.");
+  }
+  if (reason.length > 500) {
+    errors.push("Alasan adjustment maksimal 500 karakter.");
   }
 
   return errors;

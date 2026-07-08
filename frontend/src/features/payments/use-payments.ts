@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query/query-keys";
 import {
   completePaymentReconciliationSession,
+  createPaymentReconciliationAdjustment,
   createPaymentReconciliationSession,
   getPaymentReconciliationSession,
   getPayment,
@@ -15,6 +16,7 @@ import {
 } from "./payment-api";
 import type {
   CompletePaymentReconciliationSessionPayload,
+  CreatePaymentReconciliationAdjustmentPayload,
   CreatePaymentReconciliationSessionPayload,
   PaymentFilters,
   PaymentReconciliationMatchPayload,
@@ -91,6 +93,21 @@ export function useResolvePaymentReconciliationItem() {
     }) => resolvePaymentReconciliationItem(input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.payments });
+    }
+  });
+}
+
+export function useCreatePaymentReconciliationAdjustment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      sessionId: string;
+      itemId: string;
+      payload: CreatePaymentReconciliationAdjustmentPayload;
+    }) => createPaymentReconciliationAdjustment(input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.payments });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.journals });
     }
   });
 }

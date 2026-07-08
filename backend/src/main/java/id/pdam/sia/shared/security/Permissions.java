@@ -15,6 +15,7 @@ public final class Permissions {
     public static final String PERIOD_CLOSE = "hasAuthority('period.close')";
     public static final String JOURNAL_CREATE = "hasAuthority('journal.create')";
     public static final String JOURNAL_POST = "hasAuthority('journal.post')";
+    public static final String PAYMENT_RECONCILE_AND_JOURNAL_POST = PAYMENT_RECONCILE + " and " + JOURNAL_POST;
     public static final String BILLING_GENERATE = "hasAuthority('billing.generate')";
     public static final String INVOICE_ISSUE = "hasAuthority('invoice.issue')";
 

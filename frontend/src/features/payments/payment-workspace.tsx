@@ -44,6 +44,7 @@ import {
   bankStatementImportTemplate,
   parseBankStatementImport,
   parseMoneyInput,
+  reconciliationAdjustmentErrors,
   paymentReconciliationExportErrors,
   reconciliationCompletionErrors,
   reconciliationResolutionErrors,
@@ -57,10 +58,12 @@ import {
   type BankStatementCsvRow,
   type CounterPaymentAllocationDraft,
   type CounterPaymentDraft,
+  type PaymentReconciliationAdjustmentDraft,
   type ReversePaymentDraft
 } from "./payment-workspace-model";
 import type {
   ClosedPaymentReconciliationResolutionStatus,
+  CreatePaymentReconciliationAdjustmentPayload,
   PaymentReconciliationMatchReport,
   PaymentReconciliationMatchStatus,
   PaymentReconciliationResolutionStatus,
@@ -79,6 +82,7 @@ import { paymentStatusValues, paymentWebhookStatusValues } from "./payment-schem
 import { exportPaymentReconciliationCsv } from "./payment-api";
 import {
   useCompletePaymentReconciliationSession,
+  useCreatePaymentReconciliationAdjustment,
   useCreatePaymentReconciliationSession,
   useMatchPaymentReconciliation,
   usePayment,
@@ -223,6 +227,15 @@ const defaultReversePaymentForm: ReversePaymentDraft = {
   reason: ""
 };
 
+const defaultReconciliationAdjustmentForm: PaymentReconciliationAdjustmentDraft = {
+  itemId: "",
+  period: "",
+  amount: "",
+  debitAccountId: "",
+  creditAccountId: "",
+  reason: ""
+};
+
 function normalizeInput(value: string): string {
   return value.trim();
 }
@@ -266,6 +279,29 @@ function toInstant(value: string): string {
 function toOptionalInstant(value: string): string | undefined {
   const normalized = value.trim();
   return normalized ? new Date(normalized).toISOString() : undefined;
+}
+
+function periodFromInstant(value: string): string {
+  const time = new Date(value).getTime();
+  if (Number.isNaN(time)) {
+    return "";
+  }
+  return new Date(time).toISOString().slice(0, 7);
+}
+
+function defaultAdjustmentAmount(item: PaymentReconciliationSessionItem): string {
+  const variance = item.amountVariance === null ? 0 : Math.abs(item.amountVariance);
+  const amount = variance > 0 ? variance : item.statementAmount;
+  return amount > 0 ? String(amount) : "";
+}
+
+function isAdjustmentCandidate(item: PaymentReconciliationSessionItem): boolean {
+  return (
+    item.resolutionStatus === "ACCEPTED" &&
+    item.adjustmentJournalEntryId === null &&
+    item.matchStatus !== "EXACT_MATCH" &&
+    item.matchStatus !== "PROBABLE_MATCH"
+  );
 }
 
 function accountLabel(account: Account): string {
@@ -752,16 +788,21 @@ function TraceItem({ label, value }: Readonly<{ label: string; value: string }>)
 
 function PaymentReconciliationPanel({
   allowed,
+  canAdjust,
+  accounts,
   channel,
   status
 }: Readonly<{
   allowed: boolean;
+  canAdjust: boolean;
+  accounts: Account[];
   channel: string;
   status: StatusFilter<PaymentStatus>;
 }>) {
   const matchMutation = useMatchPaymentReconciliation();
   const createSessionMutation = useCreatePaymentReconciliationSession();
   const resolveItemMutation = useResolvePaymentReconciliationItem();
+  const adjustmentMutation = useCreatePaymentReconciliationAdjustment();
   const completeSessionMutation = useCompletePaymentReconciliationSession();
   const [paidAtFrom, setPaidAtFrom] = useState("");
   const [paidAtTo, setPaidAtTo] = useState("");
@@ -779,6 +820,9 @@ function PaymentReconciliationPanel({
   const [resolutionItemId, setResolutionItemId] = useState("");
   const [resolutionStatus, setResolutionStatus] = useState<PaymentReconciliationResolutionStatus>("RESOLVED");
   const [resolutionReason, setResolutionReason] = useState("");
+  const [adjustmentForm, setAdjustmentForm] = useState<PaymentReconciliationAdjustmentDraft>(
+    defaultReconciliationAdjustmentForm
+  );
   const [completeReason, setCompleteReason] = useState("");
   const sessionFilters = useMemo(() => ({ page: 0, size: 5 }), []);
   const sessionsQuery = usePaymentReconciliationSessions(sessionFilters, allowed);
@@ -792,6 +836,10 @@ function PaymentReconciliationPanel({
   const selectedSession = selectedSessionQuery.data ?? null;
   const selectedSessionSummary = useMemo(
     () => (selectedSession ? summarizeReconciliationSessionItems(selectedSession.items) : null),
+    [selectedSession]
+  );
+  const adjustableItems = useMemo(
+    () => (selectedSession ? selectedSession.items.filter(isAdjustmentCandidate) : []),
     [selectedSession]
   );
 
@@ -930,7 +978,73 @@ function PaymentReconciliationPanel({
       setResolutionItemId(session.items.find((item) => item.resolutionStatus === "OPEN")?.id ?? "");
       setResolutionStatus("RESOLVED");
       setResolutionReason("");
+      const nextAdjustmentItem = session.items.find(isAdjustmentCandidate);
+      setAdjustmentForm((current) => ({
+        ...current,
+        itemId: nextAdjustmentItem?.id ?? current.itemId,
+        period: nextAdjustmentItem ? periodFromInstant(nextAdjustmentItem.transactedAt) : current.period,
+        amount: nextAdjustmentItem ? defaultAdjustmentAmount(nextAdjustmentItem) : current.amount
+      }));
       setSuccessMessage(`Item rekonsiliasi pada session ${session.sessionNumber} berhasil ditutup.`);
+    } catch {
+      return;
+    }
+  }
+
+  async function handleCreateAdjustment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLocalError(null);
+    setImportErrors([]);
+    setSuccessMessage(null);
+    adjustmentMutation.reset();
+
+    if (!selectedSessionId || !selectedSession) {
+      setLocalError("Session rekonsiliasi wajib dipilih.");
+      return;
+    }
+    if (!canAdjust) {
+      setLocalError("User wajib memiliki permission payment.reconcile dan journal.post.");
+      return;
+    }
+    if (selectedSession.status !== "OPEN") {
+      setLocalError("Session rekonsiliasi sudah tidak open.");
+      return;
+    }
+
+    const errors = reconciliationAdjustmentErrors({ draft: adjustmentForm, accounts });
+    if (errors.length > 0) {
+      setLocalError(errors[0]);
+      return;
+    }
+
+    const amount = parseMoneyInput(adjustmentForm.amount);
+    if (amount === null) {
+      setLocalError("Nominal adjustment wajib valid.");
+      return;
+    }
+
+    const payload: CreatePaymentReconciliationAdjustmentPayload = {
+      period: normalizeInput(adjustmentForm.period),
+      amount,
+      debitAccountId: adjustmentForm.debitAccountId,
+      creditAccountId: adjustmentForm.creditAccountId,
+      reason: normalizeInput(adjustmentForm.reason)
+    };
+
+    try {
+      const session = await adjustmentMutation.mutateAsync({
+        sessionId: selectedSessionId,
+        itemId: adjustmentForm.itemId,
+        payload
+      });
+      const nextAdjustmentItem = session.items.find(isAdjustmentCandidate);
+      setAdjustmentForm({
+        ...defaultReconciliationAdjustmentForm,
+        itemId: nextAdjustmentItem?.id ?? "",
+        period: nextAdjustmentItem ? periodFromInstant(nextAdjustmentItem.transactedAt) : "",
+        amount: nextAdjustmentItem ? defaultAdjustmentAmount(nextAdjustmentItem) : ""
+      });
+      setSuccessMessage(`Adjustment journal dibuat untuk session ${session.sessionNumber}.`);
     } catch {
       return;
     }
@@ -978,14 +1092,17 @@ function PaymentReconciliationPanel({
     matchMutation.isPending ||
     createSessionMutation.isPending ||
     resolveItemMutation.isPending ||
+    adjustmentMutation.isPending ||
     completeSessionMutation.isPending;
   const disabled = !allowed || busy;
   const sessionCommandDisabled = disabled || selectedSession?.status !== "OPEN";
+  const adjustmentCommandDisabled = !canAdjust || busy || selectedSession?.status !== "OPEN";
   const errorMessage =
     localError ??
     (matchMutation.isError ? apiErrorMessage(matchMutation.error, "Gagal match bank statement.") : null) ??
     (createSessionMutation.isError ? apiErrorMessage(createSessionMutation.error, "Gagal menyimpan session rekonsiliasi.") : null) ??
     (resolveItemMutation.isError ? apiErrorMessage(resolveItemMutation.error, "Gagal menutup item rekonsiliasi.") : null) ??
+    (adjustmentMutation.isError ? apiErrorMessage(adjustmentMutation.error, "Gagal membuat jurnal adjustment rekonsiliasi.") : null) ??
     (completeSessionMutation.isError ? apiErrorMessage(completeSessionMutation.error, "Gagal menyelesaikan session rekonsiliasi.") : null);
   const recentSessions = sessionsQuery.data?.items ?? [];
   const selectedImportProfile = bankStatementImportProfileOptions.find((option) => option.value === importProfile);
@@ -1008,7 +1125,10 @@ function PaymentReconciliationPanel({
           <FileSpreadsheet className="size-5 text-sky-700" aria-hidden="true" />
           <h3 className="text-sm font-bold text-slate-950">Payment Reconciliation</h3>
         </div>
-        <StatusBadge label={allowed ? "payment.reconcile" : "Locked"} tone={allowed ? "success" : "neutral"} />
+        <div className="flex items-center gap-2">
+          <StatusBadge label={allowed ? "payment.reconcile" : "Locked"} tone={allowed ? "success" : "neutral"} />
+          <StatusBadge label={canAdjust ? "journal.post" : "No journal.post"} tone={canAdjust ? "success" : "neutral"} />
+        </div>
       </div>
       {!allowed ? (
         <p className="mt-3 text-sm leading-6 text-slate-700">
@@ -1218,6 +1338,7 @@ function PaymentReconciliationPanel({
             setSelectedSessionId(sessionId);
             setResolutionItemId("");
             setResolutionReason("");
+            setAdjustmentForm(defaultReconciliationAdjustmentForm);
             setCompleteReason("");
           }}
         />
@@ -1271,6 +1392,7 @@ function PaymentReconciliationPanel({
                   <MetricPill label="Open" value={selectedSessionSummary.openItems} tone="warning" />
                   <MetricPill label="Resolved" value={selectedSessionSummary.resolvedItems} tone="info" />
                   <MetricPill label="Exception" value={selectedSessionSummary.exceptionItems} tone="danger" />
+                  <MetricPill label="Adjusted" value={selectedSessionSummary.adjustedItems} tone="success" />
                 </div>
 
                 <div className="overflow-x-auto rounded-lg border border-slate-200">
@@ -1283,6 +1405,7 @@ function PaymentReconciliationPanel({
                         <th className="px-4 py-3 text-left font-bold text-slate-700">Resolution</th>
                         <th className="px-4 py-3 text-right font-bold text-slate-700">Bank Amount</th>
                         <th className="px-4 py-3 text-left font-bold text-slate-700">Payment</th>
+                        <th className="px-4 py-3 text-left font-bold text-slate-700">Adjustment</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 bg-white">
@@ -1340,6 +1463,104 @@ function PaymentReconciliationPanel({
                   <button type="submit" className={secondaryButtonClass} disabled={sessionCommandDisabled || selectedSessionSummary.openItems === 0}>
                     {resolveItemMutation.isPending ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <CheckCircle2 className="size-4" aria-hidden="true" />}
                     Resolve Item
+                  </button>
+                </form>
+
+                <form onSubmit={handleCreateAdjustment} className="grid gap-3 rounded-lg border border-sky-200 bg-sky-50 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-bold text-sky-950">Adjustment Journal</p>
+                      <p className="mt-1 text-xs font-semibold text-sky-800">
+                        {adjustableItems.length} accepted exception belum memiliki journal adjustment.
+                      </p>
+                    </div>
+                    <StatusBadge label={canAdjust ? "Ready" : "Locked"} tone={canAdjust ? "success" : "neutral"} />
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="block">
+                      <span className="text-xs font-bold uppercase text-sky-800">Accepted Exception</span>
+                      <select
+                        className={inputClass}
+                        value={adjustmentForm.itemId}
+                        disabled={adjustmentCommandDisabled || adjustableItems.length === 0}
+                        onChange={(event) => {
+                          const item = selectedSession.items.find((candidate) => candidate.id === event.target.value);
+                          setAdjustmentForm((current) => ({
+                            ...current,
+                            itemId: event.target.value,
+                            period: item ? periodFromInstant(item.transactedAt) : current.period,
+                            amount: item ? defaultAdjustmentAmount(item) : current.amount
+                          }));
+                        }}
+                      >
+                        <option value="">Pilih item accepted</option>
+                        {adjustableItems.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            Row {item.rowNumber} - {item.statementReference} - {reconciliationStatusLabels[item.matchStatus]}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block">
+                      <span className="text-xs font-bold uppercase text-sky-800">Periode</span>
+                      <input
+                        className={inputClass}
+                        value={adjustmentForm.period}
+                        maxLength={7}
+                        disabled={adjustmentCommandDisabled || adjustableItems.length === 0}
+                        onChange={(event) => setAdjustmentForm((current) => ({ ...current, period: event.target.value }))}
+                        placeholder="2026-07"
+                      />
+                    </label>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <label className="block">
+                      <span className="text-xs font-bold uppercase text-sky-800">Nominal</span>
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        className={inputClass}
+                        value={adjustmentForm.amount}
+                        disabled={adjustmentCommandDisabled || adjustableItems.length === 0}
+                        onChange={(event) => setAdjustmentForm((current) => ({ ...current, amount: event.target.value }))}
+                        placeholder="2500"
+                      />
+                    </label>
+                    <AccountSelect
+                      label="Akun Debit"
+                      value={adjustmentForm.debitAccountId}
+                      accounts={accounts}
+                      disabled={adjustmentCommandDisabled || adjustableItems.length === 0}
+                      placeholder="Pilih akun debit"
+                      onChange={(value) => setAdjustmentForm((current) => ({ ...current, debitAccountId: value }))}
+                    />
+                    <AccountSelect
+                      label="Akun Kredit"
+                      value={adjustmentForm.creditAccountId}
+                      accounts={accounts}
+                      disabled={adjustmentCommandDisabled || adjustableItems.length === 0}
+                      placeholder="Pilih akun kredit"
+                      onChange={(value) => setAdjustmentForm((current) => ({ ...current, creditAccountId: value }))}
+                    />
+                  </div>
+                  <label className="block">
+                    <span className="text-xs font-bold uppercase text-sky-800">Adjustment Reason</span>
+                    <textarea
+                      className={textareaClass}
+                      value={adjustmentForm.reason}
+                      maxLength={500}
+                      disabled={adjustmentCommandDisabled || adjustableItems.length === 0}
+                      onChange={(event) => setAdjustmentForm((current) => ({ ...current, reason: event.target.value }))}
+                    />
+                  </label>
+                  <button
+                    type="submit"
+                    className={primaryButtonClass}
+                    disabled={adjustmentCommandDisabled || adjustableItems.length === 0}
+                  >
+                    {adjustmentMutation.isPending ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <ReceiptText className="size-4" aria-hidden="true" />}
+                    Create Adjustment Journal
                   </button>
                 </form>
 
@@ -1475,6 +1696,12 @@ function ReconciliationSessionItemRow({ item }: Readonly<{ item: PaymentReconcil
       <td className="min-w-56 px-4 py-3 text-slate-700">
         <p className="font-mono text-xs font-semibold">{item.matchedPaymentNumber ?? "-"}</p>
         <p className="mt-1 text-xs leading-5 text-slate-600">{item.message}</p>
+      </td>
+      <td className="min-w-48 px-4 py-3 text-slate-700">
+        <p className="font-mono text-xs font-semibold">{shortId(item.adjustmentJournalEntryId)}</p>
+        <p className="mt-1 text-xs leading-5 text-slate-600">
+          {item.adjustedAt ? `${formatDateTime(item.adjustedAt)} - ${item.adjustedBy ?? "-"}` : item.adjustmentReason ?? "-"}
+        </p>
       </td>
     </tr>
   );
@@ -1613,19 +1840,21 @@ function AccountSelect({
   value,
   accounts,
   disabled,
+  placeholder = "Pilih akun aset",
   onChange
 }: Readonly<{
   label: string;
   value: string;
   accounts: Account[];
   disabled: boolean;
+  placeholder?: string;
   onChange: (value: string) => void;
 }>) {
   return (
     <label className="block">
       <span className="text-xs font-bold uppercase text-slate-600">{label}</span>
       <select className={inputClass} value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)}>
-        <option value="">Pilih akun aset</option>
+        <option value="">{placeholder}</option>
         {accounts.map((account) => (
           <option key={account.id} value={account.id}>
             {accountLabel(account)}
@@ -1997,14 +2226,19 @@ export function PaymentWorkspace() {
   const [status, setStatus] = useState<StatusFilter<PaymentWebhookStatus>>("ALL");
   const [page, setPage] = useState(0);
   const currentUserQuery = useCurrentUser();
-  const permissions = useMemo(
-    () => resolveFinancialCommandPermissions(currentUserQuery.data?.authorities ?? []).payment,
+  const financialPermissions = useMemo(
+    () => resolveFinancialCommandPermissions(currentUserQuery.data?.authorities ?? []),
     [currentUserQuery.data?.authorities]
   );
+  const permissions = financialPermissions.payment;
   const queryEnabled = currentUserQuery.isSuccess;
   const paymentsEnabled = queryEnabled && canReadPayments(permissions);
   const eventsEnabled = queryEnabled && permissions.canReadWebhookEvents;
-  const accountsEnabled = queryEnabled && (permissions.canSettleCounterPayments || permissions.canReversePayments);
+  const canCreateReconciliationAdjustments =
+    permissions.canReconcilePayments && financialPermissions.accounting.canPostJournals;
+  const accountsEnabled =
+    queryEnabled &&
+    (permissions.canSettleCounterPayments || permissions.canReversePayments || canCreateReconciliationAdjustments);
   const normalizedPaymentChannel = paymentChannel.trim() || undefined;
   const normalizedProvider = provider.trim() || undefined;
 
@@ -2206,6 +2440,8 @@ export function PaymentWorkspace() {
               <PaymentCommandPanel permissions={permissions} />
               <PaymentReconciliationPanel
                 allowed={canReconcilePayments(permissions)}
+                canAdjust={canCreateReconciliationAdjustments}
+                accounts={accounts}
                 channel={paymentChannel}
                 status={paymentStatus}
               />

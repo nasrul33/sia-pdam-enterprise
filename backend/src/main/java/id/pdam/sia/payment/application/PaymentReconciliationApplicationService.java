@@ -1,5 +1,8 @@
 package id.pdam.sia.payment.application;
 
+import id.pdam.sia.accounting.application.AccountingApplicationService;
+import id.pdam.sia.accounting.application.PaymentReconciliationAdjustmentPostingCommand;
+import id.pdam.sia.accounting.domain.JournalEntry;
 import id.pdam.sia.payment.domain.Payment;
 import id.pdam.sia.payment.domain.PaymentReconciliationItem;
 import id.pdam.sia.payment.domain.PaymentReconciliationResolutionStatus;
@@ -43,17 +46,20 @@ public class PaymentReconciliationApplicationService {
     private final PaymentReconciliationSessionRepository paymentReconciliationSessionRepository;
     private final PaymentReconciliationItemRepository paymentReconciliationItemRepository;
     private final AuditTrailService auditTrailService;
+    private final AccountingApplicationService accountingApplicationService;
 
     public PaymentReconciliationApplicationService(
             PaymentRepository paymentRepository,
             PaymentReconciliationSessionRepository paymentReconciliationSessionRepository,
             PaymentReconciliationItemRepository paymentReconciliationItemRepository,
-            AuditTrailService auditTrailService
+            AuditTrailService auditTrailService,
+            AccountingApplicationService accountingApplicationService
     ) {
         this.paymentRepository = paymentRepository;
         this.paymentReconciliationSessionRepository = paymentReconciliationSessionRepository;
         this.paymentReconciliationItemRepository = paymentReconciliationItemRepository;
         this.auditTrailService = auditTrailService;
+        this.accountingApplicationService = accountingApplicationService;
     }
 
     @Transactional
@@ -133,6 +139,52 @@ public class PaymentReconciliationApplicationService {
         PaymentReconciliationItem savedItem = paymentReconciliationItemRepository.save(item);
         auditTrailService.record(actor, "PAYMENT", "RESOLVE_RECONCILIATION_ITEM", savedItem.getId().toString(), reason);
         return savedItem;
+    }
+
+    @Transactional
+    public PaymentReconciliationSessionResult createAdjustment(
+            UUID sessionId,
+            UUID itemId,
+            PaymentReconciliationAdjustmentCommand command,
+            String actor
+    ) {
+        if (command == null) {
+            throw new BusinessException(
+                    "PAYMENT_RECONCILIATION_ADJUSTMENT_COMMAND_REQUIRED",
+                    "Reconciliation adjustment command is required."
+            );
+        }
+        String reason = requireNormalize(
+                command.reason(),
+                "PAYMENT_RECONCILIATION_ADJUSTMENT_REASON_REQUIRED",
+                "Reconciliation adjustment reason is required."
+        );
+        PaymentReconciliationSession session = loadSession(sessionId);
+        session.ensureOpen();
+        PaymentReconciliationItem item = paymentReconciliationItemRepository.findBySessionIdAndId(session.getId(), itemId)
+                .orElseThrow(() -> new BusinessException("PAYMENT_RECONCILIATION_ITEM_NOT_FOUND", "Reconciliation item was not found."));
+        item.ensureAdjustmentAllowed();
+
+        JournalEntry journal = accountingApplicationService.postPaymentReconciliationAdjustment(
+                new PaymentReconciliationAdjustmentPostingCommand(
+                        item.getId(),
+                        session.getSessionNumber(),
+                        item.getRowNumber(),
+                        command.period(),
+                        command.amount(),
+                        command.debitAccountId(),
+                        command.creditAccountId(),
+                        reason
+                ),
+                actor
+        );
+        item.linkAdjustmentJournal(journal.getId(), reason, actor);
+        paymentReconciliationItemRepository.save(item);
+        auditTrailService.record(actor, "PAYMENT", "CREATE_RECONCILIATION_ADJUSTMENT", item.getId().toString(), reason);
+        return new PaymentReconciliationSessionResult(
+                session,
+                paymentReconciliationItemRepository.findBySessionIdOrderByRowNumberAsc(session.getId())
+        );
     }
 
     @Transactional

@@ -7,6 +7,7 @@ import {
   paymentSettlementSchema,
   paymentWebhookEventPageSchema,
   type CompletePaymentReconciliationSessionPayload,
+  type CreatePaymentReconciliationAdjustmentPayload,
   type CreatePaymentReconciliationSessionPayload,
   type PaymentFilters,
   type PaymentReconciliationExportFilters,
@@ -129,6 +130,18 @@ export async function resolvePaymentReconciliationItem(input: {
 }) {
   const response = await apiPost<ResolvePaymentReconciliationItemPayload, unknown>(
     `/api/payment-reconciliation/sessions/${input.sessionId}/items/${input.itemId}/resolve`,
+    input.payload
+  );
+  return paymentReconciliationSessionSchema.parse(response);
+}
+
+export async function createPaymentReconciliationAdjustment(input: {
+  sessionId: string;
+  itemId: string;
+  payload: CreatePaymentReconciliationAdjustmentPayload;
+}) {
+  const response = await apiPost<CreatePaymentReconciliationAdjustmentPayload, unknown>(
+    `/api/payment-reconciliation/sessions/${input.sessionId}/items/${input.itemId}/adjust`,
     input.payload
   );
   return paymentReconciliationSessionSchema.parse(response);

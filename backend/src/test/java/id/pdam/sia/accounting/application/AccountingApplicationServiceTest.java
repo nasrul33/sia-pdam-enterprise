@@ -270,8 +270,115 @@ class AccountingApplicationServiceTest {
                 "ACCOUNTING",
                 "POST_JOURNAL",
                 journal.getId().toString(),
-                "salah input pembayaran"
+            "salah input pembayaran"
         );
+    }
+
+    @Test
+    void postsPaymentReconciliationAdjustmentJournalWithExplicitAccountsAndSourceTraceability() {
+        AccountingPeriod period = new AccountingPeriod("2026-07");
+        Account debitAccount = new Account("6-210", "Biaya Administrasi Bank", AccountType.EXPENSE);
+        Account creditAccount = new Account("1-110", "Bank Operasional", AccountType.ASSET);
+        UUID itemId = UUID.randomUUID();
+
+        when(journalEntryRepository.existsBySourceModuleAndSourceRecordId("PAYMENT_RECONCILIATION_ADJUSTMENT", itemId)).thenReturn(false);
+        when(accountingPeriodRepository.findByPeriod("2026-07")).thenReturn(Optional.of(period));
+        when(accountRepository.findById(debitAccount.getId())).thenReturn(Optional.of(debitAccount));
+        when(accountRepository.findById(creditAccount.getId())).thenReturn(Optional.of(creditAccount));
+        when(journalEntryRepository.findByJournalNumber("REC-ADJ-REC-20260731-0001-ROW-7")).thenReturn(Optional.empty());
+        when(journalEntryRepository.save(any(JournalEntry.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        JournalEntry journal = service.postPaymentReconciliationAdjustment(
+                new PaymentReconciliationAdjustmentPostingCommand(
+                        itemId,
+                        "REC-20260731-0001",
+                        7,
+                        "2026-07",
+                        new BigDecimal("2500.00"),
+                        debitAccount.getId(),
+                        creditAccount.getId(),
+                        "Biaya admin bank atas mutasi rekonsiliasi row 7."
+                ),
+                "finance.supervisor"
+        );
+
+        assertThat(journal.getStatus()).isEqualTo(JournalStatus.POSTED);
+        assertThat(journal.getSourceModule()).isEqualTo("PAYMENT_RECONCILIATION_ADJUSTMENT");
+        assertThat(journal.getSourceRecordId()).isEqualTo(itemId);
+        assertThat(journal.getSourceDocumentNumber()).isEqualTo("REC-20260731-0001-ROW-7");
+        assertThat(journal.getLines()).hasSize(2);
+        assertThat(journal.getLines().get(0).getAccountId()).isEqualTo(debitAccount.getId());
+        assertThat(journal.getLines().get(0).getDebit()).isEqualByComparingTo("2500.00");
+        assertThat(journal.getLines().get(1).getAccountId()).isEqualTo(creditAccount.getId());
+        assertThat(journal.getLines().get(1).getCredit()).isEqualByComparingTo("2500.00");
+        verify(ledgerEntryMaterializationService).materializePostedJournal(journal);
+        verify(auditTrailService).record(
+                "finance.supervisor",
+                "ACCOUNTING",
+                "POST_JOURNAL",
+                journal.getId().toString(),
+                "Biaya admin bank atas mutasi rekonsiliasi row 7."
+        );
+    }
+
+    @Test
+    void rejectsPaymentReconciliationAdjustmentWhenSourceItemAlreadyHasJournal() {
+        UUID itemId = UUID.randomUUID();
+
+        when(journalEntryRepository.existsBySourceModuleAndSourceRecordId("PAYMENT_RECONCILIATION_ADJUSTMENT", itemId)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.postPaymentReconciliationAdjustment(
+                new PaymentReconciliationAdjustmentPostingCommand(
+                        itemId,
+                        "REC-20260731-0001",
+                        7,
+                        "2026-07",
+                        new BigDecimal("2500.00"),
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        "retry adjustment"
+                ),
+                "finance.supervisor"
+        ))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("already has an adjustment journal");
+
+        verify(journalEntryRepository, never()).save(any(JournalEntry.class));
+    }
+
+    @Test
+    void rejectsPaymentReconciliationAdjustmentWhenAccountingPeriodIsLocked() {
+        AccountingPeriod period = new AccountingPeriod("2026-07");
+        period.startClosingReview();
+        period.lock();
+        Account debitAccount = new Account("6-210", "Biaya Administrasi Bank", AccountType.EXPENSE);
+        Account creditAccount = new Account("1-110", "Bank Operasional", AccountType.ASSET);
+        UUID itemId = UUID.randomUUID();
+
+        when(journalEntryRepository.existsBySourceModuleAndSourceRecordId("PAYMENT_RECONCILIATION_ADJUSTMENT", itemId)).thenReturn(false);
+        when(accountingPeriodRepository.findByPeriod("2026-07")).thenReturn(Optional.of(period));
+        when(accountRepository.findById(debitAccount.getId())).thenReturn(Optional.of(debitAccount));
+        when(accountRepository.findById(creditAccount.getId())).thenReturn(Optional.of(creditAccount));
+        when(journalEntryRepository.findByJournalNumber("REC-ADJ-REC-20260731-0001-ROW-7")).thenReturn(Optional.empty());
+        when(journalEntryRepository.save(any(JournalEntry.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertThatThrownBy(() -> service.postPaymentReconciliationAdjustment(
+                new PaymentReconciliationAdjustmentPostingCommand(
+                        itemId,
+                        "REC-20260731-0001",
+                        7,
+                        "2026-07",
+                        new BigDecimal("2500.00"),
+                        debitAccount.getId(),
+                        creditAccount.getId(),
+                        "locked period adjustment"
+                ),
+                "finance.supervisor"
+        ))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("Posting is not allowed in this period");
+
+        verify(ledgerEntryMaterializationService, never()).materializePostedJournal(any(JournalEntry.class));
     }
 
     @Test

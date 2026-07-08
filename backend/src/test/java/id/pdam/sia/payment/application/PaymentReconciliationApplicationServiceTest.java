@@ -1,5 +1,8 @@
 package id.pdam.sia.payment.application;
 
+import id.pdam.sia.accounting.application.AccountingApplicationService;
+import id.pdam.sia.accounting.application.PaymentReconciliationAdjustmentPostingCommand;
+import id.pdam.sia.accounting.domain.JournalEntry;
 import id.pdam.sia.payment.domain.Payment;
 import id.pdam.sia.payment.domain.PaymentReconciliationItem;
 import id.pdam.sia.payment.domain.PaymentReconciliationResolutionStatus;
@@ -43,11 +46,13 @@ class PaymentReconciliationApplicationServiceTest {
     private final PaymentReconciliationItemRepository paymentReconciliationItemRepository =
             mock(PaymentReconciliationItemRepository.class);
     private final AuditTrailService auditTrailService = mock(AuditTrailService.class);
+    private final AccountingApplicationService accountingApplicationService = mock(AccountingApplicationService.class);
     private final PaymentReconciliationApplicationService service = new PaymentReconciliationApplicationService(
             paymentRepository,
             paymentReconciliationSessionRepository,
             paymentReconciliationItemRepository,
-            auditTrailService
+            auditTrailService,
+            accountingApplicationService
     );
 
     @Test
@@ -225,8 +230,117 @@ class PaymentReconciliationApplicationServiceTest {
                 "PAYMENT",
                 "RESOLVE_RECONCILIATION_ITEM",
                 resolved.getId().toString(),
-                "Mutasi bank sudah diklasifikasi sebagai biaya administrasi."
+            "Mutasi bank sudah diklasifikasi sebagai biaya administrasi."
         );
+    }
+
+    @Test
+    void createsExplicitAdjustmentJournalForAcceptedReconciliationException() {
+        PaymentReconciliationSession session = openSession("REC-20260731-ADJUST");
+        PaymentReconciliationItem item = PaymentReconciliationItem.from(
+                session.getId(),
+                PaymentReconciliationMatchResult.unmatched(7, new BankStatementRowCommand(
+                        "BANK-FEE-0007",
+                        new BigDecimal("2500.00"),
+                        PAID_AT,
+                        "bank"
+                ))
+        );
+        item.resolve(PaymentReconciliationResolutionStatus.ACCEPTED, "Exception diterima sebagai biaya admin bank.", "auditor.internal");
+        UUID debitAccountId = UUID.randomUUID();
+        UUID creditAccountId = UUID.randomUUID();
+        JournalEntry journal = JournalEntry.draftFromSource(
+                "REC-ADJ-TEST-0007",
+                UUID.randomUUID(),
+                "Adjustment row 7",
+                "PAYMENT_RECONCILIATION_ADJUSTMENT",
+                item.getId(),
+                session.getSessionNumber() + "-ROW-7"
+        );
+
+        when(paymentReconciliationSessionRepository.findById(session.getId())).thenReturn(Optional.of(session));
+        when(paymentReconciliationItemRepository.findBySessionIdAndId(session.getId(), item.getId()))
+                .thenReturn(Optional.of(item));
+        when(accountingApplicationService.postPaymentReconciliationAdjustment(
+                any(PaymentReconciliationAdjustmentPostingCommand.class),
+                eq("finance.supervisor")
+        )).thenReturn(journal);
+        when(paymentReconciliationItemRepository.save(any(PaymentReconciliationItem.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(paymentReconciliationItemRepository.findBySessionIdOrderByRowNumberAsc(session.getId()))
+                .thenReturn(List.of(item));
+
+        PaymentReconciliationSessionResult result = service.createAdjustment(
+                session.getId(),
+                item.getId(),
+                new PaymentReconciliationAdjustmentCommand(
+                        "2026-07",
+                        new BigDecimal("2500.00"),
+                        debitAccountId,
+                        creditAccountId,
+                        "Biaya admin bank atas mutasi rekonsiliasi row 7."
+                ),
+                "finance.supervisor"
+        );
+
+        assertThat(result.items()).hasSize(1);
+        assertThat(result.items().get(0).getAdjustmentJournalEntryId()).isEqualTo(journal.getId());
+        assertThat(result.items().get(0).getAdjustmentReason()).isEqualTo("Biaya admin bank atas mutasi rekonsiliasi row 7.");
+        assertThat(result.items().get(0).getAdjustedBy()).isEqualTo("finance.supervisor");
+        assertThat(result.items().get(0).getAdjustedAt()).isNotNull();
+        ArgumentCaptor<PaymentReconciliationAdjustmentPostingCommand> commandCaptor =
+                ArgumentCaptor.forClass(PaymentReconciliationAdjustmentPostingCommand.class);
+        verify(accountingApplicationService).postPaymentReconciliationAdjustment(commandCaptor.capture(), eq("finance.supervisor"));
+        assertThat(commandCaptor.getValue().reconciliationItemId()).isEqualTo(item.getId());
+        assertThat(commandCaptor.getValue().sessionNumber()).isEqualTo(session.getSessionNumber());
+        assertThat(commandCaptor.getValue().rowNumber()).isEqualTo(7);
+        assertThat(commandCaptor.getValue().period()).isEqualTo("2026-07");
+        assertThat(commandCaptor.getValue().amount()).isEqualByComparingTo("2500.00");
+        assertThat(commandCaptor.getValue().debitAccountId()).isEqualTo(debitAccountId);
+        assertThat(commandCaptor.getValue().creditAccountId()).isEqualTo(creditAccountId);
+        verify(auditTrailService).record(
+                "finance.supervisor",
+                "PAYMENT",
+                "CREATE_RECONCILIATION_ADJUSTMENT",
+                item.getId().toString(),
+                "Biaya admin bank atas mutasi rekonsiliasi row 7."
+        );
+    }
+
+    @Test
+    void rejectsAdjustmentJournalForOpenReconciliationItem() {
+        PaymentReconciliationSession session = openSession("REC-20260731-OPEN-ADJ");
+        PaymentReconciliationItem item = PaymentReconciliationItem.from(
+                session.getId(),
+                PaymentReconciliationMatchResult.unmatched(1, new BankStatementRowCommand(
+                        "BANK-OPEN",
+                        new BigDecimal("50000.00"),
+                        PAID_AT,
+                        "bank"
+                ))
+        );
+
+        when(paymentReconciliationSessionRepository.findById(session.getId())).thenReturn(Optional.of(session));
+        when(paymentReconciliationItemRepository.findBySessionIdAndId(session.getId(), item.getId()))
+                .thenReturn(Optional.of(item));
+
+        assertThatThrownBy(() -> service.createAdjustment(
+                session.getId(),
+                item.getId(),
+                new PaymentReconciliationAdjustmentCommand(
+                        "2026-07",
+                        new BigDecimal("50000.00"),
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        "open item adjustment"
+                ),
+                "finance.supervisor"
+        ))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("must be accepted before adjustment");
+
+        verify(accountingApplicationService, never()).postPaymentReconciliationAdjustment(any(), any());
+        verify(paymentReconciliationItemRepository, never()).save(any(PaymentReconciliationItem.class));
     }
 
     @Test

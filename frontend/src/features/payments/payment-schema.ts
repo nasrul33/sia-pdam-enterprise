@@ -175,6 +175,10 @@ export const paymentReconciliationSessionItemSchema = z.object({
   matchedPaymentChannel: z.string().nullable(),
   settlementJournalEntryId: z.string().uuid().nullable(),
   reversalJournalEntryId: z.string().uuid().nullable(),
+  adjustmentJournalEntryId: z.string().uuid().nullable(),
+  adjustmentReason: z.string().nullable(),
+  adjustedBy: z.string().nullable(),
+  adjustedAt: z.string().nullable(),
   resolutionStatus: paymentReconciliationResolutionStatusSchema,
   resolutionReason: z.string().nullable(),
   resolvedBy: z.string().nullable(),
@@ -254,6 +258,14 @@ export type ClosedPaymentReconciliationResolutionStatus = Exclude<PaymentReconci
 
 export type ResolvePaymentReconciliationItemPayload = {
   resolutionStatus: ClosedPaymentReconciliationResolutionStatus;
+  reason: string;
+};
+
+export type CreatePaymentReconciliationAdjustmentPayload = {
+  period: string;
+  amount: number;
+  debitAccountId: string;
+  creditAccountId: string;
   reason: string;
 };
 

@@ -67,6 +67,16 @@ public class PaymentReconciliationItem extends BaseEntity {
 
     private UUID reversalJournalEntryId;
 
+    private UUID adjustmentJournalEntryId;
+
+    @Column(columnDefinition = "TEXT")
+    private String adjustmentReason;
+
+    @Column(length = 128)
+    private String adjustedBy;
+
+    private Instant adjustedAt;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
     private PaymentReconciliationResolutionStatus resolutionStatus;
@@ -122,6 +132,41 @@ public class PaymentReconciliationItem extends BaseEntity {
         this.resolvedBy = require(actor, "PAYMENT_RECONCILIATION_RESOLVED_BY_REQUIRED", "Resolution actor is required.");
         this.resolutionStatus = resolutionStatus;
         this.resolvedAt = Instant.now();
+    }
+
+    public void ensureAdjustmentAllowed() {
+        if (resolutionStatus != PaymentReconciliationResolutionStatus.ACCEPTED) {
+            throw new BusinessException(
+                    "PAYMENT_RECONCILIATION_ADJUSTMENT_STATUS_INVALID",
+                    "Reconciliation item must be accepted before adjustment."
+            );
+        }
+        if (matchStatus == PaymentReconciliationMatchStatus.EXACT_MATCH || matchStatus == PaymentReconciliationMatchStatus.PROBABLE_MATCH) {
+            throw new BusinessException(
+                    "PAYMENT_RECONCILIATION_ADJUSTMENT_MATCH_STATUS_INVALID",
+                    "Only reconciliation exception items can be adjusted."
+            );
+        }
+        if (adjustmentJournalEntryId != null) {
+            throw new BusinessException(
+                    "PAYMENT_RECONCILIATION_ADJUSTMENT_DUPLICATE",
+                    "Reconciliation item already has an adjustment journal."
+            );
+        }
+    }
+
+    public void linkAdjustmentJournal(UUID journalEntryId, String reason, String actor) {
+        ensureAdjustmentAllowed();
+        if (journalEntryId == null) {
+            throw new BusinessException(
+                    "PAYMENT_RECONCILIATION_ADJUSTMENT_JOURNAL_REQUIRED",
+                    "Adjustment journal entry id is required."
+            );
+        }
+        this.adjustmentJournalEntryId = journalEntryId;
+        this.adjustmentReason = require(reason, "PAYMENT_RECONCILIATION_ADJUSTMENT_REASON_REQUIRED", "Adjustment reason is required.");
+        this.adjustedBy = require(actor, "PAYMENT_RECONCILIATION_ADJUSTED_BY_REQUIRED", "Adjustment actor is required.");
+        this.adjustedAt = Instant.now();
     }
 
     private static BigDecimal money(BigDecimal value) {
@@ -204,6 +249,22 @@ public class PaymentReconciliationItem extends BaseEntity {
 
     public UUID getReversalJournalEntryId() {
         return reversalJournalEntryId;
+    }
+
+    public UUID getAdjustmentJournalEntryId() {
+        return adjustmentJournalEntryId;
+    }
+
+    public String getAdjustmentReason() {
+        return adjustmentReason;
+    }
+
+    public String getAdjustedBy() {
+        return adjustedBy;
+    }
+
+    public Instant getAdjustedAt() {
+        return adjustedAt;
     }
 
     public PaymentReconciliationResolutionStatus getResolutionStatus() {

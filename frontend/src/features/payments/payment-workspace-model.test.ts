@@ -12,6 +12,7 @@ import {
   parseBankStatementCsv,
   parseBankStatementImport,
   parseMoneyInput,
+  reconciliationAdjustmentErrors,
   paymentReconciliationExportErrors,
   reconciliationCompletionErrors,
   reconciliationResolutionErrors,
@@ -247,7 +248,12 @@ test("payment reconciliation session helpers summarize resolution state and vali
     summarizeReconciliationSessionItems([
       { matchStatus: "EXACT_MATCH", resolutionStatus: "ACCEPTED", amountVariance: 0 },
       { matchStatus: "AMOUNT_VARIANCE", resolutionStatus: "OPEN", amountVariance: 2500 },
-      { matchStatus: "UNMATCHED", resolutionStatus: "RESOLVED", amountVariance: null },
+      {
+        matchStatus: "UNMATCHED",
+        resolutionStatus: "RESOLVED",
+        amountVariance: null,
+        adjustmentJournalEntryId: "66666666-6666-4666-8666-666666666666"
+      },
       { matchStatus: "MULTIPLE_CANDIDATES", resolutionStatus: "IGNORED", amountVariance: null }
     ]),
     {
@@ -262,7 +268,8 @@ test("payment reconciliation session helpers summarize resolution state and vali
       acceptedItems: 1,
       resolvedItems: 1,
       ignoredItems: 1,
-      exceptionItems: 3
+      exceptionItems: 3,
+      adjustedItems: 1
     }
   );
 
@@ -287,6 +294,44 @@ test("payment reconciliation session helpers summarize resolution state and vali
   );
   assert.equal(toClosedResolutionStatus("OPEN"), null);
   assert.equal(toClosedResolutionStatus("RESOLVED"), "RESOLVED");
+});
+
+test("reconciliationAdjustmentErrors validates accepted exception journal input", () => {
+  assert.deepEqual(
+    reconciliationAdjustmentErrors({
+      draft: {
+        itemId: "bad",
+        period: "2026/07",
+        amount: "0",
+        debitAccountId: assetCashAccount.id,
+        creditAccountId: assetCashAccount.id,
+        reason: ""
+      },
+      accounts: [assetCashAccount]
+    }),
+    [
+      "Item exception wajib dipilih.",
+      "Periode adjustment wajib format YYYY-MM.",
+      "Nominal adjustment wajib lebih besar dari nol.",
+      "Akun debit dan kredit adjustment tidak boleh sama.",
+      "Alasan adjustment wajib diisi."
+    ]
+  );
+
+  assert.deepEqual(
+    reconciliationAdjustmentErrors({
+      draft: {
+        itemId: "77777777-7777-4777-8777-777777777777",
+        period: "2026-07",
+        amount: "2.500,50",
+        debitAccountId: revenueAccount.id,
+        creditAccountId: assetCashAccount.id,
+        reason: "Adjustment biaya admin bank"
+      },
+      accounts: [assetCashAccount, revenueAccount]
+    }),
+    []
+  );
 });
 
 test("counterPaymentErrors validates amount, accounts, allocations, and audit reason", () => {

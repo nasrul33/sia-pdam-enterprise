@@ -353,6 +353,94 @@ public class AccountingApplicationService {
     }
 
     @Transactional
+    public JournalEntry postPaymentReconciliationAdjustment(PaymentReconciliationAdjustmentPostingCommand command, String actor) {
+        if (command == null) {
+            throw new BusinessException(
+                    "PAYMENT_RECONCILIATION_ADJUSTMENT_COMMAND_REQUIRED",
+                    "Payment reconciliation adjustment posting command is required."
+            );
+        }
+        if (command.reconciliationItemId() == null) {
+            throw new BusinessException(
+                    "PAYMENT_RECONCILIATION_ADJUSTMENT_ITEM_REQUIRED",
+                    "Payment reconciliation item id is required."
+            );
+        }
+        String sessionNumber = requireNormalize(
+                command.sessionNumber(),
+                "PAYMENT_RECONCILIATION_ADJUSTMENT_SESSION_REQUIRED",
+                "Payment reconciliation session number is required."
+        );
+        if (command.rowNumber() < 1) {
+            throw new BusinessException(
+                    "PAYMENT_RECONCILIATION_ADJUSTMENT_ROW_INVALID",
+                    "Payment reconciliation row number must be greater than zero."
+            );
+        }
+        String periodValue = normalizeAccountingPeriod(command.period());
+        BigDecimal amount = requirePositiveAmount(
+                command.amount(),
+                "PAYMENT_RECONCILIATION_ADJUSTMENT_AMOUNT_REQUIRED",
+                "Payment reconciliation adjustment amount is required."
+        );
+        String reason = requireNormalize(
+                command.reason(),
+                "PAYMENT_RECONCILIATION_ADJUSTMENT_REASON_REQUIRED",
+                "Payment reconciliation adjustment reason is required."
+        );
+        if (journalEntryRepository.existsBySourceModuleAndSourceRecordId(
+                "PAYMENT_RECONCILIATION_ADJUSTMENT",
+                command.reconciliationItemId()
+        )) {
+            throw new BusinessException(
+                    "PAYMENT_RECONCILIATION_ADJUSTMENT_JOURNAL_DUPLICATE",
+                    "Payment reconciliation item already has an adjustment journal."
+            );
+        }
+        if (command.debitAccountId() != null && command.debitAccountId().equals(command.creditAccountId())) {
+            throw new BusinessException(
+                    "PAYMENT_RECONCILIATION_ADJUSTMENT_ACCOUNT_DUPLICATE",
+                    "Adjustment debit and credit accounts must be different."
+            );
+        }
+
+        AccountingPeriod period = accountingPeriodRepository.findByPeriod(periodValue)
+                .orElseThrow(() -> new BusinessException("ACCOUNTING_PERIOD_NOT_FOUND", "Accounting period was not found."));
+        Account debitAccount = findAccount(command.debitAccountId());
+        Account creditAccount = findAccount(command.creditAccountId());
+        String sourceDocumentNumber = reconciliationAdjustmentDocumentNumber(sessionNumber, command.rowNumber());
+        String journalNumber = paymentReconciliationAdjustmentJournalNumber(sourceDocumentNumber);
+        journalEntryRepository.findByJournalNumber(journalNumber).ifPresent(existing -> {
+            throw new BusinessException("JOURNAL_NUMBER_DUPLICATE", "Journal number already exists.");
+        });
+
+        JournalEntry journal = JournalEntry.draftFromSource(
+                journalNumber,
+                period.getId(),
+                "Reconciliation adjustment " + sourceDocumentNumber,
+                "PAYMENT_RECONCILIATION_ADJUSTMENT",
+                command.reconciliationItemId(),
+                sourceDocumentNumber
+        );
+        journal.addLine(
+                debitAccount.getId(),
+                amount,
+                BigDecimal.ZERO,
+                "Debit adjustment " + sourceDocumentNumber
+        );
+        journal.addLine(
+                creditAccount.getId(),
+                BigDecimal.ZERO,
+                amount,
+                "Credit adjustment " + sourceDocumentNumber
+        );
+
+        JournalEntry saved = journalEntryRepository.save(journal);
+        postingService.post(saved, period, actor, reason);
+        return saved;
+    }
+
+    @Transactional
     public JournalEntry postJournal(UUID journalId, String reason, String actor) {
         JournalEntry journal = journalEntryRepository.findForPosting(journalId)
                 .orElseThrow(() -> new BusinessException("JOURNAL_NOT_FOUND", "Journal entry was not found."));
@@ -440,6 +528,14 @@ public class AccountingApplicationService {
 
     private static String paymentReversalJournalNumber(String paymentNumber) {
         return sourceJournalNumber("REV-", paymentNumber);
+    }
+
+    private static String paymentReconciliationAdjustmentJournalNumber(String sourceDocumentNumber) {
+        return sourceJournalNumber("REC-ADJ-", sourceDocumentNumber);
+    }
+
+    private static String reconciliationAdjustmentDocumentNumber(String sessionNumber, int rowNumber) {
+        return sourceJournalNumber("", sessionNumber + "-ROW-" + rowNumber);
     }
 
     private static String sourceJournalNumber(String prefix, String documentNumber) {

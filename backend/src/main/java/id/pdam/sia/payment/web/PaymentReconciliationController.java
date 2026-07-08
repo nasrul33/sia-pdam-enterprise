@@ -124,6 +124,22 @@ public class PaymentReconciliationController {
         return PaymentReconciliationSessionResponse.from(paymentReconciliationApplicationService.getSession(sessionId));
     }
 
+    @PostMapping("/sessions/{sessionId}/items/{itemId}/adjust")
+    @PreAuthorize(Permissions.PAYMENT_RECONCILE_AND_JOURNAL_POST)
+    public PaymentReconciliationSessionResponse createAdjustment(
+            @PathVariable UUID sessionId,
+            @PathVariable UUID itemId,
+            @Valid @RequestBody CreatePaymentReconciliationAdjustmentRequest request,
+            Principal principal
+    ) {
+        return PaymentReconciliationSessionResponse.from(paymentReconciliationApplicationService.createAdjustment(
+                sessionId,
+                itemId,
+                request.toCommand(),
+                actor(principal)
+        ));
+    }
+
     @PostMapping("/sessions/{sessionId}/complete")
     @PreAuthorize(Permissions.PAYMENT_RECONCILE)
     public PaymentReconciliationSessionResponse completeSession(
