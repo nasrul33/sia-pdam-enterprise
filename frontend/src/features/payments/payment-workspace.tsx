@@ -45,6 +45,7 @@ import {
   parseBankStatementImport,
   parseMoneyInput,
   reconciliationAdjustmentErrors,
+  reconciliationEvidenceExportErrors,
   paymentReconciliationExportErrors,
   reconciliationCompletionErrors,
   reconciliationResolutionErrors,
@@ -64,6 +65,7 @@ import {
 import type {
   ClosedPaymentReconciliationResolutionStatus,
   CreatePaymentReconciliationAdjustmentPayload,
+  PaymentReconciliationEvidenceReport,
   PaymentReconciliationMatchReport,
   PaymentReconciliationMatchStatus,
   PaymentReconciliationResolutionStatus,
@@ -79,13 +81,14 @@ import type {
   SettleCounterPaymentPayload
 } from "./payment-schema";
 import { paymentStatusValues, paymentWebhookStatusValues } from "./payment-schema";
-import { exportPaymentReconciliationCsv } from "./payment-api";
+import { exportPaymentReconciliationCsv, exportPaymentReconciliationEvidenceCsv } from "./payment-api";
 import {
   useCompletePaymentReconciliationSession,
   useCreatePaymentReconciliationAdjustment,
   useCreatePaymentReconciliationSession,
   useMatchPaymentReconciliation,
   usePayment,
+  usePaymentReconciliationEvidenceReport,
   usePaymentReconciliationSession,
   usePaymentReconciliationSessions,
   usePaymentWebhookEvents,
@@ -824,6 +827,7 @@ function PaymentReconciliationPanel({
     defaultReconciliationAdjustmentForm
   );
   const [completeReason, setCompleteReason] = useState("");
+  const [isExportingEvidence, setIsExportingEvidence] = useState(false);
   const sessionFilters = useMemo(() => ({ page: 0, size: 5 }), []);
   const sessionsQuery = usePaymentReconciliationSessions(sessionFilters, allowed);
   const selectedSessionQuery = usePaymentReconciliationSession(selectedSessionId, allowed && Boolean(selectedSessionId));
@@ -838,6 +842,8 @@ function PaymentReconciliationPanel({
     () => (selectedSession ? summarizeReconciliationSessionItems(selectedSession.items) : null),
     [selectedSession]
   );
+  const evidenceEnabled = allowed && Boolean(selectedSessionId) && selectedSession?.status === "COMPLETED";
+  const evidenceQuery = usePaymentReconciliationEvidenceReport(selectedSessionId, evidenceEnabled);
   const adjustableItems = useMemo(
     () => (selectedSession ? selectedSession.items.filter(isAdjustmentCandidate) : []),
     [selectedSession]
@@ -1087,8 +1093,40 @@ function PaymentReconciliationPanel({
     }
   }
 
+  async function handleExportEvidence() {
+    setLocalError(null);
+    setImportErrors([]);
+    setSuccessMessage(null);
+
+    const errors = reconciliationEvidenceExportErrors({
+      sessionId: selectedSessionId,
+      sessionStatus: selectedSession?.status ?? null
+    });
+    if (errors.length > 0) {
+      setLocalError(errors[0]);
+      return;
+    }
+
+    setIsExportingEvidence(true);
+    try {
+      const csv = await exportPaymentReconciliationEvidenceCsv(selectedSessionId ?? "");
+      const safeSessionNumber = evidenceQuery.data?.sessionNumber ?? selectedSession?.sessionNumber ?? "session";
+      downloadTextFile(
+        `payment-reconciliation-evidence-${safeSessionNumber}.csv`,
+        csv,
+        "text/csv;charset=utf-8"
+      );
+      setSuccessMessage("Evidence report rekonsiliasi berhasil dibuat.");
+    } catch (error) {
+      setLocalError(apiErrorMessage(error, "Gagal export evidence report rekonsiliasi."));
+    } finally {
+      setIsExportingEvidence(false);
+    }
+  }
+
   const busy =
     isExporting ||
+    isExportingEvidence ||
     matchMutation.isPending ||
     createSessionMutation.isPending ||
     resolveItemMutation.isPending ||
@@ -1589,6 +1627,18 @@ function PaymentReconciliationPanel({
                     </p>
                   ) : null}
                 </form>
+
+                {selectedSession.status === "COMPLETED" ? (
+                  <ReconciliationEvidencePanel
+                    report={evidenceQuery.data ?? null}
+                    isLoading={evidenceQuery.isLoading}
+                    isFetching={evidenceQuery.isFetching}
+                    error={evidenceQuery.error}
+                    isExporting={isExportingEvidence}
+                    onRetry={() => void evidenceQuery.refetch()}
+                    onExport={handleExportEvidence}
+                  />
+                ) : null}
               </div>
             ) : null}
           </div>
@@ -1704,6 +1754,145 @@ function ReconciliationSessionItemRow({ item }: Readonly<{ item: PaymentReconcil
         </p>
       </td>
     </tr>
+  );
+}
+
+function ReconciliationEvidencePanel({
+  report,
+  isLoading,
+  isFetching,
+  error,
+  isExporting,
+  onRetry,
+  onExport
+}: Readonly<{
+  report: PaymentReconciliationEvidenceReport | null;
+  isLoading: boolean;
+  isFetching: boolean;
+  error: unknown;
+  isExporting: boolean;
+  onRetry: () => void;
+  onExport: () => void;
+}>) {
+  if (isLoading) {
+    return (
+      <div className="rounded-lg border border-slate-200 bg-white p-3">
+        <LoadingSkeleton />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="grid gap-3 rounded-lg border border-red-200 bg-white p-3">
+        <InlineMessage type="error" message={apiErrorMessage(error, "Evidence report rekonsiliasi tidak tersedia.")} />
+        <button type="button" className={secondaryButtonClass} onClick={onRetry}>
+          <RotateCcw className="size-4" aria-hidden="true" />
+          Muat Ulang
+        </button>
+      </div>
+    );
+  }
+
+  if (!report) {
+    return (
+      <div className="rounded-lg border border-slate-200 bg-white p-3">
+        <p className="text-sm font-bold text-slate-950">Evidence report belum tersedia</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-3">
+        <div>
+          <p className="text-sm font-bold text-slate-950">Evidence Report</p>
+          <p className="mt-1 font-mono text-xs font-semibold text-slate-600">{report.sessionNumber}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {isFetching ? (
+            <span className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600">
+              <Loader2 className="size-3 animate-spin" aria-hidden="true" />
+              Refresh
+            </span>
+          ) : null}
+          <button type="button" className={secondaryButtonClass} disabled={isExporting} onClick={onExport}>
+            {isExporting ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Download className="size-4" aria-hidden="true" />}
+            Export Evidence
+          </button>
+        </div>
+      </div>
+
+      <div className="grid gap-3 p-3">
+        <div className="grid gap-2 text-sm sm:grid-cols-4">
+          <MetricPill label="Rows" value={report.summary.totalRows} tone="info" />
+          <MetricPill label="Accepted" value={report.summary.acceptedItems} tone="success" />
+          <MetricPill label="Adjusted" value={report.summary.adjustedItems} tone="warning" />
+          <MetricPill label="Unmatched" value={report.summary.unmatchedRows} tone="danger" />
+        </div>
+
+        <div className="grid gap-2 text-sm sm:grid-cols-3">
+          <TraceItem label="Completed By" value={report.completedBy ?? "-"} />
+          <TraceItem label="Completed At" value={formatDateTime(report.completedAt)} />
+          <TraceItem label="Generated At" value={formatDateTime(report.generatedAt)} />
+        </div>
+
+        {report.items.length === 0 ? (
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <p className="text-sm font-bold text-slate-950">Tidak ada item evidence</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-lg border border-slate-200">
+            <table className="min-w-full divide-y divide-slate-200 text-sm">
+              <thead className="bg-slate-50">
+                <tr>
+                  <th className="px-4 py-3 text-left font-bold text-slate-700">Row</th>
+                  <th className="px-4 py-3 text-left font-bold text-slate-700">Reference</th>
+                  <th className="px-4 py-3 text-left font-bold text-slate-700">Resolution</th>
+                  <th className="px-4 py-3 text-left font-bold text-slate-700">Payment</th>
+                  <th className="px-4 py-3 text-left font-bold text-slate-700">Adjustment</th>
+                  <th className="px-4 py-3 text-left font-bold text-slate-700">Audit</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 bg-white">
+                {report.items.map((item) => (
+                  <tr key={item.itemId} className="hover:bg-slate-50">
+                    <td className="whitespace-nowrap px-4 py-3 font-bold text-slate-950">{item.rowNumber}</td>
+                    <td className="min-w-48 px-4 py-3">
+                      <p className="font-mono text-xs font-semibold text-slate-800">{item.statementReference}</p>
+                      <p className="mt-1 text-xs text-slate-600">
+                        <MoneyText value={item.statementAmount} /> - {formatDateTime(item.transactedAt)}
+                      </p>
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3">
+                      <StatusBadge
+                        label={reconciliationResolutionStatusLabels[item.resolutionStatus]}
+                        tone={reconciliationResolutionStatusTones[item.resolutionStatus]}
+                      />
+                    </td>
+                    <td className="min-w-44 px-4 py-3 text-slate-700">
+                      <p className="font-mono text-xs font-semibold">{item.matchedPaymentNumber ?? "-"}</p>
+                      <p className="mt-1 text-xs text-slate-600">{shortId(item.settlementJournalEntryId ?? item.reversalJournalEntryId)}</p>
+                    </td>
+                    <td className="min-w-44 px-4 py-3 text-slate-700">
+                      <p className="font-mono text-xs font-semibold">{shortId(item.adjustmentJournalEntryId)}</p>
+                      <p className="mt-1 text-xs text-slate-600">{item.adjustmentReason ?? "-"}</p>
+                    </td>
+                    <td className="min-w-52 px-4 py-3 text-slate-700">
+                      <p className="text-xs font-semibold">Resolved: {item.resolvedBy ?? "-"}</p>
+                      <p className="mt-1 text-xs text-slate-600">{formatDateTime(item.resolvedAt)}</p>
+                      {item.adjustedBy ? (
+                        <p className="mt-1 text-xs text-slate-600">Adjusted: {item.adjustedBy}</p>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 

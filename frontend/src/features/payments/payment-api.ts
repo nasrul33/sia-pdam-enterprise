@@ -2,6 +2,7 @@ import { apiGet, apiGetText, apiPost } from "@/lib/api/client";
 import {
   paymentReconciliationSessionPageSchema,
   paymentReconciliationSessionSchema,
+  paymentReconciliationEvidenceReportSchema,
   paymentPageSchema,
   paymentReconciliationMatchReportSchema,
   paymentSettlementSchema,
@@ -113,6 +114,15 @@ export async function listPaymentReconciliationSessions(filters: PaymentReconcil
 export async function getPaymentReconciliationSession(sessionId: string) {
   const payload = await apiGet<unknown>(`/api/payment-reconciliation/sessions/${sessionId}`);
   return paymentReconciliationSessionSchema.parse(payload);
+}
+
+export async function getPaymentReconciliationEvidenceReport(sessionId: string) {
+  const payload = await apiGet<unknown>(`/api/reports/payment-reconciliation-evidence/${sessionId}`);
+  return paymentReconciliationEvidenceReportSchema.parse(payload);
+}
+
+export async function exportPaymentReconciliationEvidenceCsv(sessionId: string) {
+  return apiGetText(`/api/reports/payment-reconciliation-evidence/${sessionId}/export`);
 }
 
 export async function createPaymentReconciliationSession(payload: CreatePaymentReconciliationSessionPayload) {

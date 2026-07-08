@@ -107,4 +107,16 @@ public class AuditLog {
     public String getAction() {
         return action;
     }
+
+    public String getRecordId() {
+        return recordId;
+    }
+
+    public String getReason() {
+        return reason;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
 }

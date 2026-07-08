@@ -241,6 +241,11 @@ export type PaymentReconciliationAdjustmentDraft = {
   reason: string;
 };
 
+export type PaymentReconciliationEvidenceExportDraft = {
+  sessionId: string | null;
+  sessionStatus: "OPEN" | "COMPLETED" | "CANCELLED" | null;
+};
+
 export type CounterPaymentAllocationDraft = {
   invoiceId: string;
   amount: string;
@@ -434,6 +439,19 @@ export function reconciliationAdjustmentErrors(input: {
   }
   if (reason.length > 500) {
     errors.push("Alasan adjustment maksimal 500 karakter.");
+  }
+
+  return errors;
+}
+
+export function reconciliationEvidenceExportErrors(draft: PaymentReconciliationEvidenceExportDraft): string[] {
+  const errors: string[] = [];
+
+  if (!draft.sessionId || !uuidPattern.test(draft.sessionId)) {
+    errors.push("Session rekonsiliasi wajib dipilih.");
+  }
+  if (draft.sessionStatus !== "COMPLETED") {
+    errors.push("Evidence report hanya tersedia untuk session completed.");
   }
 
   return errors;

@@ -192,6 +192,66 @@ export const paymentReconciliationSessionSchema = paymentReconciliationSessionSu
   items: z.array(paymentReconciliationSessionItemSchema)
 });
 
+export const paymentReconciliationEvidenceSummarySchema = z.object({
+  totalRows: z.number().int().nonnegative(),
+  exactMatches: z.number().int().nonnegative(),
+  probableMatches: z.number().int().nonnegative(),
+  amountVariances: z.number().int().nonnegative(),
+  reversedPayments: z.number().int().nonnegative(),
+  multipleCandidates: z.number().int().nonnegative(),
+  unmatchedRows: z.number().int().nonnegative(),
+  totalVariance: z.coerce.number(),
+  acceptedItems: z.number().int().nonnegative(),
+  resolvedItems: z.number().int().nonnegative(),
+  ignoredItems: z.number().int().nonnegative(),
+  adjustedItems: z.number().int().nonnegative()
+});
+
+export const paymentReconciliationEvidenceItemSchema = z.object({
+  itemId: z.string().uuid(),
+  rowNumber: z.number().int().positive(),
+  statementReference: z.string().min(1),
+  statementAmount: z.coerce.number().positive(),
+  transactedAt: z.string().min(1),
+  statementChannel: z.string().nullable(),
+  matchStatus: paymentReconciliationMatchStatusSchema,
+  amountVariance: z.coerce.number().nullable(),
+  candidateCount: z.number().int().nonnegative(),
+  matchedPaymentId: z.string().uuid().nullable(),
+  matchedPaymentNumber: z.string().nullable(),
+  matchedPaymentStatus: paymentStatusSchema.nullable(),
+  matchedPaymentAmount: z.coerce.number().nullable(),
+  matchedPaymentPaidAt: z.string().nullable(),
+  matchedPaymentChannel: z.string().nullable(),
+  settlementJournalEntryId: z.string().uuid().nullable(),
+  reversalJournalEntryId: z.string().uuid().nullable(),
+  adjustmentJournalEntryId: z.string().uuid().nullable(),
+  adjustmentReason: z.string().nullable(),
+  adjustedBy: z.string().nullable(),
+  adjustedAt: z.string().nullable(),
+  resolutionStatus: paymentReconciliationResolutionStatusSchema,
+  resolutionReason: z.string().nullable(),
+  resolvedBy: z.string().nullable(),
+  resolvedAt: z.string().nullable(),
+  message: z.string().min(1)
+});
+
+export const paymentReconciliationEvidenceReportSchema = z.object({
+  sessionId: z.string().uuid(),
+  sessionNumber: z.string().min(1),
+  status: paymentReconciliationSessionStatusSchema,
+  sourceFilename: z.string().nullable(),
+  bankAccountReference: z.string().nullable(),
+  createdBy: z.string().min(1),
+  startedAt: z.string().min(1),
+  completedAt: z.string().nullable(),
+  completedBy: z.string().nullable(),
+  completionReason: z.string().nullable(),
+  summary: paymentReconciliationEvidenceSummarySchema,
+  items: z.array(paymentReconciliationEvidenceItemSchema),
+  generatedAt: z.string().min(1)
+});
+
 export const paymentReconciliationSessionPageSchema = z.object({
   items: z.array(paymentReconciliationSessionSummarySchema),
   page: z.number().int().nonnegative(),
@@ -218,6 +278,9 @@ export type PaymentReconciliationSessionSummary = z.infer<typeof paymentReconcil
 export type PaymentReconciliationSessionItem = z.infer<typeof paymentReconciliationSessionItemSchema>;
 export type PaymentReconciliationSession = z.infer<typeof paymentReconciliationSessionSchema>;
 export type PaymentReconciliationSessionPage = z.infer<typeof paymentReconciliationSessionPageSchema>;
+export type PaymentReconciliationEvidenceSummary = z.infer<typeof paymentReconciliationEvidenceSummarySchema>;
+export type PaymentReconciliationEvidenceItem = z.infer<typeof paymentReconciliationEvidenceItemSchema>;
+export type PaymentReconciliationEvidenceReport = z.infer<typeof paymentReconciliationEvidenceReportSchema>;
 
 export type PaymentFilters = {
   page: number;

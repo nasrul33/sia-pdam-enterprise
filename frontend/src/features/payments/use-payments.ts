@@ -4,6 +4,7 @@ import {
   completePaymentReconciliationSession,
   createPaymentReconciliationAdjustment,
   createPaymentReconciliationSession,
+  getPaymentReconciliationEvidenceReport,
   getPaymentReconciliationSession,
   getPayment,
   listPaymentReconciliationSessions,
@@ -69,6 +70,14 @@ export function usePaymentReconciliationSession(sessionId: string | null, enable
   return useQuery({
     queryKey: [...queryKeys.payments, "reconciliation-session", sessionId],
     queryFn: () => getPaymentReconciliationSession(sessionId ?? ""),
+    enabled: enabled && Boolean(sessionId)
+  });
+}
+
+export function usePaymentReconciliationEvidenceReport(sessionId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: [...queryKeys.payments, "reconciliation-evidence", sessionId],
+    queryFn: () => getPaymentReconciliationEvidenceReport(sessionId ?? ""),
     enabled: enabled && Boolean(sessionId)
   });
 }

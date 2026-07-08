@@ -14,6 +14,7 @@ import {
   parseMoneyInput,
   reconciliationAdjustmentErrors,
   paymentReconciliationExportErrors,
+  reconciliationEvidenceExportErrors,
   reconciliationCompletionErrors,
   reconciliationResolutionErrors,
   reversePaymentErrors,
@@ -329,6 +330,35 @@ test("reconciliationAdjustmentErrors validates accepted exception journal input"
         reason: "Adjustment biaya admin bank"
       },
       accounts: [assetCashAccount, revenueAccount]
+    }),
+    []
+  );
+});
+
+test("reconciliationEvidenceExportErrors only allows completed sessions", () => {
+  assert.deepEqual(
+    reconciliationEvidenceExportErrors({
+      sessionId: null,
+      sessionStatus: null
+    }),
+    [
+      "Session rekonsiliasi wajib dipilih.",
+      "Evidence report hanya tersedia untuk session completed."
+    ]
+  );
+
+  assert.deepEqual(
+    reconciliationEvidenceExportErrors({
+      sessionId: "77777777-7777-4777-8777-777777777777",
+      sessionStatus: "OPEN"
+    }),
+    ["Evidence report hanya tersedia untuk session completed."]
+  );
+
+  assert.deepEqual(
+    reconciliationEvidenceExportErrors({
+      sessionId: "77777777-7777-4777-8777-777777777777",
+      sessionStatus: "COMPLETED"
     }),
     []
   );
