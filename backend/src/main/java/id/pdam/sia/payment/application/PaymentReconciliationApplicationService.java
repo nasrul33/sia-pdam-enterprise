@@ -12,6 +12,8 @@ import id.pdam.sia.payment.domain.PaymentStatus;
 import id.pdam.sia.payment.repository.PaymentReconciliationItemRepository;
 import id.pdam.sia.payment.repository.PaymentReconciliationSessionRepository;
 import id.pdam.sia.payment.repository.PaymentRepository;
+import id.pdam.sia.shared.audit.AuditLog;
+import id.pdam.sia.shared.audit.AuditLogRepository;
 import id.pdam.sia.shared.audit.AuditTrailService;
 import id.pdam.sia.shared.exception.BusinessException;
 import org.springframework.data.domain.Page;
@@ -33,6 +35,9 @@ import java.util.UUID;
 
 @Service
 public class PaymentReconciliationApplicationService {
+    private static final String PAYMENT_MODULE = "PAYMENT";
+    private static final String COMPLETE_ACTION = "COMPLETE_RECONCILIATION_SESSION";
+    private static final String SIGN_OFF_ACTION = "SIGN_OFF_RECONCILIATION_SESSION";
     private static final int MAX_EXPORT_ROWS = 10_000;
     private static final int MAX_MATCH_ROWS = 200;
     private static final List<PaymentStatus> RECONCILIABLE_STATUSES = List.of(PaymentStatus.SETTLED, PaymentStatus.REVERSED);
@@ -45,6 +50,7 @@ public class PaymentReconciliationApplicationService {
     private final PaymentRepository paymentRepository;
     private final PaymentReconciliationSessionRepository paymentReconciliationSessionRepository;
     private final PaymentReconciliationItemRepository paymentReconciliationItemRepository;
+    private final AuditLogRepository auditLogRepository;
     private final AuditTrailService auditTrailService;
     private final AccountingApplicationService accountingApplicationService;
 
@@ -52,12 +58,14 @@ public class PaymentReconciliationApplicationService {
             PaymentRepository paymentRepository,
             PaymentReconciliationSessionRepository paymentReconciliationSessionRepository,
             PaymentReconciliationItemRepository paymentReconciliationItemRepository,
+            AuditLogRepository auditLogRepository,
             AuditTrailService auditTrailService,
             AccountingApplicationService accountingApplicationService
     ) {
         this.paymentRepository = paymentRepository;
         this.paymentReconciliationSessionRepository = paymentReconciliationSessionRepository;
         this.paymentReconciliationItemRepository = paymentReconciliationItemRepository;
+        this.auditLogRepository = auditLogRepository;
         this.auditTrailService = auditTrailService;
         this.accountingApplicationService = accountingApplicationService;
     }
@@ -200,6 +208,29 @@ public class PaymentReconciliationApplicationService {
         session.complete(reason);
         PaymentReconciliationSession savedSession = paymentReconciliationSessionRepository.save(session);
         auditTrailService.record(actor, "PAYMENT", "COMPLETE_RECONCILIATION_SESSION", savedSession.getId().toString(), reason);
+        return new PaymentReconciliationSessionResult(
+                savedSession,
+                paymentReconciliationItemRepository.findBySessionIdOrderByRowNumberAsc(savedSession.getId())
+        );
+    }
+
+    @Transactional
+    public PaymentReconciliationSessionResult signOffSession(UUID sessionId, String reason, String actor) {
+        String normalizedReason = requireNormalize(
+                reason,
+                "PAYMENT_RECONCILIATION_SIGN_OFF_REASON_REQUIRED",
+                "Reconciliation sign-off reason is required."
+        );
+        PaymentReconciliationSession session = loadSession(sessionId);
+        Optional<AuditLog> completionAudit = auditLogRepository.findFirstByModuleAndActionAndRecordIdOrderByCreatedAtDesc(
+                PAYMENT_MODULE,
+                COMPLETE_ACTION,
+                session.getId().toString()
+        );
+
+        session.signOff(normalizedReason, actor, completionAudit.map(AuditLog::getActor).orElse(null));
+        PaymentReconciliationSession savedSession = paymentReconciliationSessionRepository.save(session);
+        auditTrailService.record(actor, PAYMENT_MODULE, SIGN_OFF_ACTION, savedSession.getId().toString(), normalizedReason);
         return new PaymentReconciliationSessionResult(
                 savedSession,
                 paymentReconciliationItemRepository.findBySessionIdOrderByRowNumberAsc(savedSession.getId())

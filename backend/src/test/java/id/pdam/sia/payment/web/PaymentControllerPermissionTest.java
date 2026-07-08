@@ -139,6 +139,15 @@ class PaymentControllerPermissionTest {
                 ),
                 "hasAuthority('payment.reconcile')"
         );
+        assertPermission(
+                PaymentReconciliationController.class.getMethod(
+                        "signOffSession",
+                        UUID.class,
+                        SignOffPaymentReconciliationSessionRequest.class,
+                        Principal.class
+                ),
+                "hasAuthority('payment.reconcile') and hasAuthority('payment.reconciliation.signoff')"
+        );
     }
 
     @Test

@@ -154,6 +154,20 @@ public class PaymentReconciliationController {
         ));
     }
 
+    @PostMapping("/sessions/{sessionId}/sign-off")
+    @PreAuthorize(Permissions.PAYMENT_RECONCILE_AND_RECONCILIATION_SIGNOFF)
+    public PaymentReconciliationSessionResponse signOffSession(
+            @PathVariable UUID sessionId,
+            @Valid @RequestBody SignOffPaymentReconciliationSessionRequest request,
+            Principal principal
+    ) {
+        return PaymentReconciliationSessionResponse.from(paymentReconciliationApplicationService.signOffSession(
+                sessionId,
+                request.reason(),
+                actor(principal)
+        ));
+    }
+
     private static String csv(List<PaymentReconciliationExportRow> rows) {
         StringBuilder builder = new StringBuilder();
         appendRow(

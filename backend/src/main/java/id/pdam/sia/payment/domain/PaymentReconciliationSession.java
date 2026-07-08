@@ -37,6 +37,14 @@ public class PaymentReconciliationSession extends BaseEntity {
 
     private Instant completedAt;
 
+    @Column(length = 128)
+    private String signedOffBy;
+
+    private Instant signedOffAt;
+
+    @Column(columnDefinition = "TEXT")
+    private String signOffReason;
+
     @Column(nullable = false)
     private int totalRows;
 
@@ -87,6 +95,33 @@ public class PaymentReconciliationSession extends BaseEntity {
         this.completedAt = Instant.now();
     }
 
+    public void signOff(String reason, String actor, String completionActor) {
+        String normalizedReason = require(reason, "PAYMENT_RECONCILIATION_SIGN_OFF_REASON_REQUIRED", "Reconciliation sign-off reason is required.");
+        String normalizedActor = require(actor, "PAYMENT_RECONCILIATION_SIGN_OFF_ACTOR_REQUIRED", "Reconciliation sign-off actor is required.");
+        if (status != PaymentReconciliationSessionStatus.COMPLETED) {
+            throw new BusinessException(
+                    "PAYMENT_RECONCILIATION_SESSION_NOT_COMPLETED",
+                    "Only completed reconciliation sessions can be signed off."
+            );
+        }
+        if (signedOffAt != null) {
+            throw new BusinessException(
+                    "PAYMENT_RECONCILIATION_SIGN_OFF_ALREADY_DONE",
+                    "Reconciliation evidence has already been signed off."
+            );
+        }
+        if (sameActor(normalizedActor, createdBy) || sameActor(normalizedActor, completionActor)) {
+            throw new BusinessException(
+                    "PAYMENT_RECONCILIATION_SIGN_OFF_SOD_VIOLATION",
+                    "Reconciliation sign-off actor must be different from creator and completer."
+            );
+        }
+
+        this.signedOffBy = normalizedActor;
+        this.signedOffAt = Instant.now();
+        this.signOffReason = normalizedReason;
+    }
+
     public void ensureOpen() {
         if (status != PaymentReconciliationSessionStatus.OPEN) {
             throw new BusinessException("PAYMENT_RECONCILIATION_SESSION_NOT_OPEN", "Reconciliation session is not open.");
@@ -125,6 +160,10 @@ public class PaymentReconciliationSession extends BaseEntity {
         return normalized;
     }
 
+    private static boolean sameActor(String actor, String otherActor) {
+        return otherActor != null && actor.equalsIgnoreCase(otherActor.trim());
+    }
+
     public String getSessionNumber() {
         return sessionNumber;
     }
@@ -151,6 +190,18 @@ public class PaymentReconciliationSession extends BaseEntity {
 
     public Instant getCompletedAt() {
         return completedAt;
+    }
+
+    public String getSignedOffBy() {
+        return signedOffBy;
+    }
+
+    public Instant getSignedOffAt() {
+        return signedOffAt;
+    }
+
+    public String getSignOffReason() {
+        return signOffReason;
     }
 
     public int getTotalRows() {

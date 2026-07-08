@@ -17,6 +17,9 @@ public record BankReconciliationEvidenceReport(
         Instant completedAt,
         String completedBy,
         String completionReason,
+        Instant signedOffAt,
+        String signedOffBy,
+        String signOffReason,
         BankReconciliationEvidenceSummary summary,
         List<BankReconciliationEvidenceItem> items,
         Instant generatedAt

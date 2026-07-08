@@ -12,7 +12,10 @@ import id.pdam.sia.payment.domain.PaymentStatus;
 import id.pdam.sia.payment.repository.PaymentReconciliationItemRepository;
 import id.pdam.sia.payment.repository.PaymentReconciliationSessionRepository;
 import id.pdam.sia.payment.repository.PaymentRepository;
+import id.pdam.sia.shared.audit.AuditLog;
+import id.pdam.sia.shared.audit.AuditLogRepository;
 import id.pdam.sia.shared.audit.AuditTrailService;
+import id.pdam.sia.shared.audit.AuditTrailEntry;
 import id.pdam.sia.shared.exception.BusinessException;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -45,12 +48,14 @@ class PaymentReconciliationApplicationServiceTest {
             mock(PaymentReconciliationSessionRepository.class);
     private final PaymentReconciliationItemRepository paymentReconciliationItemRepository =
             mock(PaymentReconciliationItemRepository.class);
+    private final AuditLogRepository auditLogRepository = mock(AuditLogRepository.class);
     private final AuditTrailService auditTrailService = mock(AuditTrailService.class);
     private final AccountingApplicationService accountingApplicationService = mock(AccountingApplicationService.class);
     private final PaymentReconciliationApplicationService service = new PaymentReconciliationApplicationService(
             paymentRepository,
             paymentReconciliationSessionRepository,
             paymentReconciliationItemRepository,
+            auditLogRepository,
             auditTrailService,
             accountingApplicationService
     );
@@ -398,6 +403,120 @@ class PaymentReconciliationApplicationServiceTest {
                 session.getId().toString(),
                 "Semua exception sudah ditindaklanjuti."
         );
+    }
+
+    @Test
+    void signsOffCompletedSessionWithSodAwareAuditTrail() {
+        PaymentReconciliationSession session = openSession("REC-20260731-SIGNOFF");
+        session.complete("Semua item sudah ditutup.");
+        PaymentReconciliationItem item = PaymentReconciliationItem.from(
+                session.getId(),
+                PaymentReconciliationMatchResult.unmatched(1, new BankStatementRowCommand(
+                        "BANK-SIGNOFF",
+                        new BigDecimal("75000.00"),
+                        PAID_AT,
+                        "bank"
+                ))
+        );
+        AuditLog completionAudit = AuditLog.from(AuditTrailEntry.sensitiveAction(
+                "finance.supervisor",
+                "PAYMENT",
+                "COMPLETE_RECONCILIATION_SESSION",
+                session.getId().toString(),
+                "Semua item sudah ditutup."
+        ));
+        when(paymentReconciliationSessionRepository.findById(session.getId())).thenReturn(Optional.of(session));
+        when(auditLogRepository.findFirstByModuleAndActionAndRecordIdOrderByCreatedAtDesc(
+                "PAYMENT",
+                "COMPLETE_RECONCILIATION_SESSION",
+                session.getId().toString()
+        )).thenReturn(Optional.of(completionAudit));
+        when(paymentReconciliationSessionRepository.save(any(PaymentReconciliationSession.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(paymentReconciliationItemRepository.findBySessionIdOrderByRowNumberAsc(session.getId()))
+                .thenReturn(List.of(item));
+
+        PaymentReconciliationSessionResult result = service.signOffSession(
+                session.getId(),
+                "Evidence sudah direview dan saldo kas-bank disetujui.",
+                "finance.manager"
+        );
+
+        assertThat(result.session().getSignedOffBy()).isEqualTo("finance.manager");
+        assertThat(result.session().getSignedOffAt()).isNotNull();
+        assertThat(result.session().getSignOffReason()).isEqualTo("Evidence sudah direview dan saldo kas-bank disetujui.");
+        assertThat(result.items()).hasSize(1);
+        verify(auditTrailService).record(
+                "finance.manager",
+                "PAYMENT",
+                "SIGN_OFF_RECONCILIATION_SESSION",
+                session.getId().toString(),
+                "Evidence sudah direview dan saldo kas-bank disetujui."
+        );
+    }
+
+    @Test
+    void rejectsSignOffBeforeSessionCompletion() {
+        PaymentReconciliationSession session = openSession("REC-20260731-SIGNOFF-OPEN");
+        when(paymentReconciliationSessionRepository.findById(session.getId())).thenReturn(Optional.of(session));
+        when(auditLogRepository.findFirstByModuleAndActionAndRecordIdOrderByCreatedAtDesc(
+                "PAYMENT",
+                "COMPLETE_RECONCILIATION_SESSION",
+                session.getId().toString()
+        )).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.signOffSession(session.getId(), "approve", "finance.manager"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("Only completed reconciliation sessions can be signed off");
+
+        verify(paymentReconciliationSessionRepository, never()).save(any(PaymentReconciliationSession.class));
+    }
+
+    @Test
+    void rejectsSignOffByCreatorOrCompletionActor() {
+        PaymentReconciliationSession session = openSession("REC-20260731-SIGNOFF-SOD");
+        session.complete("Selesai.");
+        AuditLog completionAudit = AuditLog.from(AuditTrailEntry.sensitiveAction(
+                "finance.completer",
+                "PAYMENT",
+                "COMPLETE_RECONCILIATION_SESSION",
+                session.getId().toString(),
+                "Selesai."
+        ));
+        when(paymentReconciliationSessionRepository.findById(session.getId())).thenReturn(Optional.of(session));
+        when(auditLogRepository.findFirstByModuleAndActionAndRecordIdOrderByCreatedAtDesc(
+                "PAYMENT",
+                "COMPLETE_RECONCILIATION_SESSION",
+                session.getId().toString()
+        )).thenReturn(Optional.of(completionAudit));
+
+        assertThatThrownBy(() -> service.signOffSession(session.getId(), "approve", "finance.supervisor"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("must be different from creator and completer");
+        assertThatThrownBy(() -> service.signOffSession(session.getId(), "approve", "finance.completer"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("must be different from creator and completer");
+
+        verify(paymentReconciliationSessionRepository, never()).save(any(PaymentReconciliationSession.class));
+    }
+
+    @Test
+    void rejectsDuplicateSignOff() {
+        PaymentReconciliationSession session = openSession("REC-20260731-SIGNOFF-DUP");
+        session.complete("Selesai.");
+        session.signOff("Approved pertama.", "finance.manager", "finance.completer");
+        when(paymentReconciliationSessionRepository.findById(session.getId())).thenReturn(Optional.of(session));
+        when(auditLogRepository.findFirstByModuleAndActionAndRecordIdOrderByCreatedAtDesc(
+                "PAYMENT",
+                "COMPLETE_RECONCILIATION_SESSION",
+                session.getId().toString()
+        )).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.signOffSession(session.getId(), "Approved ulang.", "finance.director"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("already been signed off");
+
+        verify(paymentReconciliationSessionRepository, never()).save(any(PaymentReconciliationSession.class));
     }
 
     private static Payment settledPayment(String paymentNumber, String externalReference, BigDecimal amount) {

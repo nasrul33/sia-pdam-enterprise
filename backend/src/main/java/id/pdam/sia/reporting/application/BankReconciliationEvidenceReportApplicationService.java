@@ -73,6 +73,9 @@ public class BankReconciliationEvidenceReportApplicationService {
                 completionAudit.map(AuditLog::getCreatedAt).orElse(session.getCompletedAt()),
                 completionAudit.map(AuditLog::getActor).orElse(null),
                 completionAudit.map(AuditLog::getReason).orElse(null),
+                session.getSignedOffAt(),
+                session.getSignedOffBy(),
+                session.getSignOffReason(),
                 BankReconciliationEvidenceSummary.from(items),
                 items.stream().map(BankReconciliationEvidenceItem::from).toList(),
                 Instant.now()
@@ -118,7 +121,10 @@ public class BankReconciliationEvidenceReportApplicationService {
                 "adjusted_at",
                 "completed_by",
                 "completed_at",
-                "completion_reason"
+                "completion_reason",
+                "signed_off_by",
+                "signed_off_at",
+                "sign_off_reason"
         );
 
         report.items().forEach(item -> appendRow(
@@ -147,7 +153,10 @@ public class BankReconciliationEvidenceReportApplicationService {
                 item.adjustedAt(),
                 report.completedBy(),
                 report.completedAt(),
-                report.completionReason()
+                report.completionReason(),
+                report.signedOffBy(),
+                report.signedOffAt(),
+                report.signOffReason()
         ));
         return builder.toString();
     }

@@ -17,7 +17,8 @@ import {
   type PaymentWebhookEventFilters,
   type ResolvePaymentReconciliationItemPayload,
   type ReversePaymentPayload,
-  type SettleCounterPaymentPayload
+  type SettleCounterPaymentPayload,
+  type SignOffPaymentReconciliationSessionPayload
 } from "./payment-schema";
 
 function paymentParams(filters: PaymentFilters): URLSearchParams {
@@ -163,6 +164,17 @@ export async function completePaymentReconciliationSession(input: {
 }) {
   const response = await apiPost<CompletePaymentReconciliationSessionPayload, unknown>(
     `/api/payment-reconciliation/sessions/${input.sessionId}/complete`,
+    input.payload
+  );
+  return paymentReconciliationSessionSchema.parse(response);
+}
+
+export async function signOffPaymentReconciliationSession(input: {
+  sessionId: string;
+  payload: SignOffPaymentReconciliationSessionPayload;
+}) {
+  const response = await apiPost<SignOffPaymentReconciliationSessionPayload, unknown>(
+    `/api/payment-reconciliation/sessions/${input.sessionId}/sign-off`,
     input.payload
   );
   return paymentReconciliationSessionSchema.parse(response);

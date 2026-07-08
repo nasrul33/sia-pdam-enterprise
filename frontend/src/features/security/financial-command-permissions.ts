@@ -9,6 +9,7 @@ export const financialCommandPermissions = {
   paymentCounter: "payment.counter",
   paymentRead: "payment.read",
   paymentReconcile: "payment.reconcile",
+  paymentReconciliationSignoff: "payment.reconciliation.signoff",
   paymentReverse: "payment.reverse",
   paymentWebhookRead: "payment.webhook.read"
 } as const;
@@ -30,6 +31,7 @@ export type PaymentCommandPermissionState = {
   canSettleCounterPayments: boolean;
   canReadPayments: boolean;
   canReconcilePayments: boolean;
+  canSignOffPaymentReconciliations: boolean;
   canReversePayments: boolean;
   canReadWebhookEvents: boolean;
 };
@@ -70,6 +72,7 @@ export function resolveFinancialCommandPermissions(authorities: readonly string[
     canSettleCounterPayments: authoritySet.has(financialCommandPermissions.paymentCounter),
     canReadPayments: authoritySet.has(financialCommandPermissions.paymentRead),
     canReconcilePayments: authoritySet.has(financialCommandPermissions.paymentReconcile),
+    canSignOffPaymentReconciliations: authoritySet.has(financialCommandPermissions.paymentReconciliationSignoff),
     canReversePayments: authoritySet.has(financialCommandPermissions.paymentReverse),
     canReadWebhookEvents: authoritySet.has(financialCommandPermissions.paymentWebhookRead)
   };
@@ -89,6 +92,7 @@ export function resolveFinancialCommandPermissions(authorities: readonly string[
       payment.canSettleCounterPayments ||
       payment.canReadPayments ||
       payment.canReconcilePayments ||
+      payment.canSignOffPaymentReconciliations ||
       payment.canReversePayments ||
       payment.canReadWebhookEvents
   };
@@ -168,6 +172,12 @@ export function visibleFinancialCommandGroups(state: FinancialCommandPermissionS
           permission: financialCommandPermissions.paymentReconcile,
           allowed: state.payment.canReconcilePayments,
           risk: "medium"
+        },
+        {
+          label: "Reconciliation Sign-off",
+          permission: financialCommandPermissions.paymentReconciliationSignoff,
+          allowed: state.payment.canSignOffPaymentReconciliations,
+          risk: "high"
         },
         {
           label: "Reversal Payment",

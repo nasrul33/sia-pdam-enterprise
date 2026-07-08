@@ -98,6 +98,11 @@ class BankReconciliationEvidenceReportApplicationServiceTest {
         );
         exactItem.resolve(PaymentReconciliationResolutionStatus.ACCEPTED, "Payment cocok dengan mutasi bank.", "auditor.internal");
         session.complete("Semua item sudah ditutup untuk month-end.");
+        session.signOff(
+                "Evidence sudah direview dan disetujui untuk tutup bulan.",
+                "finance.manager",
+                "finance.supervisor"
+        );
         AuditLog completionAudit = AuditLog.from(AuditTrailEntry.sensitiveAction(
                 "finance.supervisor",
                 "PAYMENT",
@@ -120,6 +125,9 @@ class BankReconciliationEvidenceReportApplicationServiceTest {
         assertThat(report.status()).isEqualTo(PaymentReconciliationSessionStatus.COMPLETED);
         assertThat(report.completedBy()).isEqualTo("finance.supervisor");
         assertThat(report.completionReason()).isEqualTo("Semua item sudah ditutup untuk month-end.");
+        assertThat(report.signedOffBy()).isEqualTo("finance.manager");
+        assertThat(report.signedOffAt()).isNotNull();
+        assertThat(report.signOffReason()).isEqualTo("Evidence sudah direview dan disetujui untuk tutup bulan.");
         assertThat(report.summary().totalRows()).isEqualTo(2);
         assertThat(report.summary().acceptedItems()).isEqualTo(2);
         assertThat(report.summary().adjustedItems()).isEqualTo(1);
@@ -147,6 +155,7 @@ class BankReconciliationEvidenceReportApplicationServiceTest {
         );
         item.resolve(PaymentReconciliationResolutionStatus.RESOLVED, "Tidak perlu jurnal.", "auditor.internal");
         session.complete("closed");
+        session.signOff("Approved for month-end.", "finance.manager", "finance.supervisor");
 
         when(sessionRepository.findById(session.getId())).thenReturn(Optional.of(session));
         when(itemRepository.findBySessionIdOrderByRowNumberAsc(session.getId())).thenReturn(List.of(item));
@@ -160,10 +169,13 @@ class BankReconciliationEvidenceReportApplicationServiceTest {
 
         assertThat(csv)
                 .startsWith("session_number,row_number,statement_reference,statement_amount")
+                .contains("signed_off_by,signed_off_at,sign_off_reason")
                 .contains(session.getSessionNumber())
                 .contains("BANK-FEE-CSV")
                 .contains("RESOLVED")
-                .contains("auditor.internal");
+                .contains("auditor.internal")
+                .contains("finance.manager")
+                .contains("Approved for month-end.");
     }
 
     private static PaymentReconciliationSession openSession(String sessionNumber) {

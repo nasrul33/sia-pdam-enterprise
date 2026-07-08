@@ -142,6 +142,9 @@ const paymentReconciliationSessionSummaryBaseSchema = z.object({
   createdBy: z.string().min(1),
   startedAt: z.string().min(1),
   completedAt: z.string().nullable(),
+  signedOffBy: z.string().nullable(),
+  signedOffAt: z.string().nullable(),
+  signOffReason: z.string().nullable(),
   totalRows: z.number().int().nonnegative(),
   exactMatches: z.number().int().nonnegative(),
   probableMatches: z.number().int().nonnegative(),
@@ -247,6 +250,9 @@ export const paymentReconciliationEvidenceReportSchema = z.object({
   completedAt: z.string().nullable(),
   completedBy: z.string().nullable(),
   completionReason: z.string().nullable(),
+  signedOffAt: z.string().nullable(),
+  signedOffBy: z.string().nullable(),
+  signOffReason: z.string().nullable(),
   summary: paymentReconciliationEvidenceSummarySchema,
   items: z.array(paymentReconciliationEvidenceItemSchema),
   generatedAt: z.string().min(1)
@@ -333,6 +339,10 @@ export type CreatePaymentReconciliationAdjustmentPayload = {
 };
 
 export type CompletePaymentReconciliationSessionPayload = {
+  reason: string;
+};
+
+export type SignOffPaymentReconciliationSessionPayload = {
   reason: string;
 };
 

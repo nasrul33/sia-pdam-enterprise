@@ -7,6 +7,7 @@ import {
   canReconcilePayments,
   canReversePayment,
   canSettleCounterPayment,
+  canSignOffPaymentReconciliations,
   counterPaymentErrors,
   bankStatementImportTemplate,
   parseBankStatementCsv,
@@ -15,6 +16,7 @@ import {
   reconciliationAdjustmentErrors,
   paymentReconciliationExportErrors,
   reconciliationEvidenceExportErrors,
+  reconciliationSignOffErrors,
   reconciliationCompletionErrors,
   reconciliationResolutionErrors,
   reversePaymentErrors,
@@ -79,16 +81,19 @@ test("payment command guards require matching authorities", () => {
     financialCommandPermissions.paymentCounter,
     financialCommandPermissions.paymentRead,
     financialCommandPermissions.paymentReconcile,
+    financialCommandPermissions.paymentReconciliationSignoff,
     financialCommandPermissions.paymentReverse
   ]).payment;
 
   assert.equal(canSettleCounterPayment(paymentPermissions), true);
   assert.equal(canReadPayments(paymentPermissions), true);
   assert.equal(canReconcilePayments(paymentPermissions), true);
+  assert.equal(canSignOffPaymentReconciliations(paymentPermissions), true);
   assert.equal(canReversePayment(paymentPermissions), true);
   assert.equal(canReconcilePayments(resolveFinancialCommandPermissions([]).payment), false);
   assert.equal(canReadPayments(resolveFinancialCommandPermissions([]).payment), false);
   assert.equal(canSettleCounterPayment(resolveFinancialCommandPermissions([]).payment), false);
+  assert.equal(canSignOffPaymentReconciliations(resolveFinancialCommandPermissions([]).payment), false);
 });
 
 test("summarizePaymentList calculates reconciliation counts and cash impact", () => {
@@ -359,6 +364,60 @@ test("reconciliationEvidenceExportErrors only allows completed sessions", () => 
     reconciliationEvidenceExportErrors({
       sessionId: "77777777-7777-4777-8777-777777777777",
       sessionStatus: "COMPLETED"
+    }),
+    []
+  );
+});
+
+test("reconciliationSignOffErrors enforces completed evidence, reason, duplicate guard, and SoD", () => {
+  assert.deepEqual(
+    reconciliationSignOffErrors({
+      reason: "",
+      sessionStatus: "OPEN",
+      signedOffAt: null,
+      actor: null,
+      createdBy: "finance.creator",
+      completedBy: "finance.completer"
+    }),
+    [
+      "Sign-off hanya tersedia untuk session completed.",
+      "Actor sign-off wajib tersedia.",
+      "Alasan sign-off wajib diisi."
+    ]
+  );
+
+  assert.deepEqual(
+    reconciliationSignOffErrors({
+      reason: "Approved",
+      sessionStatus: "COMPLETED",
+      signedOffAt: "2026-07-31T12:00:00Z",
+      actor: "finance.manager",
+      createdBy: "finance.creator",
+      completedBy: "finance.completer"
+    }),
+    ["Evidence rekonsiliasi sudah memiliki sign-off."]
+  );
+
+  assert.deepEqual(
+    reconciliationSignOffErrors({
+      reason: "Approved",
+      sessionStatus: "COMPLETED",
+      signedOffAt: null,
+      actor: "FINANCE.COMPLETER",
+      createdBy: "finance.creator",
+      completedBy: "finance.completer"
+    }),
+    ["Actor sign-off harus berbeda dari pembuat dan penyelesai session."]
+  );
+
+  assert.deepEqual(
+    reconciliationSignOffErrors({
+      reason: "Evidence sudah sesuai saldo kas-bank.",
+      sessionStatus: "COMPLETED",
+      signedOffAt: null,
+      actor: "finance.manager",
+      createdBy: "finance.creator",
+      completedBy: "finance.completer"
     }),
     []
   );

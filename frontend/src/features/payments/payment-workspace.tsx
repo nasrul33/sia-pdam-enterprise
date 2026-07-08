@@ -39,6 +39,7 @@ import {
   canReconcilePayments,
   canReversePayment,
   canSettleCounterPayment,
+  canSignOffPaymentReconciliations,
   counterPaymentErrors,
   bankStatementImportProfileOptions,
   bankStatementImportTemplate,
@@ -46,6 +47,7 @@ import {
   parseMoneyInput,
   reconciliationAdjustmentErrors,
   reconciliationEvidenceExportErrors,
+  reconciliationSignOffErrors,
   paymentReconciliationExportErrors,
   reconciliationCompletionErrors,
   reconciliationResolutionErrors,
@@ -95,6 +97,7 @@ import {
   usePayments,
   useResolvePaymentReconciliationItem,
   useReversePayment,
+  useSignOffPaymentReconciliationSession,
   useSettleCounterPayment
 } from "./use-payments";
 
@@ -248,6 +251,10 @@ function optionalString(value: string): string | null {
   return normalized.length > 0 ? normalized : null;
 }
 
+function sameActorValue(left: string | null, right: string | null): boolean {
+  return Boolean(left?.trim() && right?.trim() && left.trim().toLowerCase() === right.trim().toLowerCase());
+}
+
 function counterPaymentIdempotencyKey(): string {
   return `payment-counter-${newClientId()}`.slice(0, 128);
 }
@@ -394,6 +401,7 @@ function PaymentCommandPanel({ permissions }: Readonly<{ permissions: PaymentPer
       <CommandStatus label="Counter Settlement" allowed={permissions.canSettleCounterPayments} highRisk />
       <CommandStatus label="Payment Read" allowed={permissions.canReadPayments} />
       <CommandStatus label="Payment Reconcile" allowed={permissions.canReconcilePayments} />
+      <CommandStatus label="Reconciliation Sign-off" allowed={permissions.canSignOffPaymentReconciliations} highRisk />
       <CommandStatus label="Payment Reversal" allowed={permissions.canReversePayments} highRisk />
       <CommandStatus label="Webhook Event Read" allowed={permissions.canReadWebhookEvents} />
     </div>
@@ -792,21 +800,26 @@ function TraceItem({ label, value }: Readonly<{ label: string; value: string }>)
 function PaymentReconciliationPanel({
   allowed,
   canAdjust,
+  canSignOff,
   accounts,
   channel,
-  status
+  status,
+  currentActor
 }: Readonly<{
   allowed: boolean;
   canAdjust: boolean;
+  canSignOff: boolean;
   accounts: Account[];
   channel: string;
   status: StatusFilter<PaymentStatus>;
+  currentActor: string | null;
 }>) {
   const matchMutation = useMatchPaymentReconciliation();
   const createSessionMutation = useCreatePaymentReconciliationSession();
   const resolveItemMutation = useResolvePaymentReconciliationItem();
   const adjustmentMutation = useCreatePaymentReconciliationAdjustment();
   const completeSessionMutation = useCompletePaymentReconciliationSession();
+  const signOffMutation = useSignOffPaymentReconciliationSession();
   const [paidAtFrom, setPaidAtFrom] = useState("");
   const [paidAtTo, setPaidAtTo] = useState("");
   const [statementCsv, setStatementCsv] = useState("");
@@ -827,6 +840,7 @@ function PaymentReconciliationPanel({
     defaultReconciliationAdjustmentForm
   );
   const [completeReason, setCompleteReason] = useState("");
+  const [signOffReason, setSignOffReason] = useState("");
   const [isExportingEvidence, setIsExportingEvidence] = useState(false);
   const sessionFilters = useMemo(() => ({ page: 0, size: 5 }), []);
   const sessionsQuery = usePaymentReconciliationSessions(sessionFilters, allowed);
@@ -1124,6 +1138,55 @@ function PaymentReconciliationPanel({
     }
   }
 
+  async function handleSignOffSession(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLocalError(null);
+    setImportErrors([]);
+    setSuccessMessage(null);
+    signOffMutation.reset();
+
+    if (!canSignOff) {
+      setLocalError("User tidak memiliki permission payment.reconciliation.signoff.");
+      return;
+    }
+    if (!selectedSessionId || !selectedSession) {
+      setLocalError("Session rekonsiliasi wajib dipilih.");
+      return;
+    }
+    if (evidenceQuery.isLoading || evidenceQuery.isFetching) {
+      setLocalError("Evidence report masih dimuat.");
+      return;
+    }
+    if (evidenceQuery.error || !evidenceQuery.data) {
+      setLocalError("Evidence report wajib berhasil dimuat sebelum sign-off.");
+      return;
+    }
+
+    const errors = reconciliationSignOffErrors({
+      reason: signOffReason,
+      sessionStatus: selectedSession.status,
+      signedOffAt: selectedSession.signedOffAt,
+      actor: currentActor,
+      createdBy: selectedSession.createdBy,
+      completedBy: evidenceQuery.data.completedBy
+    });
+    if (errors.length > 0) {
+      setLocalError(errors[0]);
+      return;
+    }
+
+    try {
+      const session = await signOffMutation.mutateAsync({
+        sessionId: selectedSessionId,
+        payload: { reason: normalizeInput(signOffReason) }
+      });
+      setSignOffReason("");
+      setSuccessMessage(`Evidence session ${session.sessionNumber} sudah mendapat sign-off.`);
+    } catch {
+      return;
+    }
+  }
+
   const busy =
     isExporting ||
     isExportingEvidence ||
@@ -1131,7 +1194,8 @@ function PaymentReconciliationPanel({
     createSessionMutation.isPending ||
     resolveItemMutation.isPending ||
     adjustmentMutation.isPending ||
-    completeSessionMutation.isPending;
+    completeSessionMutation.isPending ||
+    signOffMutation.isPending;
   const disabled = !allowed || busy;
   const sessionCommandDisabled = disabled || selectedSession?.status !== "OPEN";
   const adjustmentCommandDisabled = !canAdjust || busy || selectedSession?.status !== "OPEN";
@@ -1141,7 +1205,8 @@ function PaymentReconciliationPanel({
     (createSessionMutation.isError ? apiErrorMessage(createSessionMutation.error, "Gagal menyimpan session rekonsiliasi.") : null) ??
     (resolveItemMutation.isError ? apiErrorMessage(resolveItemMutation.error, "Gagal menutup item rekonsiliasi.") : null) ??
     (adjustmentMutation.isError ? apiErrorMessage(adjustmentMutation.error, "Gagal membuat jurnal adjustment rekonsiliasi.") : null) ??
-    (completeSessionMutation.isError ? apiErrorMessage(completeSessionMutation.error, "Gagal menyelesaikan session rekonsiliasi.") : null);
+    (completeSessionMutation.isError ? apiErrorMessage(completeSessionMutation.error, "Gagal menyelesaikan session rekonsiliasi.") : null) ??
+    (signOffMutation.isError ? apiErrorMessage(signOffMutation.error, "Gagal sign-off evidence rekonsiliasi.") : null);
   const recentSessions = sessionsQuery.data?.items ?? [];
   const selectedImportProfile = bankStatementImportProfileOptions.find((option) => option.value === importProfile);
 
@@ -1629,15 +1694,28 @@ function PaymentReconciliationPanel({
                 </form>
 
                 {selectedSession.status === "COMPLETED" ? (
-                  <ReconciliationEvidencePanel
-                    report={evidenceQuery.data ?? null}
-                    isLoading={evidenceQuery.isLoading}
-                    isFetching={evidenceQuery.isFetching}
-                    error={evidenceQuery.error}
-                    isExporting={isExportingEvidence}
-                    onRetry={() => void evidenceQuery.refetch()}
-                    onExport={handleExportEvidence}
-                  />
+                  <>
+                    <ReconciliationEvidencePanel
+                      report={evidenceQuery.data ?? null}
+                      isLoading={evidenceQuery.isLoading}
+                      isFetching={evidenceQuery.isFetching}
+                      error={evidenceQuery.error}
+                      isExporting={isExportingEvidence}
+                      onRetry={() => void evidenceQuery.refetch()}
+                      onExport={handleExportEvidence}
+                    />
+                    <ReconciliationSignOffPanel
+                      session={selectedSession}
+                      report={evidenceQuery.data ?? null}
+                      canSignOff={canSignOff}
+                      currentActor={currentActor}
+                      reason={signOffReason}
+                      isSubmitting={signOffMutation.isPending}
+                      isEvidenceLoading={evidenceQuery.isLoading || evidenceQuery.isFetching}
+                      onReasonChange={setSignOffReason}
+                      onSubmit={handleSignOffSession}
+                    />
+                  </>
                 ) : null}
               </div>
             ) : null}
@@ -1715,7 +1793,12 @@ function ReconciliationSessionList({
                 {session.totalRows} row - {formatDateTime(session.startedAt)}
               </span>
             </span>
-            <StatusBadge label={reconciliationSessionStatusLabels[session.status]} tone={reconciliationSessionStatusTones[session.status]} />
+            <span className="flex flex-col items-end gap-1">
+              <StatusBadge label={reconciliationSessionStatusLabels[session.status]} tone={reconciliationSessionStatusTones[session.status]} />
+              {session.status === "COMPLETED" ? (
+                <StatusBadge label={session.signedOffAt ? "Signed" : "Pending Sign-off"} tone={session.signedOffAt ? "success" : "warning"} />
+              ) : null}
+            </span>
           </button>
         ))}
       </div>
@@ -1754,6 +1837,101 @@ function ReconciliationSessionItemRow({ item }: Readonly<{ item: PaymentReconcil
         </p>
       </td>
     </tr>
+  );
+}
+
+function ReconciliationSignOffPanel({
+  session,
+  report,
+  canSignOff,
+  currentActor,
+  reason,
+  isSubmitting,
+  isEvidenceLoading,
+  onReasonChange,
+  onSubmit
+}: Readonly<{
+  session: PaymentReconciliationSessionSummary;
+  report: PaymentReconciliationEvidenceReport | null;
+  canSignOff: boolean;
+  currentActor: string | null;
+  reason: string;
+  isSubmitting: boolean;
+  isEvidenceLoading: boolean;
+  onReasonChange: (reason: string) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}>) {
+  if (session.signedOffAt) {
+    return (
+      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-bold text-emerald-950">Month-end Sign-off</p>
+            <p className="mt-1 text-xs font-semibold text-emerald-900">{session.sessionNumber}</p>
+          </div>
+          <StatusBadge label="Approved" tone="success" />
+        </div>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <TraceItem label="Signed Off By" value={session.signedOffBy ?? "-"} />
+          <TraceItem label="Signed Off At" value={formatDateTime(session.signedOffAt)} />
+        </div>
+        <div className="mt-3 rounded-lg border border-emerald-200 bg-white p-3">
+          <p className="text-xs font-bold uppercase text-emerald-800">Sign-off Reason</p>
+          <p className="mt-1 text-sm leading-6 text-emerald-950">{session.signOffReason ?? "-"}</p>
+        </div>
+      </div>
+    );
+  }
+
+  const completionActor = report?.completedBy ?? null;
+  const blockedBySod =
+    sameActorValue(currentActor, session.createdBy) || sameActorValue(currentActor, completionActor);
+  const disabled = !canSignOff || !currentActor || isSubmitting || isEvidenceLoading || !report || blockedBySod;
+
+  return (
+    <form onSubmit={onSubmit} className="grid gap-3 rounded-lg border border-indigo-200 bg-indigo-50 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-bold text-indigo-950">Month-end Sign-off</p>
+          <p className="mt-1 text-xs font-semibold text-indigo-800">{session.sessionNumber}</p>
+        </div>
+        <StatusBadge label={canSignOff ? "Ready" : "Locked"} tone={canSignOff ? "success" : "neutral"} />
+      </div>
+      <div className="grid gap-2 sm:grid-cols-3">
+        <TraceItem label="Created By" value={session.createdBy} />
+        <TraceItem label="Completed By" value={completionActor ?? "-"} />
+        <TraceItem label="Approver" value={currentActor ?? "-"} />
+      </div>
+      <label className="block">
+        <span className="text-xs font-bold uppercase text-indigo-800">Sign-off Reason</span>
+        <textarea
+          className={textareaClass}
+          value={reason}
+          maxLength={500}
+          disabled={disabled}
+          onChange={(event) => onReasonChange(event.target.value)}
+        />
+      </label>
+      <button type="submit" className={primaryButtonClass} disabled={disabled}>
+        {isSubmitting ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <ShieldCheck className="size-4" aria-hidden="true" />}
+        Sign Off Evidence
+      </button>
+      {!canSignOff ? (
+        <p className="text-xs font-semibold text-indigo-900">
+          Authority <span className="font-mono font-bold">payment.reconciliation.signoff</span> diperlukan untuk approval.
+        </p>
+      ) : null}
+      {blockedBySod ? (
+        <p className="text-xs font-semibold text-indigo-900">
+          Actor sign-off harus berbeda dari pembuat dan penyelesai session.
+        </p>
+      ) : null}
+      {!report ? (
+        <p className="text-xs font-semibold text-indigo-900">
+          Evidence report harus tersedia sebelum approval.
+        </p>
+      ) : null}
+    </form>
   );
 }
 
@@ -1835,6 +2013,9 @@ function ReconciliationEvidencePanel({
           <TraceItem label="Completed By" value={report.completedBy ?? "-"} />
           <TraceItem label="Completed At" value={formatDateTime(report.completedAt)} />
           <TraceItem label="Generated At" value={formatDateTime(report.generatedAt)} />
+          <TraceItem label="Signed Off By" value={report.signedOffBy ?? "-"} />
+          <TraceItem label="Signed Off At" value={formatDateTime(report.signedOffAt)} />
+          <TraceItem label="Sign-off Reason" value={report.signOffReason ?? "-"} />
         </div>
 
         {report.items.length === 0 ? (
@@ -2425,6 +2606,8 @@ export function PaymentWorkspace() {
   const eventsEnabled = queryEnabled && permissions.canReadWebhookEvents;
   const canCreateReconciliationAdjustments =
     permissions.canReconcilePayments && financialPermissions.accounting.canPostJournals;
+  const canSignOffReconciliationEvidence =
+    permissions.canReconcilePayments && canSignOffPaymentReconciliations(permissions);
   const accountsEnabled =
     queryEnabled &&
     (permissions.canSettleCounterPayments || permissions.canReversePayments || canCreateReconciliationAdjustments);
@@ -2630,9 +2813,11 @@ export function PaymentWorkspace() {
               <PaymentReconciliationPanel
                 allowed={canReconcilePayments(permissions)}
                 canAdjust={canCreateReconciliationAdjustments}
+                canSignOff={canSignOffReconciliationEvidence}
                 accounts={accounts}
                 channel={paymentChannel}
                 status={paymentStatus}
+                currentActor={currentUserQuery.data?.username ?? null}
               />
               <CounterSettlementForm
                 allowed={canSettleCounterPayment(permissions)}

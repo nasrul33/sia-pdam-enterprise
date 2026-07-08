@@ -4,6 +4,7 @@ import type {
   ClosedPaymentReconciliationResolutionStatus,
   PaymentReconciliationMatchStatus,
   PaymentReconciliationResolutionStatus,
+  PaymentReconciliationSessionStatus,
   PaymentStatus,
   PaymentWebhookStatus
 } from "./payment-schema";
@@ -246,6 +247,15 @@ export type PaymentReconciliationEvidenceExportDraft = {
   sessionStatus: "OPEN" | "COMPLETED" | "CANCELLED" | null;
 };
 
+export type PaymentReconciliationSignOffDraft = {
+  reason: string;
+  sessionStatus: PaymentReconciliationSessionStatus | null;
+  signedOffAt: string | null;
+  actor: string | null;
+  createdBy: string | null;
+  completedBy: string | null;
+};
+
 export type CounterPaymentAllocationDraft = {
   invoiceId: string;
   amount: string;
@@ -305,6 +315,10 @@ export function canReadPayments(permissions: PaymentCommandPermissionState): boo
 
 export function canReconcilePayments(permissions: PaymentCommandPermissionState): boolean {
   return permissions.canReconcilePayments;
+}
+
+export function canSignOffPaymentReconciliations(permissions: PaymentCommandPermissionState): boolean {
+  return permissions.canSignOffPaymentReconciliations;
 }
 
 export function canReversePayment(permissions: PaymentCommandPermissionState): boolean {
@@ -457,6 +471,35 @@ export function reconciliationEvidenceExportErrors(draft: PaymentReconciliationE
   return errors;
 }
 
+export function reconciliationSignOffErrors(draft: PaymentReconciliationSignOffDraft): string[] {
+  const errors: string[] = [];
+  const reason = draft.reason.trim();
+  const actor = normalizeActor(draft.actor);
+  const createdBy = normalizeActor(draft.createdBy);
+  const completedBy = normalizeActor(draft.completedBy);
+
+  if (draft.sessionStatus !== "COMPLETED") {
+    errors.push("Sign-off hanya tersedia untuk session completed.");
+  }
+  if (draft.signedOffAt) {
+    errors.push("Evidence rekonsiliasi sudah memiliki sign-off.");
+  }
+  if (!actor) {
+    errors.push("Actor sign-off wajib tersedia.");
+  }
+  if (actor && (actor === createdBy || actor === completedBy)) {
+    errors.push("Actor sign-off harus berbeda dari pembuat dan penyelesai session.");
+  }
+  if (!reason) {
+    errors.push("Alasan sign-off wajib diisi.");
+  }
+  if (reason.length > 500) {
+    errors.push("Alasan sign-off maksimal 500 karakter.");
+  }
+
+  return errors;
+}
+
 export function toClosedResolutionStatus(
   status: PaymentReconciliationResolutionStatus
 ): ClosedPaymentReconciliationResolutionStatus | null {
@@ -594,6 +637,10 @@ function bankStatementImportFields(): BankStatementImportField[] {
 
 function normalizeHeader(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function normalizeActor(value: string | null): string {
+  return value?.trim().toLowerCase() ?? "";
 }
 
 function findHeader(headers: readonly string[], candidates: readonly string[]): number {

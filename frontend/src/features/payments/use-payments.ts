@@ -13,6 +13,7 @@ import {
   matchPaymentReconciliation,
   resolvePaymentReconciliationItem,
   reversePayment,
+  signOffPaymentReconciliationSession,
   settleCounterPayment
 } from "./payment-api";
 import type {
@@ -25,6 +26,7 @@ import type {
   PaymentWebhookEventFilters,
   ResolvePaymentReconciliationItemPayload,
   ReversePaymentPayload,
+  SignOffPaymentReconciliationSessionPayload,
   SettleCounterPaymentPayload
 } from "./payment-schema";
 
@@ -126,6 +128,17 @@ export function useCompletePaymentReconciliationSession() {
   return useMutation({
     mutationFn: (input: { sessionId: string; payload: CompletePaymentReconciliationSessionPayload }) =>
       completePaymentReconciliationSession(input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.payments });
+    }
+  });
+}
+
+export function useSignOffPaymentReconciliationSession() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { sessionId: string; payload: SignOffPaymentReconciliationSessionPayload }) =>
+      signOffPaymentReconciliationSession(input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.payments });
     }
