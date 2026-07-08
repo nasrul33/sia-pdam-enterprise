@@ -179,6 +179,8 @@ The payment register is read-only. It exposes settlement/reversal traceability b
 | GET | /api/reports/payment-reconciliation-handoff-notes/export | export controlled handoff note workload as CSV with the same filters | payment.reconcile |
 | GET | /api/reports/payment-reconciliation-handoff-notes/owner-sla | group controlled handoff workload by owner/status with overdue escalation priority | payment.reconcile |
 | GET | /api/reports/payment-reconciliation-handoff-notes/owner-sla/export | export owner/status handoff SLA escalation as CSV | payment.reconcile |
+| GET | /api/reports/payment-reconciliation-handoff-notes/aging-buckets | bucket active handoff notes by owner into due-today and overdue aging groups | payment.reconcile |
+| GET | /api/reports/payment-reconciliation-handoff-notes/aging-buckets/export | export stale owner aging buckets as CSV | payment.reconcile |
 | GET | /api/reports/payment-reconciliation-review-register/{sessionId}/handoff-notes | read controlled reviewer handoff notes and revision history | payment.reconcile |
 | POST | /api/reports/payment-reconciliation-review-register/{sessionId}/handoff-notes | create reviewer handoff note for completed evidence | payment.reconcile + payment.reconciliation.handoff-note |
 | POST | /api/reports/payment-reconciliation-review-register/{sessionId}/handoff-notes/{noteId}/revisions | revise reviewer handoff note and append revision history | payment.reconcile + payment.reconciliation.handoff-note |
@@ -265,6 +267,10 @@ Allowed handoff statuses are `OPEN`, `IN_PROGRESS`, and `CLEARED`. Create and re
 `GET /api/reports/payment-reconciliation-handoff-notes/owner-sla` returns a read-only owner escalation report using the same `handoffStatus`, `handoffOwner`, `unassignedOnly`, `dueFrom`, and `dueTo` filters. The response groups loaded workload rows by owner, includes `openNotes`, `inProgressNotes`, `clearedNotes`, `overdueNotes`, `nearestDueDate`, `maxOverdueDays`, `latestUpdatedAt`, `escalationPriority=CRITICAL|OVERDUE|ACTIVE|CLEARED`, `truncated`, and `generatedAt`. The report is bounded to 10,000 source rows; `truncated=true` means finance must narrow filters before official escalation.
 
 `GET /api/reports/payment-reconciliation-handoff-notes/owner-sla/export` returns `text/csv` for the owner SLA report with owner/status counts and escalation priority. It is read-only and must not create notes, revisions, approval records, journals, payments, or ledger rows.
+
+`GET /api/reports/payment-reconciliation-handoff-notes/aging-buckets` returns active handoff notes only (`OPEN` and `IN_PROGRESS`) grouped by owner using the same filters. Each owner row includes `activeNotes`, `dueTodayNotes`, `overdue1To3Notes`, `overdue4To7Notes`, `overdueOver7Notes`, `futureDueNotes`, `noDueDateNotes`, `staleNotes`, `nearestDueDate`, `maxOverdueDays`, `latestUpdatedAt`, `truncated`, and `generatedAt`. `CLEARED` notes are excluded from the active aging report even when historical workload export still supports them.
+
+`GET /api/reports/payment-reconciliation-handoff-notes/aging-buckets/export` returns `text/csv`, bounded to 10,000 source rows, and exports owner rows that have either due-today or stale overdue workload. It is read-only and must not create notes, revisions, approval records, journals, payments, or ledger rows.
 
 ## Receivable Aging
 

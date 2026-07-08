@@ -181,6 +181,87 @@ public class BankReconciliationHandoffWorkloadApplicationService {
         return builder.toString();
     }
 
+    @Transactional(readOnly = true)
+    public PaymentReconciliationHandoffAgingBucketReport agingBuckets(
+            PaymentReconciliationHandoffWorkloadFilters filters
+    ) {
+        PaymentReconciliationHandoffWorkloadFilters normalized = normalize(filters);
+        Page<PaymentReconciliationHandoffNote> notes = loadAgingNotes(
+                normalized,
+                PageRequest.of(0, MAX_EXPORT_ROWS, WORKLOAD_SORT)
+        );
+        Instant generatedAt = Instant.now();
+        LocalDate generatedDate = LocalDate.now(ZoneOffset.UTC);
+        List<PaymentReconciliationHandoffAgingBucketEntry> owners = notes.getContent().stream()
+                .collect(Collectors.groupingBy(BankReconciliationHandoffWorkloadApplicationService::ownerKey))
+                .entrySet()
+                .stream()
+                .map(entry -> PaymentReconciliationHandoffAgingBucketEntry.from(
+                        entry.getKey(),
+                        entry.getValue(),
+                        generatedDate,
+                        generatedAt
+                ))
+                .sorted(agingBucketSort())
+                .toList();
+        return new PaymentReconciliationHandoffAgingBucketReport(
+                owners,
+                owners.stream().mapToLong(PaymentReconciliationHandoffAgingBucketEntry::activeNotes).sum(),
+                owners.stream().mapToLong(PaymentReconciliationHandoffAgingBucketEntry::dueTodayNotes).sum(),
+                owners.stream().mapToLong(PaymentReconciliationHandoffAgingBucketEntry::overdue1To3Notes).sum(),
+                owners.stream().mapToLong(PaymentReconciliationHandoffAgingBucketEntry::overdue4To7Notes).sum(),
+                owners.stream().mapToLong(PaymentReconciliationHandoffAgingBucketEntry::overdueOver7Notes).sum(),
+                owners.stream().mapToLong(PaymentReconciliationHandoffAgingBucketEntry::futureDueNotes).sum(),
+                owners.stream().mapToLong(PaymentReconciliationHandoffAgingBucketEntry::noDueDateNotes).sum(),
+                owners.stream().mapToLong(PaymentReconciliationHandoffAgingBucketEntry::staleNotes).sum(),
+                notes.getTotalElements() > notes.getContent().size(),
+                generatedAt
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public String agingBucketsCsv(PaymentReconciliationHandoffWorkloadFilters filters) {
+        PaymentReconciliationHandoffAgingBucketReport report = agingBuckets(filters);
+        StringBuilder builder = new StringBuilder();
+        appendRow(
+                builder,
+                "owner",
+                "unassigned",
+                "active_notes",
+                "due_today_notes",
+                "overdue_1_3_notes",
+                "overdue_4_7_notes",
+                "overdue_over_7_notes",
+                "future_due_notes",
+                "no_due_date_notes",
+                "stale_notes",
+                "max_overdue_days",
+                "nearest_due_date",
+                "latest_updated_at",
+                "generated_at"
+        );
+        report.owners().stream()
+                .filter(owner -> owner.staleNotes() > 0 || owner.dueTodayNotes() > 0)
+                .forEach(owner -> appendRow(
+                        builder,
+                        owner.ownerLabel(),
+                        owner.unassigned(),
+                        owner.activeNotes(),
+                        owner.dueTodayNotes(),
+                        owner.overdue1To3Notes(),
+                        owner.overdue4To7Notes(),
+                        owner.overdueOver7Notes(),
+                        owner.futureDueNotes(),
+                        owner.noDueDateNotes(),
+                        owner.staleNotes(),
+                        owner.maxOverdueDays(),
+                        owner.nearestDueDate(),
+                        owner.latestUpdatedAt(),
+                        owner.generatedAt()
+                ));
+        return builder.toString();
+    }
+
     private Page<PaymentReconciliationHandoffWorkloadEntry> loadWorkload(
             PaymentReconciliationHandoffWorkloadFilters filters,
             PageRequest pageable
@@ -227,6 +308,13 @@ public class BankReconciliationHandoffWorkloadApplicationService {
             PageRequest pageable
     ) {
         return noteRepository.findAll(specification(filters), pageable);
+    }
+
+    private Page<PaymentReconciliationHandoffNote> loadAgingNotes(
+            PaymentReconciliationHandoffWorkloadFilters filters,
+            PageRequest pageable
+    ) {
+        return noteRepository.findAll(specification(filters).and(activeStatusSpecification()), pageable);
     }
 
     private static PaymentReconciliationHandoffWorkloadFilters normalize(
@@ -297,6 +385,13 @@ public class BankReconciliationHandoffWorkloadApplicationService {
                 : criteriaBuilder.equal(root.get("handoffStatus"), status);
     }
 
+    private static Specification<PaymentReconciliationHandoffNote> activeStatusSpecification() {
+        return (root, query, criteriaBuilder) -> root.get("handoffStatus").in(
+                PaymentReconciliationHandoffStatus.OPEN,
+                PaymentReconciliationHandoffStatus.IN_PROGRESS
+        );
+    }
+
     private static Specification<PaymentReconciliationHandoffNote> ownerSpecification(String owner, boolean unassignedOnly) {
         return (root, query, criteriaBuilder) -> {
             if (unassignedOnly) {
@@ -341,6 +436,15 @@ public class BankReconciliationHandoffWorkloadApplicationService {
                 .thenComparing(Comparator.comparingLong((PaymentReconciliationHandoffOwnerSlaEntry owner) ->
                         owner.openNotes() + owner.inProgressNotes()).reversed())
                 .thenComparing(PaymentReconciliationHandoffOwnerSlaEntry::ownerLabel);
+    }
+
+    private static Comparator<PaymentReconciliationHandoffAgingBucketEntry> agingBucketSort() {
+        return Comparator.comparingLong(PaymentReconciliationHandoffAgingBucketEntry::overdueOver7Notes)
+                .reversed()
+                .thenComparing(Comparator.comparingLong(PaymentReconciliationHandoffAgingBucketEntry::overdue4To7Notes).reversed())
+                .thenComparing(Comparator.comparingLong(PaymentReconciliationHandoffAgingBucketEntry::overdue1To3Notes).reversed())
+                .thenComparing(Comparator.comparingLong(PaymentReconciliationHandoffAgingBucketEntry::dueTodayNotes).reversed())
+                .thenComparing(PaymentReconciliationHandoffAgingBucketEntry::ownerLabel);
     }
 
     private static void appendRow(StringBuilder builder, Object... values) {

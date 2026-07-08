@@ -402,6 +402,38 @@ export const paymentReconciliationHandoffOwnerSlaReportSchema = z.object({
   generatedAt: z.string().min(1)
 });
 
+export const paymentReconciliationHandoffAgingBucketEntrySchema = z.object({
+  handoffOwner: z.string().nullable(),
+  ownerLabel: z.string().min(1),
+  unassigned: z.boolean(),
+  activeNotes: z.number().int().nonnegative(),
+  dueTodayNotes: z.number().int().nonnegative(),
+  overdue1To3Notes: z.number().int().nonnegative(),
+  overdue4To7Notes: z.number().int().nonnegative(),
+  overdueOver7Notes: z.number().int().nonnegative(),
+  futureDueNotes: z.number().int().nonnegative(),
+  noDueDateNotes: z.number().int().nonnegative(),
+  staleNotes: z.number().int().nonnegative(),
+  nearestDueDate: z.string().nullable(),
+  maxOverdueDays: z.number().int().nonnegative(),
+  latestUpdatedAt: z.string().nullable(),
+  generatedAt: z.string().min(1)
+});
+
+export const paymentReconciliationHandoffAgingBucketReportSchema = z.object({
+  owners: z.array(paymentReconciliationHandoffAgingBucketEntrySchema),
+  activeNotes: z.number().int().nonnegative(),
+  dueTodayNotes: z.number().int().nonnegative(),
+  overdue1To3Notes: z.number().int().nonnegative(),
+  overdue4To7Notes: z.number().int().nonnegative(),
+  overdueOver7Notes: z.number().int().nonnegative(),
+  futureDueNotes: z.number().int().nonnegative(),
+  noDueDateNotes: z.number().int().nonnegative(),
+  staleNotes: z.number().int().nonnegative(),
+  truncated: z.boolean(),
+  generatedAt: z.string().min(1)
+});
+
 export type PaymentStatus = z.infer<typeof paymentStatusSchema>;
 export type PaymentWebhookStatus = z.infer<typeof paymentWebhookStatusSchema>;
 export type PaymentReconciliationSessionStatus = z.infer<typeof paymentReconciliationSessionStatusSchema>;
@@ -439,6 +471,12 @@ export type PaymentReconciliationHandoffOwnerSlaEntry = z.infer<
 >;
 export type PaymentReconciliationHandoffOwnerSlaReport = z.infer<
   typeof paymentReconciliationHandoffOwnerSlaReportSchema
+>;
+export type PaymentReconciliationHandoffAgingBucketEntry = z.infer<
+  typeof paymentReconciliationHandoffAgingBucketEntrySchema
+>;
+export type PaymentReconciliationHandoffAgingBucketReport = z.infer<
+  typeof paymentReconciliationHandoffAgingBucketReportSchema
 >;
 
 export type PaymentFilters = {

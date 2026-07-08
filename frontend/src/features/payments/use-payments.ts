@@ -5,6 +5,7 @@ import {
   createPaymentReconciliationHandoffNote,
   createPaymentReconciliationAdjustment,
   createPaymentReconciliationSession,
+  getPaymentReconciliationHandoffAgingBuckets,
   getPaymentReconciliationEvidenceReport,
   getPaymentReconciliationSession,
   getPayment,
@@ -131,6 +132,17 @@ export function usePaymentReconciliationHandoffOwnerSla(
   return useQuery({
     queryKey: [...queryKeys.payments, "reconciliation-handoff-owner-sla", filters],
     queryFn: () => getPaymentReconciliationHandoffOwnerSla(filters),
+    enabled
+  });
+}
+
+export function usePaymentReconciliationHandoffAgingBuckets(
+  filters: PaymentReconciliationHandoffOwnerSlaFilters,
+  enabled = true
+) {
+  return useQuery({
+    queryKey: [...queryKeys.payments, "reconciliation-handoff-aging-buckets", filters],
+    queryFn: () => getPaymentReconciliationHandoffAgingBuckets(filters),
     enabled
   });
 }

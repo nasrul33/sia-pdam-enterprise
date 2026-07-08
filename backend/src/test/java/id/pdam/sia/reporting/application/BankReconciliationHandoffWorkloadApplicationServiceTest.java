@@ -238,6 +238,97 @@ class BankReconciliationHandoffWorkloadApplicationServiceTest {
     }
 
     @Test
+    void agingBucketsGroupActiveHandoffNotesByOwnerAndExportOnlyStaleQueues() {
+        PaymentReconciliationSession session = completedSession("REC-20260801-BUCKET");
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        PaymentReconciliationHandoffNote dueToday = new PaymentReconciliationHandoffNote(
+                session.getId(),
+                "Due today note",
+                "finance.ops",
+                today,
+                PaymentReconciliationHandoffStatus.OPEN,
+                "auditor.internal"
+        );
+        PaymentReconciliationHandoffNote overdueTwoDays = new PaymentReconciliationHandoffNote(
+                session.getId(),
+                "Overdue 1-3 note",
+                "finance.ops",
+                today.minusDays(2),
+                PaymentReconciliationHandoffStatus.IN_PROGRESS,
+                "auditor.internal"
+        );
+        PaymentReconciliationHandoffNote overdueFiveDays = new PaymentReconciliationHandoffNote(
+                session.getId(),
+                "Overdue 4-7 note",
+                "finance.ops",
+                today.minusDays(5),
+                PaymentReconciliationHandoffStatus.OPEN,
+                "auditor.internal"
+        );
+        PaymentReconciliationHandoffNote overdueNineDays = new PaymentReconciliationHandoffNote(
+                session.getId(),
+                "Overdue over 7 note",
+                "finance.ops",
+                today.minusDays(9),
+                PaymentReconciliationHandoffStatus.OPEN,
+                "auditor.internal"
+        );
+        PaymentReconciliationHandoffNote unassignedFuture = new PaymentReconciliationHandoffNote(
+                session.getId(),
+                "Future unassigned note",
+                null,
+                today.plusDays(3),
+                PaymentReconciliationHandoffStatus.IN_PROGRESS,
+                "auditor.internal"
+        );
+        PaymentReconciliationHandoffNote unassignedNoDueDate = new PaymentReconciliationHandoffNote(
+                session.getId(),
+                "No due date unassigned note",
+                null,
+                null,
+                PaymentReconciliationHandoffStatus.OPEN,
+                "auditor.internal"
+        );
+        when(noteRepository.findAll(
+                org.mockito.ArgumentMatchers.<Specification<PaymentReconciliationHandoffNote>>any(),
+                any(Pageable.class)
+        )).thenReturn(new PageImpl<>(
+                List.of(dueToday, overdueTwoDays, overdueFiveDays, overdueNineDays, unassignedFuture, unassignedNoDueDate),
+                PageRequest.of(0, 10_000),
+                6
+        ));
+
+        PaymentReconciliationHandoffAgingBucketReport report = service.agingBuckets(
+                new PaymentReconciliationHandoffWorkloadFilters(null, null, false, null, null)
+        );
+        String csv = service.agingBucketsCsv(new PaymentReconciliationHandoffWorkloadFilters(null, null, false, null, null));
+
+        assertThat(report.activeNotes()).isEqualTo(6);
+        assertThat(report.dueTodayNotes()).isEqualTo(1);
+        assertThat(report.overdue1To3Notes()).isEqualTo(1);
+        assertThat(report.overdue4To7Notes()).isEqualTo(1);
+        assertThat(report.overdueOver7Notes()).isEqualTo(1);
+        assertThat(report.futureDueNotes()).isEqualTo(1);
+        assertThat(report.noDueDateNotes()).isEqualTo(1);
+        assertThat(report.staleNotes()).isEqualTo(3);
+        assertThat(report.owners())
+                .extracting(PaymentReconciliationHandoffAgingBucketEntry::ownerLabel)
+                .containsExactly("finance.ops", "UNASSIGNED");
+        PaymentReconciliationHandoffAgingBucketEntry financeOps = report.owners().getFirst();
+        assertThat(financeOps.activeNotes()).isEqualTo(4);
+        assertThat(financeOps.dueTodayNotes()).isEqualTo(1);
+        assertThat(financeOps.overdue1To3Notes()).isEqualTo(1);
+        assertThat(financeOps.overdue4To7Notes()).isEqualTo(1);
+        assertThat(financeOps.overdueOver7Notes()).isEqualTo(1);
+        assertThat(financeOps.staleNotes()).isEqualTo(3);
+        assertThat(financeOps.maxOverdueDays()).isEqualTo(9);
+        assertThat(csv)
+                .startsWith("owner,unassigned,active_notes,due_today_notes")
+                .contains("finance.ops,false,4,1,1,1,1")
+                .doesNotContain("UNASSIGNED,true");
+    }
+
+    @Test
     void rejectsOwnerFilterWhenUnassignedScopeIsSelected() {
         assertThatThrownBy(() -> service.ownerSla(
                 new PaymentReconciliationHandoffWorkloadFilters(

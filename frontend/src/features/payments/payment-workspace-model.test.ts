@@ -20,10 +20,12 @@ import {
   reconciliationReviewRegisterFilterErrors,
   reconciliationReviewRegisterExportFilename,
   reconciliationHandoffNoteErrors,
+  reconciliationHandoffAgingBucketExportFilename,
   reconciliationHandoffOwnerDrilldownFilter,
   reconciliationHandoffOwnerSlaExportFilename,
   reconciliationHandoffWorkloadFilterErrors,
   reconciliationHandoffWorkloadExportFilename,
+  summarizeReconciliationHandoffAgingBuckets,
   summarizeReconciliationHandoffWorkload,
   reconciliationSignOffErrors,
   reconciliationCompletionErrors,
@@ -696,6 +698,54 @@ test("reconciliationHandoffOwnerSla helpers build escalation export and drilldow
       dueFrom: "2026-08-01",
       dueTo: "2026-08-31"
     }
+  );
+});
+
+test("reconciliationHandoffAgingBucket helpers summarize stale queues and export filename", () => {
+  assert.deepEqual(
+    summarizeReconciliationHandoffAgingBuckets([
+      {
+        activeNotes: 4,
+        dueTodayNotes: 1,
+        overdue1To3Notes: 1,
+        overdue4To7Notes: 1,
+        overdueOver7Notes: 1,
+        futureDueNotes: 0,
+        noDueDateNotes: 0,
+        staleNotes: 3
+      },
+      {
+        activeNotes: 2,
+        dueTodayNotes: 0,
+        overdue1To3Notes: 0,
+        overdue4To7Notes: 0,
+        overdueOver7Notes: 0,
+        futureDueNotes: 1,
+        noDueDateNotes: 1,
+        staleNotes: 0
+      }
+    ]),
+    {
+      activeNotes: 6,
+      dueTodayNotes: 1,
+      overdue1To3Notes: 1,
+      overdue4To7Notes: 1,
+      overdueOver7Notes: 1,
+      futureDueNotes: 1,
+      noDueDateNotes: 1,
+      staleNotes: 3
+    }
+  );
+
+  assert.equal(
+    reconciliationHandoffAgingBucketExportFilename({
+      handoffStatus: "ALL",
+      handoffOwner: "",
+      unassignedOnly: true,
+      dueFrom: "2026-08-01",
+      dueTo: "2026-08-31"
+    }),
+    "payment-reconciliation-handoff-aging-buckets-all-unassigned-2026-08-01-2026-08-31.csv"
   );
 });
 

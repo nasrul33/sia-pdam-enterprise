@@ -5,6 +5,7 @@ import id.pdam.sia.reporting.application.BankReconciliationEvidenceReportApplica
 import id.pdam.sia.reporting.application.BankReconciliationHandoffNoteApplicationService;
 import id.pdam.sia.reporting.application.BankReconciliationHandoffWorkloadApplicationService;
 import id.pdam.sia.reporting.application.BankReconciliationReviewRegisterApplicationService;
+import id.pdam.sia.reporting.application.PaymentReconciliationHandoffAgingBucketReport;
 import id.pdam.sia.reporting.application.PaymentReconciliationHandoffOwnerSlaReport;
 import id.pdam.sia.reporting.application.BankReconciliationReviewRegisterEntry;
 import id.pdam.sia.reporting.application.BankReconciliationReviewRegisterFilters;
@@ -196,6 +197,40 @@ public class ReportingController {
                         .build()
                         .toString())
                 .body(bankReconciliationHandoffWorkloadApplicationService.ownerSlaCsv(
+                        new PaymentReconciliationHandoffWorkloadFilters(handoffStatus, handoffOwner, unassignedOnly, dueFrom, dueTo)
+                ));
+    }
+
+    @GetMapping("/payment-reconciliation-handoff-notes/aging-buckets")
+    @PreAuthorize(Permissions.PAYMENT_RECONCILE)
+    public PaymentReconciliationHandoffAgingBucketReport paymentReconciliationHandoffAgingBuckets(
+            @RequestParam(required = false) PaymentReconciliationHandoffStatus handoffStatus,
+            @RequestParam(required = false) String handoffOwner,
+            @RequestParam(defaultValue = "false") boolean unassignedOnly,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dueFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dueTo
+    ) {
+        return bankReconciliationHandoffWorkloadApplicationService.agingBuckets(
+                new PaymentReconciliationHandoffWorkloadFilters(handoffStatus, handoffOwner, unassignedOnly, dueFrom, dueTo)
+        );
+    }
+
+    @GetMapping(value = "/payment-reconciliation-handoff-notes/aging-buckets/export", produces = "text/csv")
+    @PreAuthorize(Permissions.PAYMENT_RECONCILE)
+    public ResponseEntity<String> exportPaymentReconciliationHandoffAgingBuckets(
+            @RequestParam(required = false) PaymentReconciliationHandoffStatus handoffStatus,
+            @RequestParam(required = false) String handoffOwner,
+            @RequestParam(defaultValue = "false") boolean unassignedOnly,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dueFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dueTo
+    ) {
+        return ResponseEntity.ok()
+                .contentType(TEXT_CSV)
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                        .filename("payment-reconciliation-handoff-aging-buckets.csv")
+                        .build()
+                        .toString())
+                .body(bankReconciliationHandoffWorkloadApplicationService.agingBucketsCsv(
                         new PaymentReconciliationHandoffWorkloadFilters(handoffStatus, handoffOwner, unassignedOnly, dueFrom, dueTo)
                 ));
     }

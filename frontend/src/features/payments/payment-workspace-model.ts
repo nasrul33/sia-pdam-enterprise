@@ -49,6 +49,17 @@ type ReconciliationHandoffWorkloadSubject = {
   overdueDays: number;
 };
 
+type ReconciliationHandoffAgingBucketSubject = {
+  activeNotes: number;
+  dueTodayNotes: number;
+  overdue1To3Notes: number;
+  overdue4To7Notes: number;
+  overdueOver7Notes: number;
+  futureDueNotes: number;
+  noDueDateNotes: number;
+  staleNotes: number;
+};
+
 export type PaymentWorkspaceSummary = {
   receivedEvents: number;
   processedEvents: number;
@@ -254,6 +265,17 @@ export type PaymentReconciliationHandoffWorkloadSummary = {
   overdueNotes: number;
 };
 
+export type PaymentReconciliationHandoffAgingBucketSummary = {
+  activeNotes: number;
+  dueTodayNotes: number;
+  overdue1To3Notes: number;
+  overdue4To7Notes: number;
+  overdueOver7Notes: number;
+  futureDueNotes: number;
+  noDueDateNotes: number;
+  staleNotes: number;
+};
+
 export type PaymentReconciliationExportDraft = {
   status: PaymentStatus | "ALL";
   paidAtFrom: string;
@@ -444,6 +466,33 @@ export function summarizeReconciliationHandoffWorkload(
     clearedNotes: entries.filter((entry) => entry.handoffStatus === "CLEARED").length,
     overdueNotes: entries.filter((entry) => entry.handoffStatus !== "CLEARED" && entry.overdueDays > 0).length
   };
+}
+
+export function summarizeReconciliationHandoffAgingBuckets(
+  entries: readonly ReconciliationHandoffAgingBucketSubject[]
+): PaymentReconciliationHandoffAgingBucketSummary {
+  return entries.reduce<PaymentReconciliationHandoffAgingBucketSummary>(
+    (summary, entry) => ({
+      activeNotes: summary.activeNotes + entry.activeNotes,
+      dueTodayNotes: summary.dueTodayNotes + entry.dueTodayNotes,
+      overdue1To3Notes: summary.overdue1To3Notes + entry.overdue1To3Notes,
+      overdue4To7Notes: summary.overdue4To7Notes + entry.overdue4To7Notes,
+      overdueOver7Notes: summary.overdueOver7Notes + entry.overdueOver7Notes,
+      futureDueNotes: summary.futureDueNotes + entry.futureDueNotes,
+      noDueDateNotes: summary.noDueDateNotes + entry.noDueDateNotes,
+      staleNotes: summary.staleNotes + entry.staleNotes
+    }),
+    {
+      activeNotes: 0,
+      dueTodayNotes: 0,
+      overdue1To3Notes: 0,
+      overdue4To7Notes: 0,
+      overdueOver7Notes: 0,
+      futureDueNotes: 0,
+      noDueDateNotes: 0,
+      staleNotes: 0
+    }
+  );
 }
 
 export function paymentReconciliationExportErrors(draft: PaymentReconciliationExportDraft): string[] {
@@ -689,6 +738,16 @@ export function reconciliationHandoffOwnerSlaExportFilename(
   const fromSegment = filenameDateSegment(draft.dueFrom);
   const toSegment = filenameDateSegment(draft.dueTo);
   return `payment-reconciliation-handoff-owner-sla-${statusSegment}-${ownerSegment}-${fromSegment}-${toSegment}.csv`;
+}
+
+export function reconciliationHandoffAgingBucketExportFilename(
+  draft: PaymentReconciliationHandoffWorkloadFilterDraft
+): string {
+  const statusSegment = draft.handoffStatus.toLowerCase().replaceAll("_", "-");
+  const ownerSegment = draft.unassignedOnly ? "unassigned" : sanitizeFilenameSegment(draft.handoffOwner);
+  const fromSegment = filenameDateSegment(draft.dueFrom);
+  const toSegment = filenameDateSegment(draft.dueTo);
+  return `payment-reconciliation-handoff-aging-buckets-${statusSegment}-${ownerSegment}-${fromSegment}-${toSegment}.csv`;
 }
 
 export function reconciliationHandoffOwnerDrilldownFilter(

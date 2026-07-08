@@ -3,6 +3,7 @@ import {
   paymentReconciliationSessionPageSchema,
   paymentReconciliationSessionSchema,
   paymentReconciliationEvidenceReportSchema,
+  paymentReconciliationHandoffAgingBucketReportSchema,
   paymentReconciliationHandoffNoteListSchema,
   paymentReconciliationHandoffNoteSchema,
   paymentReconciliationHandoffOwnerSlaReportSchema,
@@ -270,6 +271,21 @@ export async function exportPaymentReconciliationHandoffOwnerSlaCsv(
 ) {
   const query = reconciliationHandoffOwnerSlaParams(filters).toString();
   return apiGetText(`/api/reports/payment-reconciliation-handoff-notes/owner-sla/export${query ? `?${query}` : ""}`);
+}
+
+export async function getPaymentReconciliationHandoffAgingBuckets(filters: PaymentReconciliationHandoffOwnerSlaFilters) {
+  const query = reconciliationHandoffOwnerSlaParams(filters).toString();
+  const payload = await apiGet<unknown>(
+    `/api/reports/payment-reconciliation-handoff-notes/aging-buckets${query ? `?${query}` : ""}`
+  );
+  return paymentReconciliationHandoffAgingBucketReportSchema.parse(payload);
+}
+
+export async function exportPaymentReconciliationHandoffAgingBucketsCsv(
+  filters: PaymentReconciliationHandoffOwnerSlaFilters
+) {
+  const query = reconciliationHandoffOwnerSlaParams(filters).toString();
+  return apiGetText(`/api/reports/payment-reconciliation-handoff-notes/aging-buckets/export${query ? `?${query}` : ""}`);
 }
 
 export async function listPaymentReconciliationHandoffNotes(sessionId: string) {

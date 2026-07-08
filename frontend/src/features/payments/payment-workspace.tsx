@@ -54,6 +54,7 @@ import {
   reconciliationReviewRegisterExportFilename,
   reconciliationReviewRegisterFilterErrors,
   reconciliationHandoffNoteErrors,
+  reconciliationHandoffAgingBucketExportFilename,
   reconciliationHandoffOwnerDrilldownFilter,
   reconciliationHandoffOwnerSlaExportFilename,
   reconciliationHandoffWorkloadExportFilename,
@@ -63,6 +64,7 @@ import {
   reconciliationCompletionErrors,
   reconciliationResolutionErrors,
   reversePaymentErrors,
+  summarizeReconciliationHandoffAgingBuckets,
   summarizeReconciliationReviewRegister,
   summarizeReconciliationHandoffWorkload,
   summarizeReconciliationSessionItems,
@@ -83,6 +85,7 @@ import type {
   ClosedPaymentReconciliationResolutionStatus,
   CreatePaymentReconciliationAdjustmentPayload,
   PaymentReconciliationEvidenceReport,
+  PaymentReconciliationHandoffAgingBucketEntry,
   PaymentReconciliationHandoffEscalationPriority,
   PaymentReconciliationHandoffNote,
   PaymentReconciliationHandoffNotePayload,
@@ -114,6 +117,7 @@ import {
 import {
   exportPaymentReconciliationCsv,
   exportPaymentReconciliationEvidenceCsv,
+  exportPaymentReconciliationHandoffAgingBucketsCsv,
   exportPaymentReconciliationHandoffOwnerSlaCsv,
   exportPaymentReconciliationHandoffWorkloadCsv,
   exportPaymentReconciliationReviewRegisterCsv
@@ -126,6 +130,7 @@ import {
   useMatchPaymentReconciliation,
   usePayment,
   usePaymentReconciliationEvidenceReport,
+  usePaymentReconciliationHandoffAgingBuckets,
   usePaymentReconciliationHandoffNotes,
   usePaymentReconciliationHandoffOwnerSla,
   usePaymentReconciliationHandoffWorkload,
@@ -1542,6 +1547,7 @@ function PaymentReconciliationHandoffWorkloadPanel({ allowed }: Readonly<{ allow
   const [page, setPage] = useState(0);
   const [isExporting, setIsExporting] = useState(false);
   const [isExportingOwnerSla, setIsExportingOwnerSla] = useState(false);
+  const [isExportingAgingBuckets, setIsExportingAgingBuckets] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const filterErrors = reconciliationHandoffWorkloadFilterErrors(filter);
   const filtersValid = filterErrors.length === 0;
@@ -1565,9 +1571,15 @@ function PaymentReconciliationHandoffWorkloadPanel({ allowed }: Readonly<{ allow
   );
   const workloadQuery = usePaymentReconciliationHandoffWorkload(filters, allowed && filtersValid);
   const ownerSlaQuery = usePaymentReconciliationHandoffOwnerSla(ownerSlaFilters, allowed && filtersValid);
+  const agingBucketQuery = usePaymentReconciliationHandoffAgingBuckets(ownerSlaFilters, allowed && filtersValid);
   const entries = useMemo(() => workloadQuery.data?.items ?? [], [workloadQuery.data?.items]);
   const summary = useMemo(() => summarizeReconciliationHandoffWorkload(entries), [entries]);
   const ownerSlaEntries = useMemo(() => ownerSlaQuery.data?.owners ?? [], [ownerSlaQuery.data?.owners]);
+  const agingBucketEntries = useMemo(() => agingBucketQuery.data?.owners ?? [], [agingBucketQuery.data?.owners]);
+  const agingBucketSummary = useMemo(
+    () => summarizeReconciliationHandoffAgingBuckets(agingBucketEntries),
+    [agingBucketEntries]
+  );
 
   function resetFilters() {
     setFilter(defaultReconciliationHandoffWorkloadFilter);
@@ -1619,8 +1631,30 @@ function PaymentReconciliationHandoffWorkloadPanel({ allowed }: Readonly<{ allow
     }
   }
 
+  async function handleAgingBucketExport() {
+    setExportError(null);
+    if (!filtersValid) {
+      setExportError(filterErrors[0] ?? "Filter export stale bucket handoff tidak valid.");
+      return;
+    }
+
+    setIsExportingAgingBuckets(true);
+    try {
+      const csv = await exportPaymentReconciliationHandoffAgingBucketsCsv(ownerSlaFilters);
+      downloadTextFile(
+        reconciliationHandoffAgingBucketExportFilename(filter),
+        csv,
+        "text/csv;charset=utf-8"
+      );
+    } catch (error) {
+      setExportError(apiErrorMessage(error, "Gagal export stale bucket handoff."));
+    } finally {
+      setIsExportingAgingBuckets(false);
+    }
+  }
+
   function applyOwnerDrilldown(
-    entry: PaymentReconciliationHandoffOwnerSlaEntry,
+    entry: { handoffOwner: string | null; unassigned: boolean },
     handoffStatus: PaymentReconciliationHandoffStatus | "ALL" = "ALL"
   ) {
     setFilter((current) => reconciliationHandoffOwnerDrilldownFilter(current, {
@@ -1654,12 +1688,21 @@ function PaymentReconciliationHandoffWorkloadPanel({ allowed }: Readonly<{ allow
           <h2 className="text-base font-bold text-slate-950">Handoff SLA Workload</h2>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {workloadQuery.isFetching || ownerSlaQuery.isFetching ? (
+          {workloadQuery.isFetching || ownerSlaQuery.isFetching || agingBucketQuery.isFetching ? (
             <span className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600">
               <Loader2 className="size-4 animate-spin" aria-hidden="true" />
               Memperbarui
             </span>
           ) : null}
+          <button
+            type="button"
+            className={secondaryButtonClass}
+            disabled={!filtersValid || isExportingAgingBuckets}
+            onClick={handleAgingBucketExport}
+          >
+            {isExportingAgingBuckets ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <AlertTriangle className="size-4" aria-hidden="true" />}
+            Export Stale
+          </button>
           <button
             type="button"
             className={secondaryButtonClass}
@@ -1688,6 +1731,14 @@ function PaymentReconciliationHandoffWorkloadPanel({ allowed }: Readonly<{ allow
           <MetricPill label="Progress" value={summary.inProgressNotes} tone="info" />
           <MetricPill label="Cleared" value={summary.clearedNotes} tone="success" />
           <MetricPill label="Overdue" value={summary.overdueNotes} tone={summary.overdueNotes > 0 ? "danger" : "success"} />
+        </div>
+        <div className="grid gap-2 md:grid-cols-3 xl:grid-cols-6">
+          <MetricPill label="Active" value={agingBucketSummary.activeNotes} tone="info" />
+          <MetricPill label="Due Today" value={agingBucketSummary.dueTodayNotes} tone={agingBucketSummary.dueTodayNotes > 0 ? "warning" : "success"} />
+          <MetricPill label="1-3 Hari" value={agingBucketSummary.overdue1To3Notes} tone={agingBucketSummary.overdue1To3Notes > 0 ? "warning" : "success"} />
+          <MetricPill label="4-7 Hari" value={agingBucketSummary.overdue4To7Notes} tone={agingBucketSummary.overdue4To7Notes > 0 ? "danger" : "success"} />
+          <MetricPill label=">7 Hari" value={agingBucketSummary.overdueOver7Notes} tone={agingBucketSummary.overdueOver7Notes > 0 ? "danger" : "success"} />
+          <MetricPill label="Stale" value={agingBucketSummary.staleNotes} tone={agingBucketSummary.staleNotes > 0 ? "danger" : "success"} />
         </div>
 
         <div className="grid gap-3 lg:grid-cols-[170px_1fr_150px_1fr_1fr_auto]">
@@ -1782,9 +1833,16 @@ function PaymentReconciliationHandoffWorkloadPanel({ allowed }: Readonly<{ allow
             message="Owner escalation dibatasi 10.000 baris pertama. Persempit filter due date atau owner sebelum dipakai untuk eskalasi resmi."
           />
         ) : null}
+        {agingBucketQuery.data?.truncated ? (
+          <InlineMessage
+            type="error"
+            message="Aging bucket dibatasi 10.000 baris pertama. Persempit filter sebelum export stale queue resmi."
+          />
+        ) : null}
         {workloadQuery.isLoading ? <LoadingSkeleton /> : null}
 
         {ownerSlaQuery.isLoading ? <LoadingSkeleton /> : null}
+        {agingBucketQuery.isLoading ? <LoadingSkeleton /> : null}
 
         {ownerSlaQuery.isError ? (
           <div className="grid gap-3">
@@ -1801,6 +1859,23 @@ function PaymentReconciliationHandoffWorkloadPanel({ allowed }: Readonly<{ allow
 
         {!ownerSlaQuery.isLoading && !ownerSlaQuery.isError && ownerSlaEntries.length > 0 ? (
           <ReconciliationHandoffOwnerSlaTable entries={ownerSlaEntries} onDrillDown={applyOwnerDrilldown} />
+        ) : null}
+
+        {agingBucketQuery.isError ? (
+          <div className="grid gap-3">
+            <InlineMessage
+              type="error"
+              message={apiErrorMessage(agingBucketQuery.error, "Aging bucket handoff tidak tersedia.")}
+            />
+            <button type="button" className={secondaryButtonClass} onClick={() => void agingBucketQuery.refetch()}>
+              <RotateCcw className="size-4" aria-hidden="true" />
+              Muat Ulang Aging
+            </button>
+          </div>
+        ) : null}
+
+        {!agingBucketQuery.isLoading && !agingBucketQuery.isError && agingBucketEntries.length > 0 ? (
+          <ReconciliationHandoffAgingBucketTable entries={agingBucketEntries} onDrillDown={applyOwnerDrilldown} />
         ) : null}
 
         {workloadQuery.isError ? (
@@ -1924,6 +1999,68 @@ function ReconciliationHandoffOwnerSlaTable({
                 <button type="button" className={secondaryButtonClass} onClick={() => onDrillDown(entry)}>
                   <ListFilter className="size-4" aria-hidden="true" />
                   Buka Queue
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ReconciliationHandoffAgingBucketTable({
+  entries,
+  onDrillDown
+}: Readonly<{
+  entries: PaymentReconciliationHandoffAgingBucketEntry[];
+  onDrillDown: (
+    entry: { handoffOwner: string | null; unassigned: boolean },
+    handoffStatus?: PaymentReconciliationHandoffStatus | "ALL"
+  ) => void;
+}>) {
+  const smallButtonClass =
+    "inline-flex h-8 items-center justify-center rounded-md border border-slate-300 bg-white px-2 text-xs font-bold text-slate-800 transition hover:bg-slate-50";
+
+  return (
+    <div className="overflow-x-auto rounded-lg border border-slate-200">
+      <table className="min-w-full divide-y divide-slate-200 text-sm">
+        <thead className="bg-slate-50">
+          <tr>
+            <th className="px-4 py-3 text-left font-bold text-slate-700">Aging Owner</th>
+            <th className="px-4 py-3 text-right font-bold text-slate-700">Due Today</th>
+            <th className="px-4 py-3 text-right font-bold text-slate-700">1-3 Hari</th>
+            <th className="px-4 py-3 text-right font-bold text-slate-700">4-7 Hari</th>
+            <th className="px-4 py-3 text-right font-bold text-slate-700">&gt;7 Hari</th>
+            <th className="px-4 py-3 text-right font-bold text-slate-700">Other Active</th>
+            <th className="px-4 py-3 text-left font-bold text-slate-700">Action</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100 bg-white">
+          {entries.map((entry) => (
+            <tr key={`${entry.ownerLabel}-${entry.unassigned ? "unassigned" : "aging"}`} className="hover:bg-slate-50">
+              <td className="min-w-56 px-4 py-3">
+                <p className="text-sm font-bold text-slate-950">{entry.ownerLabel}</p>
+                <p className="mt-1 text-xs font-semibold text-slate-600">
+                  {entry.activeNotes} aktif, {entry.staleNotes} stale
+                </p>
+                <p className="mt-1 text-xs text-slate-600">Due terdekat: {entry.nearestDueDate ?? "-"}</p>
+              </td>
+              <td className="whitespace-nowrap px-4 py-3 text-right">
+                <button type="button" className={smallButtonClass} onClick={() => onDrillDown(entry)}>
+                  {entry.dueTodayNotes}
+                </button>
+              </td>
+              <td className="whitespace-nowrap px-4 py-3 text-right font-bold text-slate-950">{entry.overdue1To3Notes}</td>
+              <td className="whitespace-nowrap px-4 py-3 text-right font-bold text-slate-950">{entry.overdue4To7Notes}</td>
+              <td className="whitespace-nowrap px-4 py-3 text-right font-bold text-red-700">{entry.overdueOver7Notes}</td>
+              <td className="min-w-44 px-4 py-3 text-right text-xs font-semibold text-slate-700">
+                Future {entry.futureDueNotes} / No due {entry.noDueDateNotes}
+              </td>
+              <td className="min-w-36 px-4 py-3">
+                <button type="button" className={secondaryButtonClass} onClick={() => onDrillDown(entry)}>
+                  <ListFilter className="size-4" aria-hidden="true" />
+                  Buka Owner
                 </button>
               </td>
             </tr>
