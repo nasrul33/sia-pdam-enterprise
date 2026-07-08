@@ -29,9 +29,32 @@ Rebuild **Sistem Informasi Akuntansi dan Pelayanan PDAM** di repo baru dengan st
 
 ## Quick Start
 
-```bash
-docker compose config # or: docker-compose config
-docker compose up --build # or: docker-compose up --build
+Default Docker Compose memakai port aman agar tidak bentrok dengan PostgreSQL/Redis/MinIO lokal lain:
+
+- Frontend: `http://localhost:13000`
+- Backend: `http://localhost:18080`
+- PostgreSQL host port: `15432`
+- Redis host port: `16379`
+- MinIO API/Console: `http://localhost:19000` dan `http://localhost:19001`
+
+```powershell
+Copy-Item .env.example .env
+docker compose config
+docker compose up -d --build
+```
+
+Login development setelah `.env.example` disalin:
+
+```txt
+username: admin
+password: Admin123456789!
+```
+
+Jika database lokal Docker lama pernah dibuat dari versi migrasi berbeda dan backend gagal dengan Flyway checksum mismatch, reset volume hanya untuk development:
+
+```powershell
+docker compose down -v
+docker compose up -d --build
 ```
 
 Backend:
