@@ -70,6 +70,10 @@
 | BR-UI-007 | Accounting journal detail must expose debit-credit lines, source traceability, posting metadata, and balance status without adding edit paths | Frontend/Accounting | confirmed |
 | BR-UI-008 | Payment workspace must use backend payment command contracts, idempotency, account validation, audit reason, and permission-aware visibility | Frontend/Payment | confirmed |
 | BR-UI-009 | Billing workspace batch drill-down must use backend batch invoice contract and preserve invoice issue controls | Frontend/Billing | confirmed |
+| BR-UI-010 | Customer and connection backend endpoints must have frontend surfaces for list, detail, create, and lifecycle workflow actions | Frontend/Customer/Connection | confirmed |
+| BR-UI-011 | Metering backend endpoints must have frontend surfaces for route management, meter reading input, and submit/verify/reject workflow | Frontend/Metering | confirmed |
+| BR-UI-012 | Tariff backend endpoints must have frontend surfaces for tariff version, block, activation/archive, and calculation simulation | Frontend/Billing | confirmed |
+| BR-UI-013 | Receivable aging and trial balance reporting endpoints must have frontend report surfaces with loading/error/empty states | Frontend/Receivable/Reporting | confirmed |
 | BR-UI-001 | Operational frontend pages expose loading, error, empty, filter, mutation pending, and mutation error states | Frontend | confirmed |
 
 ## Requirements Traceability
@@ -147,6 +151,11 @@
 | REQ-UI-020 | Drill-down owner escalation handoff | Frontend/Payment | `/payments` shows owner/status escalation grouping, supports unassigned owner drill-down into workload filters, and exports deterministic owner SLA CSV with loading/error/truncated states | T-112 | payment-workspace-model.test.ts, npm test:permissions, npm typecheck/lint/build |
 | REQ-UI-021 | Aging bucket stale handoff | Frontend/Payment | `/payments` shows active handoff aging buckets by owner, due-today and stale overdue metrics, retry/truncated states, owner drill-down, and deterministic stale CSV export | T-113 | payment-workspace-model.test.ts, npm test:permissions, npm typecheck/lint/build |
 | REQ-UI-022 | Evidence packet handoff stale | Frontend/Payment | `/payments` exports the active handoff aging filter as stale evidence packet CSV with pending/error state and deterministic filename for supervisor review | T-114 | payment-workspace-model.test.ts, npm test:permissions, npm typecheck/lint/build |
+| REQ-UI-023 | Frontend master pelanggan dan sambungan | Frontend/Customer/Connection | `/customers` and `/connections` expose customer list/detail/create, tariff group create/list, connection list/detail/create, and activate/suspend/terminate workflow with audit reason | T-116 | npm typecheck/lint/build |
+| REQ-UI-024 | Frontend baca meter | Frontend/Metering | `/metering` exposes meter route list/create, meter reading list/detail/create, anomaly flag, and submit/verify/reject workflow with audit reason | T-117 | npm typecheck/lint/build |
+| REQ-UI-025 | Frontend master tarif | Frontend/Billing | `/tariffs` exposes tariff version list/detail/create, tariff block list/add, activate/archive workflow, and tariff calculation simulation | T-118 | npm typecheck/lint/build |
+| REQ-UI-026 | Frontend aging piutang | Frontend/Receivable | `/receivables/aging` exposes snapshot list/detail/by-period lookup and generate workflow with audit reason | T-119 | npm typecheck/lint/build |
+| REQ-UI-027 | Frontend laporan neraca saldo | Frontend/Reporting | `/reports/trial-balance` exposes posted-ledger trial balance filter, balance status, account lines, and empty/error/loading states | T-120 | npm typecheck/lint/build |
 
 ## Decision Log
 
@@ -173,6 +182,7 @@
 | 2026-07-08 | Add stale evidence packet as read-only export | Supervisors need detail packets after aging buckets, but notification/escalation mutation rules are not yet finalized | Reporting exports active overdue note details grouped by owner and aging bucket; `/payments` exposes a packet export without changing notes or evidence |
 | 2026-07-08 | Treat `/api/auth/me` as public auth-state, not a protected command | Local in-app browser may not show Basic Auth prompt, and anonymous session state exposes no financial or personal data | Direct browser checks return HTTP 200 anonymous; authenticated calls still return RBAC authorities; all sensitive endpoints remain backend permission-enforced |
 | 2026-07-08 | Align local Compose CORS and frontend API base to `localhost` ports | Frontend runs on `localhost:13000` while backend runs on `localhost:18080`; default `localhost:3000` CORS caused browser `Failed to fetch` | Compose sets `ALLOWED_ORIGINS` for local ports and builds frontend with `NEXT_PUBLIC_API_BASE_URL=http://localhost:18080` |
+| 2026-07-09 | Close backend-to-frontend coverage gaps for operational endpoints | Audit showed customer, connection, metering, tariff, receivable aging, and trial balance endpoints had no frontend route | Added Indonesian enterprise dashboard surfaces for those endpoints and updated navigation away from placeholder dashboard links |
 | 2026-07-05 | Add persisted audit and idempotency foundation | Audit/payment duplicate controls are mandatory | Enables safe payment and posting workflow implementation |
 | 2026-07-05 | Add V2 domain foundation migration | Customer through reporting tables need DB constraints before feature services | Domain modules can be implemented incrementally without ad hoc schema |
 | 2026-07-05 | Add Spring Boot Flyway starter | Smoke test showed JPA validation can run before migrations without Boot 4 starter | Flyway V1/V2 now apply before Hibernate validation |

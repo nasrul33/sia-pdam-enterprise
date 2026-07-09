@@ -6,7 +6,15 @@ export const queryKeys = {
   journals: ["journals"] as const,
   billingBatches: ["billing-batches"] as const,
   customers: ["customers"] as const,
+  tariffGroups: ["tariff-groups"] as const,
+  connections: ["connections"] as const,
+  meterRoutes: ["meter-routes"] as const,
+  meterReadings: ["meter-readings"] as const,
+  tariffVersions: ["tariff-versions"] as const,
+  tariffBlocks: ["tariff-blocks"] as const,
   invoices: ["invoices"] as const,
   payments: ["payments"] as const,
-  collectionActions: ["collection-actions"] as const
+  collectionActions: ["collection-actions"] as const,
+  receivableAgingSnapshots: ["receivable-aging-snapshots"] as const,
+  reports: ["reports"] as const
 };

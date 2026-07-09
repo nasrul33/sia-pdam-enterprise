@@ -15,14 +15,16 @@ import {
 
 const navItems = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard },
-  { label: "Pelanggan", href: "/", icon: UsersRound },
-  { label: "Sambungan", href: "/", icon: BadgeCheck },
-  { label: "Baca Meter", href: "/", icon: Gauge },
+  { label: "Pelanggan", href: "/customers", icon: UsersRound },
+  { label: "Sambungan", href: "/connections", icon: BadgeCheck },
+  { label: "Baca Meter", href: "/metering", icon: Gauge },
+  { label: "Tarif", href: "/tariffs", icon: ReceiptText },
   { label: "Billing", href: "/billing", icon: ReceiptText },
   { label: "Pembayaran", href: "/payments", icon: WalletCards },
   { label: "Piutang", href: "/receivables/collection-actions", icon: Banknote },
+  { label: "Aging Piutang", href: "/receivables/aging", icon: Banknote },
   { label: "Akuntansi", href: "/accounting", icon: BookOpenCheck },
-  { label: "Laporan", href: "/", icon: ClipboardList },
+  { label: "Neraca Saldo", href: "/reports/trial-balance", icon: ClipboardList },
   { label: "Admin", href: "/", icon: UserRoundCog }
 ] as const;
 
@@ -36,7 +38,7 @@ export function AppShell({ children }: Readonly<{ children: React.ReactNode }>) 
           </div>
           <div>
             <div className="text-base font-bold text-slate-950">SIA-PDAM</div>
-            <div className="text-xs font-medium text-slate-500">Enterprise Control</div>
+            <div className="text-xs font-medium text-slate-500">Kontrol Enterprise</div>
           </div>
         </div>
         <nav className="mt-8 space-y-1">
@@ -55,9 +57,9 @@ export function AppShell({ children }: Readonly<{ children: React.ReactNode }>) 
       <div className="lg:pl-72">
         <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 px-4 py-4 backdrop-blur sm:px-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm font-semibold text-slate-700">Enterprise Dashboard</p>
+            <p className="text-sm font-semibold text-slate-700">Dashboard Enterprise</p>
             <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800">
-              Financial-control first
+              Prioritas kontrol keuangan
             </div>
           </div>
         </header>
