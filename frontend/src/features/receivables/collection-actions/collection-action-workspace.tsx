@@ -172,7 +172,7 @@ function FormField({
 function baseInputClass(hasError = false): string {
   return cn(
     "h-10 w-full rounded-lg border bg-white px-3 text-sm font-semibold text-slate-950 outline-none transition focus:ring-2",
-    hasError ? "border-red-300 focus:ring-red-100" : "border-slate-300 focus:border-sky-500 focus:ring-sky-100"
+    hasError ? "border-red-300 focus:ring-red-100" : "border-slate-300 focus:border-teal-600 focus:ring-teal-100"
   );
 }
 
@@ -287,7 +287,7 @@ function CollectionActionForm() {
         <div className="md:col-span-2">
           <FormField label="Catatan">
             <textarea
-              className="min-h-24 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-950 outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
+              className="min-h-24 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-950 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
               value={form.notes}
               onChange={(event) => updateForm("notes", event.target.value)}
               placeholder="Ringkasan konteks penagihan"
@@ -339,7 +339,7 @@ function FilterToolbar({
     <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
       <div className="grid gap-3 md:grid-cols-[180px_1fr_1fr_120px_auto]">
         <label className="block">
-          <span className="text-xs font-bold uppercase tracking-wide text-slate-600">Status</span>
+          <span className="text-xs font-bold uppercase text-slate-600">Status</span>
           <select
             className={cn(baseInputClass(), "mt-1")}
             value={filters.status}
@@ -354,7 +354,7 @@ function FilterToolbar({
           </select>
         </label>
         <label className="block">
-          <span className="text-xs font-bold uppercase tracking-wide text-slate-600">Customer ID</span>
+          <span className="text-xs font-bold uppercase text-slate-600">Customer ID</span>
           <div className="relative mt-1">
             <Search className="pointer-events-none absolute left-3 top-3 size-4 text-slate-500" aria-hidden="true" />
             <input
@@ -366,7 +366,7 @@ function FilterToolbar({
           </div>
         </label>
         <label className="block">
-          <span className="text-xs font-bold uppercase tracking-wide text-slate-600">Invoice ID</span>
+          <span className="text-xs font-bold uppercase text-slate-600">Invoice ID</span>
           <input
             className={cn(baseInputClass(), "mt-1")}
             value={filters.invoiceId}
@@ -375,7 +375,7 @@ function FilterToolbar({
           />
         </label>
         <label className="block">
-          <span className="text-xs font-bold uppercase tracking-wide text-slate-600">Size</span>
+          <span className="text-xs font-bold uppercase text-slate-600">Size</span>
           <select
             className={cn(baseInputClass(), "mt-1")}
             value={filters.size}
@@ -417,7 +417,7 @@ function WorkflowButton({
   onClick: () => void;
 }>) {
   const toneClass: Record<typeof tone, string> = {
-    primary: "border-sky-200 bg-sky-50 text-sky-800 hover:bg-sky-100",
+    primary: "border-teal-200 bg-teal-50 text-teal-900 hover:bg-teal-100",
     success: "border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100",
     danger: "border-red-200 bg-red-50 text-red-800 hover:bg-red-100"
   };
@@ -601,7 +601,7 @@ function WorkflowModal({
         <div className="mt-5 space-y-4">
           <FormField label="Catatan">
             <textarea
-              className="min-h-24 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-950 outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
+              className="min-h-24 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-950 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
               value={draft.notes}
               onChange={(event) => onChange({ ...draft, notes: event.target.value })}
             />

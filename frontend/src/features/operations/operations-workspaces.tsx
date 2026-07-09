@@ -52,14 +52,14 @@ import {
 } from "./use-operations";
 
 const inputClass =
-  "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-950 outline-none focus:border-slate-950";
-const labelClass = "text-xs font-bold uppercase tracking-wide text-slate-600";
+  "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-teal-600 focus:ring-2 focus:ring-teal-100 disabled:bg-slate-100 disabled:text-slate-500";
+const labelClass = "text-xs font-black uppercase text-slate-600";
 const primaryButtonClass =
-  "rounded-lg bg-slate-950 px-4 py-2 text-sm font-bold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400";
+  "inline-flex items-center justify-center gap-2 rounded-lg bg-teal-700 px-4 py-2 text-sm font-black text-white shadow-[0_14px_28px_-20px_rgba(15,118,110,0.9)] transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600";
 const secondaryButtonClass =
-  "rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400";
+  "inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-black text-slate-800 shadow-[0_12px_24px_-22px_rgba(15,23,42,0.8)] transition hover:border-teal-300 hover:bg-teal-50 hover:text-teal-900 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500";
 const dangerButtonClass =
-  "rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-bold text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:text-red-300";
+  "inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-black text-red-800 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-red-300";
 
 function formatDate(value: string | null): string {
   if (!value) {
@@ -136,13 +136,14 @@ function SummaryCard({
   tone = "info"
 }: Readonly<{ label: string; value: string; helper: string; tone?: "success" | "warning" | "danger" | "info" | "neutral" }>) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="relative overflow-hidden rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="absolute inset-x-0 top-0 h-1 bg-teal-600" />
       <div className="flex items-start justify-between gap-3">
-        <p className="text-sm font-bold text-slate-700">{label}</p>
+        <p className="text-sm font-black text-slate-700">{label}</p>
         <StatusBadge label={tone.toUpperCase()} tone={tone} />
       </div>
-      <p className="mt-3 text-2xl font-bold text-slate-950">{value}</p>
-      <p className="mt-1 text-sm text-slate-600">{helper}</p>
+      <p className="mt-3 text-2xl font-black text-slate-950">{value}</p>
+      <p className="mt-1 text-sm font-medium leading-6 text-slate-600">{helper}</p>
     </div>
   );
 }
@@ -153,10 +154,10 @@ function Section({
   children
 }: Readonly<{ title: string; description?: string; children: React.ReactNode }>) {
   return (
-    <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-200 px-5 py-4">
-        <h2 className="text-base font-bold text-slate-950">{title}</h2>
-        {description ? <p className="mt-1 text-sm leading-6 text-slate-600">{description}</p> : null}
+    <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+      <div className="border-b border-slate-200 bg-slate-50/70 px-5 py-4">
+        <h2 className="text-base font-black text-slate-950">{title}</h2>
+        {description ? <p className="mt-1 text-sm font-medium leading-6 text-slate-600">{description}</p> : null}
       </div>
       <div className="p-5">{children}</div>
     </section>
