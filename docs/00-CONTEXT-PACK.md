@@ -187,6 +187,7 @@
 | 2026-07-09 | Close backend-to-frontend coverage gaps for operational endpoints | Audit showed customer, connection, metering, tariff, receivable aging, and trial balance endpoints had no frontend route | Added Indonesian enterprise dashboard surfaces for those endpoints and updated navigation away from placeholder dashboard links |
 | 2026-07-09 | Refresh frontend visual system to premium enterprise dashboard | The shell and shared UI states looked flat and dated despite backend coverage | Added dark command sidebar, active navigation, responsive module nav, stronger page header, premium status/loading/empty/error components, dashboard card hierarchy, and removed legacy letter-spacing classes |
 | 2026-07-09 | Close premium frontend consistency gaps | Follow-up audit found desktop sidebar internal scrolling, inconsistent button/input focus styles, and older sky-accent controls across workspaces | Compact sidebar now scrolls as one surface, route count is corrected, global table/form/button affordances are added, and accounting/billing/payment/operations/collection controls use aligned teal enterprise accents |
+| 2026-07-09 | Normalize remaining module accent drift | Module audit still found sky-accent selected rows, panel icons, adjustment forms, and slate hover rows after the premium shell refresh | Replaced remaining sky/slate interactive accents with teal enterprise treatment across accounting, billing, payments, receivables, operations, dashboard, and financial access panel |
 | 2026-07-05 | Add persisted audit and idempotency foundation | Audit/payment duplicate controls are mandatory | Enables safe payment and posting workflow implementation |
 | 2026-07-05 | Add V2 domain foundation migration | Customer through reporting tables need DB constraints before feature services | Domain modules can be implemented incrementally without ad hoc schema |
 | 2026-07-05 | Add Spring Boot Flyway starter | Smoke test showed JPA validation can run before migrations without Boot 4 starter | Flyway V1/V2 now apply before Hibernate validation |
@@ -317,6 +318,7 @@
 | Payment Reconciliation Handoff Evidence Packet increment | passed: targeted backend stale packet/controller tests, full `gradle test bootJar` via `gradle:9.6.1-jdk26`, `npm run test:permissions`, `npm run typecheck`, `npm run lint`, `npm run build` |
 | Premium Frontend Visual System increment | passed: `npm run typecheck`, `npm run lint`, `npm run build`, `npm run test:permissions`, Docker frontend rebuild, route smoke for 11 frontend routes |
 | Premium Frontend Gap Closure increment | passed: `npm run typecheck`, `npm run lint`, `npm run build`, `npm run test:permissions`, Docker frontend rebuild, route smoke for 11 frontend routes |
+| Premium Module Accent Normalization increment | passed: `npm run typecheck`, `npm run lint`, `npm run build`, `npm run test:permissions`, Docker frontend rebuild, route smoke for 11 frontend routes |
 
 ## Handoff Instructions
 

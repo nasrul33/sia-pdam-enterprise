@@ -212,7 +212,7 @@ function CustomerTable({
         </thead>
         <tbody className="divide-y divide-slate-100">
           {customers.map((customer) => (
-            <tr key={customer.id} className="hover:bg-slate-50">
+            <tr key={customer.id} className="hover:bg-teal-50">
               <td className="whitespace-nowrap px-4 py-3 font-bold text-slate-950">{customer.customerNumber}</td>
               <td className="px-4 py-3 text-slate-700">{customer.fullName}</td>
               <td className="whitespace-nowrap px-4 py-3 text-slate-700">{customer.phoneNumber ?? "-"}</td>
@@ -254,7 +254,7 @@ function ConnectionTable({
         </thead>
         <tbody className="divide-y divide-slate-100">
           {connections.map((connection) => (
-            <tr key={connection.id} className="hover:bg-slate-50">
+            <tr key={connection.id} className="hover:bg-teal-50">
               <td className="whitespace-nowrap px-4 py-3 font-bold text-slate-950">{connection.connectionNumber}</td>
               <td className="whitespace-nowrap px-4 py-3 text-slate-700">{connection.meterNumber}</td>
               <td className="whitespace-nowrap px-4 py-3 text-slate-700">{formatDate(connection.installedAt)}</td>
@@ -792,7 +792,7 @@ function MeterReadingTable({
         </thead>
         <tbody className="divide-y divide-slate-100">
           {readings.map((reading) => (
-            <tr key={reading.id} className="hover:bg-slate-50">
+            <tr key={reading.id} className="hover:bg-teal-50">
               <td className="whitespace-nowrap px-4 py-3 font-bold text-slate-950">{reading.period}</td>
               <td className="whitespace-nowrap px-4 py-3 text-right text-slate-700">{formatNumber(reading.previousReading)}</td>
               <td className="whitespace-nowrap px-4 py-3 text-right text-slate-700">{formatNumber(reading.currentReading)}</td>
@@ -1223,7 +1223,7 @@ function TariffVersionTable({
         </thead>
         <tbody className="divide-y divide-slate-100">
           {versions.map((version) => (
-            <tr key={version.id} className="hover:bg-slate-50">
+            <tr key={version.id} className="hover:bg-teal-50">
               <td className="px-4 py-3 font-semibold text-slate-700">{version.tariffGroupId}</td>
               <td className="whitespace-nowrap px-4 py-3 text-slate-700">{formatDate(version.effectiveDate)}</td>
               <td className="whitespace-nowrap px-4 py-3">
@@ -1696,7 +1696,7 @@ export function ReceivableAgingWorkspace() {
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {(snapshotsQuery.data?.items ?? []).map((snapshot) => (
-                        <tr key={snapshot.id} className="hover:bg-slate-50">
+                        <tr key={snapshot.id} className="hover:bg-teal-50">
                           <td className="whitespace-nowrap px-4 py-3 font-bold text-slate-950">{snapshot.period}</td>
                           <td className="whitespace-nowrap px-4 py-3 text-right text-slate-700">
                             {formatMoney(snapshot.currentAmount)}
@@ -1878,7 +1878,7 @@ export function TrialBalanceWorkspace() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {reportQuery.data.lines.map((line) => (
-                  <tr key={line.accountId} className="hover:bg-slate-50">
+                  <tr key={line.accountId} className="hover:bg-teal-50">
                     <td className="whitespace-nowrap px-4 py-3 font-bold text-slate-950">{line.accountCode}</td>
                     <td className="px-4 py-3 text-slate-700">{line.accountName}</td>
                     <td className="whitespace-nowrap px-4 py-3">

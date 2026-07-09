@@ -198,7 +198,7 @@ function BillingCommandPanel({ permissions }: Readonly<{ permissions: BillingPer
     <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-200 p-4">
         <div className="flex items-center gap-2">
-          <ReceiptText className="size-5 text-sky-700" aria-hidden="true" />
+          <ReceiptText className="size-5 text-teal-700" aria-hidden="true" />
           <h2 className="text-base font-bold text-slate-950">Billing Command</h2>
         </div>
       </div>
@@ -430,7 +430,7 @@ function BatchTable({
           </thead>
           <tbody className="divide-y divide-slate-100 bg-white">
             {batches.map((batch) => (
-              <tr key={batch.id} className={cn("hover:bg-slate-50", selectedBatchId === batch.id ? "bg-sky-50" : "bg-white")}>
+              <tr key={batch.id} className={cn("hover:bg-teal-50", selectedBatchId === batch.id ? "bg-teal-50" : "bg-white")}>
                 <td className="whitespace-nowrap px-5 py-4 font-mono text-xs font-bold text-slate-800">{batch.batchNumber}</td>
                 <td className="whitespace-nowrap px-5 py-4 font-bold text-slate-950">{batch.period}</td>
                 <td className="whitespace-nowrap px-5 py-4 font-semibold text-slate-700">{batch.areaCode}</td>
@@ -589,7 +589,7 @@ function InvoiceTable({
           </thead>
           <tbody className="divide-y divide-slate-100 bg-white">
             {invoices.map((invoice) => (
-              <tr key={invoice.id} className="hover:bg-slate-50">
+              <tr key={invoice.id} className="hover:bg-teal-50">
                 <td className="whitespace-nowrap px-5 py-4 font-mono text-xs font-bold text-slate-800">{invoice.invoiceNumber}</td>
                 <td className="whitespace-nowrap px-5 py-4 font-bold text-slate-950">{invoice.period}</td>
                 <td className="whitespace-nowrap px-5 py-4">

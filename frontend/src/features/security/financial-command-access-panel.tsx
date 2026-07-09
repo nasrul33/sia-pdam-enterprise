@@ -81,7 +81,7 @@ export function FinancialCommandAccessPanel() {
     <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-200 p-5">
         <div className="flex items-center gap-2">
-          <KeyRound className="size-5 text-sky-700" aria-hidden="true" />
+          <KeyRound className="size-5 text-teal-700" aria-hidden="true" />
           <h2 className="text-base font-bold text-slate-950">Financial Command Access</h2>
         </div>
         <p className="mt-2 text-sm font-semibold text-slate-600">{currentUserQuery.data?.username}</p>

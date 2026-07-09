@@ -42,7 +42,7 @@ const metricAccent: Record<DashboardMetric["tone"], string> = {
   success: "bg-emerald-500",
   warning: "bg-amber-500",
   danger: "bg-red-500",
-  info: "bg-sky-500",
+  info: "bg-teal-500",
   neutral: "bg-slate-500"
 };
 
@@ -50,7 +50,7 @@ const metricPanel: Record<DashboardMetric["tone"], string> = {
   success: "border-emerald-200/80",
   warning: "border-amber-200/80",
   danger: "border-red-200/80",
-  info: "border-sky-200/80",
+  info: "border-teal-200/80",
   neutral: "border-slate-200"
 };
 
@@ -228,7 +228,7 @@ export default function HomePage() {
           <FinancialCommandAccessPanel />
           <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center gap-2">
-              <ShieldCheck className="size-5 text-sky-700" aria-hidden="true" />
+              <ShieldCheck className="size-5 text-teal-700" aria-hidden="true" />
               <h2 className="text-base font-bold text-slate-950">Financial Guard</h2>
             </div>
             <p className="mt-3 text-sm leading-6 text-slate-700">

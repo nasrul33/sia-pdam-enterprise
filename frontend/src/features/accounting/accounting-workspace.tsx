@@ -294,7 +294,7 @@ function AccountingCommandPanel({ permissions }: Readonly<{ permissions: Account
     <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-200 p-4">
         <div className="flex items-center gap-2">
-          <BookOpenCheck className="size-5 text-sky-700" aria-hidden="true" />
+          <BookOpenCheck className="size-5 text-teal-700" aria-hidden="true" />
           <h2 className="text-base font-bold text-slate-950">Accounting Command</h2>
         </div>
       </div>
@@ -646,7 +646,7 @@ function JournalCommandForm({
             <p className="text-xs font-bold uppercase text-slate-600">Baris Jurnal</p>
             <button
               type="button"
-              className="inline-flex h-8 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-xs font-bold text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+              className="inline-flex h-8 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-xs font-bold text-slate-800 hover:bg-teal-50 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
               disabled={disabled}
               onClick={() => setForm((current) => ({ ...current, lines: [...current.lines, newJournalLine()] }))}
             >
@@ -715,7 +715,7 @@ function JournalCommandForm({
                     <td className="whitespace-nowrap px-3 py-2 text-right">
                       <button
                         type="button"
-                        className="inline-flex size-9 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                        className="inline-flex size-9 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-teal-50 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
                         disabled={disabled || form.lines.length <= 2}
                         onClick={() => removeLine(line.localId)}
                         aria-label="Hapus baris jurnal"
@@ -791,7 +791,7 @@ function AccountTable({ accounts }: Readonly<{ accounts: Account[] }>) {
           </thead>
           <tbody className="divide-y divide-slate-100 bg-white">
             {accounts.map((account) => (
-              <tr key={account.id} className="hover:bg-slate-50">
+              <tr key={account.id} className="hover:bg-teal-50">
                 <td className="whitespace-nowrap px-5 py-4 font-mono text-xs font-bold text-slate-800">{account.code}</td>
                 <td className="min-w-64 px-5 py-4 font-semibold text-slate-950">{account.name}</td>
                 <td className="whitespace-nowrap px-5 py-4 text-slate-700">{accountTypeLabels[account.type]}</td>
@@ -882,7 +882,7 @@ function PeriodTable({ periods, permissions }: Readonly<{ periods: AccountingPer
             {periods.map((period) => {
               const workflows = allowedAccountingPeriodWorkflows(period, permissions);
               return (
-                <tr key={period.id} className="hover:bg-slate-50">
+                <tr key={period.id} className="hover:bg-teal-50">
                   <td className="whitespace-nowrap px-5 py-4 font-bold text-slate-950">{period.period}</td>
                   <td className="whitespace-nowrap px-5 py-4">
                     <StatusBadge label={periodStatusLabels[period.status]} tone={periodStatusTones[period.status]} />
@@ -995,7 +995,7 @@ function JournalDetailDrawer({
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
           <div>
             <div className="flex items-center gap-2">
-              <FileText className="size-5 text-sky-700" aria-hidden="true" />
+              <FileText className="size-5 text-teal-700" aria-hidden="true" />
               <h2 className="text-lg font-bold text-slate-950">Detail Jurnal</h2>
             </div>
             <p className="mt-1 text-sm font-semibold text-slate-600">
@@ -1116,7 +1116,7 @@ function JournalLineTable({
             {journal.lines.map((line) => {
               const account = accountById.get(line.accountId);
               return (
-                <tr key={line.id} className="hover:bg-slate-50">
+                <tr key={line.id} className="hover:bg-teal-50">
                   <td className="min-w-72 px-5 py-4 font-semibold text-slate-950">
                     {accountDisplay(line.accountId, accountById)}
                   </td>
@@ -1251,7 +1251,7 @@ function JournalTable({
                 permissions
               );
               return (
-                <tr key={journal.id} className="hover:bg-slate-50">
+                <tr key={journal.id} className="hover:bg-teal-50">
                   <td className="whitespace-nowrap px-5 py-4 font-mono text-xs font-bold text-slate-800">{journal.journalNumber}</td>
                   <td className="min-w-72 px-5 py-4 font-semibold text-slate-950">{journal.description}</td>
                   <td className="whitespace-nowrap px-5 py-4">

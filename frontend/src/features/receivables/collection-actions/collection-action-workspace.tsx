@@ -237,7 +237,7 @@ function CollectionActionForm() {
   return (
     <form onSubmit={submit} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex items-center gap-2">
-        <Plus className="size-5 text-sky-700" aria-hidden="true" />
+        <Plus className="size-5 text-teal-700" aria-hidden="true" />
         <h2 className="text-base font-bold text-slate-950">Aksi Penagihan Baru</h2>
       </div>
 
@@ -392,7 +392,7 @@ function FilterToolbar({
           <button
             type="button"
             onClick={() => onChange({ status: "ALL", customerId: "", invoiceId: "", page: 0, size: 25 })}
-            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-bold text-slate-800 hover:bg-slate-50"
+            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-bold text-slate-800 hover:bg-teal-50"
           >
             <RotateCcw className="size-4" aria-hidden="true" />
             Reset
@@ -491,7 +491,7 @@ function CollectionActionTable({
               const hasVisibleWorkflow = permissions.canExecute || permissions.canCancel;
 
               return (
-                <tr key={action.id} className="hover:bg-slate-50">
+                <tr key={action.id} className="hover:bg-teal-50">
                   <td className="whitespace-nowrap px-5 py-4">
                     <StatusBadge label={statusLabels[action.status]} tone={statusTones[action.status]} />
                   </td>
@@ -591,7 +591,7 @@ function WorkflowModal({
             type="button"
             onClick={onClose}
             disabled={isPending}
-            className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50 disabled:opacity-60"
+            className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-teal-50 disabled:opacity-60"
             aria-label="Tutup modal"
           >
             <XCircle className="size-4" aria-hidden="true" />
@@ -627,7 +627,7 @@ function WorkflowModal({
             type="button"
             onClick={onClose}
             disabled={isPending}
-            className="h-10 rounded-lg border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800 hover:bg-slate-50 disabled:opacity-60"
+            className="h-10 rounded-lg border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800 hover:bg-teal-50 disabled:opacity-60"
           >
             Tutup
           </button>
@@ -676,7 +676,7 @@ function PaginationBar({
           type="button"
           disabled={!canPrevious}
           onClick={() => onPageChange(page - 1)}
-          className="h-9 rounded-lg border border-slate-300 px-3 font-bold text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
+          className="h-9 rounded-lg border border-slate-300 px-3 font-bold text-slate-800 hover:bg-teal-50 disabled:cursor-not-allowed disabled:text-slate-400"
         >
           Sebelumnya
         </button>
@@ -684,7 +684,7 @@ function PaginationBar({
           type="button"
           disabled={!canNext}
           onClick={() => onPageChange(page + 1)}
-          className="h-9 rounded-lg border border-slate-300 px-3 font-bold text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
+          className="h-9 rounded-lg border border-slate-300 px-3 font-bold text-slate-800 hover:bg-teal-50 disabled:cursor-not-allowed disabled:text-slate-400"
         >
           Berikutnya
         </button>
@@ -813,7 +813,7 @@ export function CollectionActionWorkspace() {
                   <button
                     type="button"
                     onClick={() => void actionsQuery.refetch()}
-                    className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800 hover:bg-slate-50"
+                    className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800 hover:bg-teal-50"
                   >
                     <RotateCcw className="size-4" aria-hidden="true" />
                     Muat Ulang

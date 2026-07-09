@@ -524,7 +524,7 @@ function PaymentCommandPanel({ permissions }: Readonly<{ permissions: PaymentPer
     <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-200 p-4">
         <div className="flex items-center gap-2">
-          <WalletCards className="size-5 text-sky-700" aria-hidden="true" />
+          <WalletCards className="size-5 text-teal-700" aria-hidden="true" />
           <h2 className="text-base font-bold text-slate-950">Payment Command</h2>
         </div>
       </div>
@@ -613,7 +613,7 @@ function PaymentListToolbar({
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
       <div className="mb-3 flex items-center gap-2">
-        <ListFilter className="size-5 text-sky-700" aria-hidden="true" />
+        <ListFilter className="size-5 text-teal-700" aria-hidden="true" />
         <h2 className="text-base font-bold text-slate-950">Payment Register</h2>
       </div>
       <div className="grid gap-3 md:grid-cols-[minmax(180px,1fr)_180px_auto]">
@@ -738,7 +738,7 @@ function PaymentTable({
           </thead>
           <tbody className="divide-y divide-slate-100 bg-white">
             {payments.map((payment) => (
-              <tr key={payment.id} className={cn("hover:bg-slate-50", selectedPaymentId === payment.id ? "bg-sky-50" : "")}>
+              <tr key={payment.id} className={cn("hover:bg-teal-50", selectedPaymentId === payment.id ? "bg-teal-50" : "")}>
                 <td className="whitespace-nowrap px-5 py-4">
                   <p className="font-bold text-slate-950">{payment.paymentNumber}</p>
                   <p className="font-mono text-xs text-slate-500">{shortId(payment.externalReference)}</p>
@@ -837,7 +837,7 @@ function PaymentDetailPanel({
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 p-5">
         <div>
           <div className="flex items-center gap-2">
-            <FileSearch className="size-5 text-sky-700" aria-hidden="true" />
+            <FileSearch className="size-5 text-teal-700" aria-hidden="true" />
             <h2 className="text-base font-bold text-slate-950">Detail Payment</h2>
           </div>
           <p className="mt-1 font-mono text-sm font-semibold text-slate-600">{payment.id}</p>
@@ -1008,7 +1008,7 @@ function PaymentReconciliationReviewRegisterPanel({
     <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-4">
         <div className="flex items-center gap-2">
-          <FileSearch className="size-5 text-sky-700" aria-hidden="true" />
+          <FileSearch className="size-5 text-teal-700" aria-hidden="true" />
           <h2 className="text-base font-bold text-slate-950">Reconciliation Review Register</h2>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -1193,7 +1193,7 @@ function ReconciliationReviewRegisterTable({
           {entries.map((entry) => (
             <tr
               key={entry.sessionId}
-              className={cn("hover:bg-slate-50", selectedSessionId === entry.sessionId ? "bg-sky-50" : "bg-white")}
+              className={cn("hover:bg-teal-50", selectedSessionId === entry.sessionId ? "bg-teal-50" : "bg-white")}
             >
               <td className="min-w-56 px-4 py-3">
                 <p className="font-mono text-xs font-bold text-slate-950">{entry.sessionNumber}</p>
@@ -1340,7 +1340,7 @@ function ReconciliationHandoffNotesPanel({
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 p-4">
         <div>
           <div className="flex items-center gap-2">
-            <ReceiptText className="size-5 text-sky-700" aria-hidden="true" />
+            <ReceiptText className="size-5 text-teal-700" aria-hidden="true" />
             <h3 className="text-sm font-bold text-slate-950">Controlled Handoff Notes</h3>
           </div>
           <p className="mt-1 font-mono text-xs font-semibold text-slate-600">{entry.sessionNumber}</p>
@@ -1709,7 +1709,7 @@ function PaymentReconciliationHandoffWorkloadPanel({ allowed }: Readonly<{ allow
     <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-4">
         <div className="flex items-center gap-2">
-          <CalendarClock className="size-5 text-sky-700" aria-hidden="true" />
+          <CalendarClock className="size-5 text-teal-700" aria-hidden="true" />
           <h2 className="text-base font-bold text-slate-950">Handoff SLA Workload</h2>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -1981,7 +1981,7 @@ function ReconciliationHandoffOwnerSlaTable({
   ) => void;
 }>) {
   const smallButtonClass =
-    "inline-flex h-8 items-center justify-center rounded-md border border-slate-300 bg-white px-2 text-xs font-bold text-slate-800 transition hover:bg-slate-50";
+    "inline-flex h-8 items-center justify-center rounded-md border border-slate-300 bg-white px-2 text-xs font-bold text-slate-800 transition hover:bg-teal-50";
 
   return (
     <div className="overflow-x-auto rounded-lg border border-slate-200">
@@ -1997,7 +1997,7 @@ function ReconciliationHandoffOwnerSlaTable({
         </thead>
         <tbody className="divide-y divide-slate-100 bg-white">
           {entries.map((entry) => (
-            <tr key={`${entry.ownerLabel}-${entry.unassigned ? "unassigned" : "assigned"}`} className="hover:bg-slate-50">
+            <tr key={`${entry.ownerLabel}-${entry.unassigned ? "unassigned" : "assigned"}`} className="hover:bg-teal-50">
               <td className="min-w-56 px-4 py-3">
                 <p className="text-sm font-bold text-slate-950">{entry.ownerLabel}</p>
                 <p className="mt-1 text-xs font-semibold text-slate-600">{entry.totalNotes} notes</p>
@@ -2055,7 +2055,7 @@ function ReconciliationHandoffAgingBucketTable({
   ) => void;
 }>) {
   const smallButtonClass =
-    "inline-flex h-8 items-center justify-center rounded-md border border-slate-300 bg-white px-2 text-xs font-bold text-slate-800 transition hover:bg-slate-50";
+    "inline-flex h-8 items-center justify-center rounded-md border border-slate-300 bg-white px-2 text-xs font-bold text-slate-800 transition hover:bg-teal-50";
 
   return (
     <div className="overflow-x-auto rounded-lg border border-slate-200">
@@ -2073,7 +2073,7 @@ function ReconciliationHandoffAgingBucketTable({
         </thead>
         <tbody className="divide-y divide-slate-100 bg-white">
           {entries.map((entry) => (
-            <tr key={`${entry.ownerLabel}-${entry.unassigned ? "unassigned" : "aging"}`} className="hover:bg-slate-50">
+            <tr key={`${entry.ownerLabel}-${entry.unassigned ? "unassigned" : "aging"}`} className="hover:bg-teal-50">
               <td className="min-w-56 px-4 py-3">
                 <p className="text-sm font-bold text-slate-950">{entry.ownerLabel}</p>
                 <p className="mt-1 text-xs font-semibold text-slate-600">
@@ -2124,7 +2124,7 @@ function ReconciliationHandoffWorkloadTable({
         </thead>
         <tbody className="divide-y divide-slate-100 bg-white">
           {entries.map((entry) => (
-            <tr key={entry.noteId} className="hover:bg-slate-50">
+            <tr key={entry.noteId} className="hover:bg-teal-50">
               <td className="min-w-56 px-4 py-3">
                 <p className="font-mono text-xs font-bold text-slate-950">{entry.sessionNumber}</p>
                 <p className="mt-1 text-xs font-semibold text-slate-600">{entry.bankAccountReference ?? "-"}</p>
@@ -2594,7 +2594,7 @@ function PaymentReconciliationPanel({
     <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <FileSpreadsheet className="size-5 text-sky-700" aria-hidden="true" />
+          <FileSpreadsheet className="size-5 text-teal-700" aria-hidden="true" />
           <h3 className="text-sm font-bold text-slate-950">Payment Reconciliation</h3>
         </div>
         <div className="flex items-center gap-2">
@@ -2776,7 +2776,7 @@ function PaymentReconciliationPanel({
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {matchReport.matches.map((match) => (
-                    <tr key={`${match.rowNumber}-${match.statementReference}`} className="hover:bg-slate-50">
+                    <tr key={`${match.rowNumber}-${match.statementReference}`} className="hover:bg-teal-50">
                       <td className="whitespace-nowrap px-4 py-3 font-bold text-slate-950">{match.rowNumber}</td>
                       <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-slate-700">{match.statementReference}</td>
                       <td className="whitespace-nowrap px-4 py-3">
@@ -2938,11 +2938,11 @@ function PaymentReconciliationPanel({
                   </button>
                 </form>
 
-                <form onSubmit={handleCreateAdjustment} className="grid gap-3 rounded-lg border border-sky-200 bg-sky-50 p-3">
+                <form onSubmit={handleCreateAdjustment} className="grid gap-3 rounded-lg border border-teal-200 bg-teal-50 p-3">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm font-bold text-sky-950">Adjustment Journal</p>
-                      <p className="mt-1 text-xs font-semibold text-sky-800">
+                      <p className="text-sm font-bold text-teal-950">Adjustment Journal</p>
+                      <p className="mt-1 text-xs font-semibold text-teal-800">
                         {adjustableItems.length} accepted exception belum memiliki journal adjustment.
                       </p>
                     </div>
@@ -2950,7 +2950,7 @@ function PaymentReconciliationPanel({
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className="block">
-                      <span className="text-xs font-bold uppercase text-sky-800">Accepted Exception</span>
+                      <span className="text-xs font-bold uppercase text-teal-800">Accepted Exception</span>
                       <select
                         className={inputClass}
                         value={adjustmentForm.itemId}
@@ -2974,7 +2974,7 @@ function PaymentReconciliationPanel({
                       </select>
                     </label>
                     <label className="block">
-                      <span className="text-xs font-bold uppercase text-sky-800">Periode</span>
+                      <span className="text-xs font-bold uppercase text-teal-800">Periode</span>
                       <input
                         className={inputClass}
                         value={adjustmentForm.period}
@@ -2987,7 +2987,7 @@ function PaymentReconciliationPanel({
                   </div>
                   <div className="grid gap-3 sm:grid-cols-3">
                     <label className="block">
-                      <span className="text-xs font-bold uppercase text-sky-800">Nominal</span>
+                      <span className="text-xs font-bold uppercase text-teal-800">Nominal</span>
                       <input
                         type="number"
                         min="0.01"
@@ -3017,7 +3017,7 @@ function PaymentReconciliationPanel({
                     />
                   </div>
                   <label className="block">
-                    <span className="text-xs font-bold uppercase text-sky-800">Adjustment Reason</span>
+                    <span className="text-xs font-bold uppercase text-teal-800">Adjustment Reason</span>
                     <textarea
                       className={textareaClass}
                       value={adjustmentForm.reason}
@@ -3151,8 +3151,8 @@ function ReconciliationSessionList({
             key={session.id}
             type="button"
             className={cn(
-              "flex w-full items-center justify-between gap-3 px-3 py-3 text-left transition hover:bg-slate-50",
-              selectedSessionId === session.id ? "bg-sky-50" : ""
+              "flex w-full items-center justify-between gap-3 px-3 py-3 text-left transition hover:bg-teal-50",
+              selectedSessionId === session.id ? "bg-teal-50" : ""
             )}
             onClick={() => onSelect(session.id)}
           >
@@ -3177,7 +3177,7 @@ function ReconciliationSessionList({
 
 function ReconciliationSessionItemRow({ item }: Readonly<{ item: PaymentReconciliationSessionItem }>) {
   return (
-    <tr className="hover:bg-slate-50">
+    <tr className="hover:bg-teal-50">
       <td className="whitespace-nowrap px-4 py-3 font-bold text-slate-950">{item.rowNumber}</td>
       <td className="whitespace-nowrap px-4 py-3">
         <p className="font-mono text-xs font-semibold text-slate-800">{item.statementReference}</p>
@@ -3406,7 +3406,7 @@ function ReconciliationEvidencePanel({
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
                 {report.items.map((item) => (
-                  <tr key={item.itemId} className="hover:bg-slate-50">
+                  <tr key={item.itemId} className="hover:bg-teal-50">
                     <td className="whitespace-nowrap px-4 py-3 font-bold text-slate-950">{item.rowNumber}</td>
                     <td className="min-w-48 px-4 py-3">
                       <p className="font-mono text-xs font-semibold text-slate-800">{item.statementReference}</p>
@@ -3538,7 +3538,7 @@ function WebhookEventTable({
           </thead>
           <tbody className="divide-y divide-slate-100 bg-white">
             {events.map((event) => (
-              <tr key={event.id} className="hover:bg-slate-50">
+              <tr key={event.id} className="hover:bg-teal-50">
                 <td className="whitespace-nowrap px-5 py-4 font-bold text-slate-950">{event.provider}</td>
                 <td className="whitespace-nowrap px-5 py-4 font-mono text-xs font-bold text-slate-800">
                   {event.externalReference}
