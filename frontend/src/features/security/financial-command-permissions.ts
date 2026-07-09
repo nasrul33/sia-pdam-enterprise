@@ -11,6 +11,7 @@ export const financialCommandPermissions = {
   paymentReconcile: "payment.reconcile",
   paymentReconciliationHandoffNote: "payment.reconciliation.handoff-note",
   paymentReconciliationSignoff: "payment.reconciliation.signoff",
+  paymentReconciliationStaleAcknowledge: "payment.reconciliation.stale-acknowledge",
   paymentReverse: "payment.reverse",
   paymentWebhookRead: "payment.webhook.read"
 } as const;
@@ -34,6 +35,7 @@ export type PaymentCommandPermissionState = {
   canReconcilePayments: boolean;
   canManageReconciliationHandoffNotes: boolean;
   canSignOffPaymentReconciliations: boolean;
+  canAcknowledgeStaleHandoffPackets: boolean;
   canReversePayments: boolean;
   canReadWebhookEvents: boolean;
 };
@@ -76,6 +78,9 @@ export function resolveFinancialCommandPermissions(authorities: readonly string[
     canReconcilePayments: authoritySet.has(financialCommandPermissions.paymentReconcile),
     canManageReconciliationHandoffNotes: authoritySet.has(financialCommandPermissions.paymentReconciliationHandoffNote),
     canSignOffPaymentReconciliations: authoritySet.has(financialCommandPermissions.paymentReconciliationSignoff),
+    canAcknowledgeStaleHandoffPackets: authoritySet.has(
+      financialCommandPermissions.paymentReconciliationStaleAcknowledge
+    ),
     canReversePayments: authoritySet.has(financialCommandPermissions.paymentReverse),
     canReadWebhookEvents: authoritySet.has(financialCommandPermissions.paymentWebhookRead)
   };
@@ -97,6 +102,7 @@ export function resolveFinancialCommandPermissions(authorities: readonly string[
       payment.canReconcilePayments ||
       payment.canManageReconciliationHandoffNotes ||
       payment.canSignOffPaymentReconciliations ||
+      payment.canAcknowledgeStaleHandoffPackets ||
       payment.canReversePayments ||
       payment.canReadWebhookEvents
   };
@@ -187,6 +193,12 @@ export function visibleFinancialCommandGroups(state: FinancialCommandPermissionS
           label: "Reconciliation Sign-off",
           permission: financialCommandPermissions.paymentReconciliationSignoff,
           allowed: state.payment.canSignOffPaymentReconciliations,
+          risk: "high"
+        },
+        {
+          label: "Stale Packet Acknowledge",
+          permission: financialCommandPermissions.paymentReconciliationStaleAcknowledge,
+          allowed: state.payment.canAcknowledgeStaleHandoffPackets,
           risk: "high"
         },
         {

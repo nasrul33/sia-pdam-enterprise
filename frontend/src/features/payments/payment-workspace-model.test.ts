@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { financialCommandPermissions, resolveFinancialCommandPermissions } from "../security/financial-command-permissions.ts";
 import {
   allocationTotalAmount,
+  canAcknowledgeStaleHandoffPackets,
   canManageReconciliationHandoffNotes,
   canReadPayments,
   canReconcilePayments,
@@ -24,6 +25,7 @@ import {
   reconciliationHandoffAgingBucketExportFilename,
   reconciliationHandoffOwnerDrilldownFilter,
   reconciliationHandoffOwnerSlaExportFilename,
+  reconciliationHandoffStalePacketAcknowledgementErrors,
   reconciliationHandoffWorkloadFilterErrors,
   reconciliationHandoffWorkloadExportFilename,
   summarizeReconciliationHandoffAgingBuckets,
@@ -96,6 +98,7 @@ test("payment command guards require matching authorities", () => {
     financialCommandPermissions.paymentReconcile,
     financialCommandPermissions.paymentReconciliationHandoffNote,
     financialCommandPermissions.paymentReconciliationSignoff,
+    financialCommandPermissions.paymentReconciliationStaleAcknowledge,
     financialCommandPermissions.paymentReverse
   ]).payment;
 
@@ -104,12 +107,14 @@ test("payment command guards require matching authorities", () => {
   assert.equal(canReconcilePayments(paymentPermissions), true);
   assert.equal(canManageReconciliationHandoffNotes(paymentPermissions), true);
   assert.equal(canSignOffPaymentReconciliations(paymentPermissions), true);
+  assert.equal(canAcknowledgeStaleHandoffPackets(paymentPermissions), true);
   assert.equal(canReversePayment(paymentPermissions), true);
   assert.equal(canReconcilePayments(resolveFinancialCommandPermissions([]).payment), false);
   assert.equal(canManageReconciliationHandoffNotes(resolveFinancialCommandPermissions([]).payment), false);
   assert.equal(canReadPayments(resolveFinancialCommandPermissions([]).payment), false);
   assert.equal(canSettleCounterPayment(resolveFinancialCommandPermissions([]).payment), false);
   assert.equal(canSignOffPaymentReconciliations(resolveFinancialCommandPermissions([]).payment), false);
+  assert.equal(canAcknowledgeStaleHandoffPackets(resolveFinancialCommandPermissions([]).payment), false);
 });
 
 test("summarizePaymentList calculates reconciliation counts and cash impact", () => {
@@ -758,6 +763,30 @@ test("reconciliationHandoffAgingBucket helpers summarize stale queues and export
       dueTo: "2026-08-31"
     }),
     "payment-reconciliation-handoff-aging-evidence-packet-in-progress-finance-ops-2026-08-01-2026-08-31.csv"
+  );
+});
+
+test("reconciliationHandoffStalePacketAcknowledgementErrors requires hash, stale rows, and reason", () => {
+  assert.deepEqual(
+    reconciliationHandoffStalePacketAcknowledgementErrors({
+      packetScopeHash: "",
+      staleNoteCount: 0,
+      reason: ""
+    }),
+    [
+      "Scope hash evidence packet wajib tersedia.",
+      "Tidak ada stale handoff packet untuk di-acknowledge.",
+      "Alasan acknowledgement wajib diisi."
+    ]
+  );
+
+  assert.deepEqual(
+    reconciliationHandoffStalePacketAcknowledgementErrors({
+      packetScopeHash: "sha256:abc",
+      staleNoteCount: 2,
+      reason: "Supervisor sudah review stale packet dan menugaskan owner."
+    }),
+    []
   );
 });
 

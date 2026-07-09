@@ -33,3 +33,6 @@ logs/
 # Docker/local data
 data/
 tmp/
+
+# Local reference repositories
+.blueprint/

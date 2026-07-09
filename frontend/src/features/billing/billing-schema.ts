@@ -58,6 +58,18 @@ export const billingBatchGenerationSchema = z.object({
   totalAmount: z.coerce.number().nonnegative()
 });
 
+export const billingBatchIssueReadinessSchema = z.object({
+  batch: billingBatchSchema,
+  totalInvoices: z.number().int().nonnegative(),
+  draftInvoices: z.number().int().nonnegative(),
+  issuedOrPaidInvoices: z.number().int().nonnegative(),
+  blockedInvoices: z.number().int().nonnegative(),
+  missingJournalTraceInvoices: z.number().int().nonnegative(),
+  draftAmount: z.coerce.number().nonnegative(),
+  outstandingAmount: z.coerce.number().nonnegative(),
+  readyToIssue: z.boolean()
+});
+
 export type BillingBatchStatus = z.infer<typeof billingBatchStatusSchema>;
 export type InvoiceStatus = z.infer<typeof invoiceStatusSchema>;
 export type BillingBatch = z.infer<typeof billingBatchSchema>;
@@ -66,6 +78,7 @@ export type BillingBatchPage = z.infer<typeof billingBatchPageSchema>;
 export type InvoicePage = z.infer<typeof invoicePageSchema>;
 export type BatchInvoiceList = z.infer<typeof batchInvoiceListSchema>;
 export type BillingBatchGeneration = z.infer<typeof billingBatchGenerationSchema>;
+export type BillingBatchIssueReadiness = z.infer<typeof billingBatchIssueReadinessSchema>;
 
 export type BillingPageFilters = {
   page: number;

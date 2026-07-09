@@ -434,6 +434,29 @@ export const paymentReconciliationHandoffAgingBucketReportSchema = z.object({
   generatedAt: z.string().min(1)
 });
 
+export const paymentReconciliationHandoffStalePacketSummarySchema = z.object({
+  packetScopeHash: z.string().min(1),
+  filterSnapshot: z.string().min(1),
+  staleNoteCount: z.number().int().nonnegative(),
+  ownerCount: z.number().int().nonnegative(),
+  maxOverdueDays: z.number().int().nonnegative(),
+  generatedAt: z.string().min(1)
+});
+
+export const paymentReconciliationHandoffAcknowledgementSchema = z.object({
+  id: z.string().uuid(),
+  packetScopeHash: z.string().min(1),
+  filterSnapshot: z.string().min(1),
+  staleNoteCount: z.number().int().positive(),
+  ownerCount: z.number().int().positive(),
+  maxOverdueDays: z.number().int().positive(),
+  acknowledgedBy: z.string().min(1),
+  acknowledgedAt: z.string().min(1),
+  reason: z.string().min(1),
+  createdAt: z.string().nullable(),
+  updatedAt: z.string().nullable()
+});
+
 export type PaymentStatus = z.infer<typeof paymentStatusSchema>;
 export type PaymentWebhookStatus = z.infer<typeof paymentWebhookStatusSchema>;
 export type PaymentReconciliationSessionStatus = z.infer<typeof paymentReconciliationSessionStatusSchema>;
@@ -477,6 +500,12 @@ export type PaymentReconciliationHandoffAgingBucketEntry = z.infer<
 >;
 export type PaymentReconciliationHandoffAgingBucketReport = z.infer<
   typeof paymentReconciliationHandoffAgingBucketReportSchema
+>;
+export type PaymentReconciliationHandoffStalePacketSummary = z.infer<
+  typeof paymentReconciliationHandoffStalePacketSummarySchema
+>;
+export type PaymentReconciliationHandoffAcknowledgement = z.infer<
+  typeof paymentReconciliationHandoffAcknowledgementSchema
 >;
 
 export type PaymentFilters = {
@@ -523,6 +552,11 @@ export type PaymentReconciliationHandoffOwnerSlaFilters = {
   unassignedOnly?: boolean;
   dueFrom?: string;
   dueTo?: string;
+};
+
+export type PaymentReconciliationHandoffAcknowledgementPayload = {
+  packetScopeHash: string;
+  reason: string;
 };
 
 export type PaymentReconciliationMatchPayload = {

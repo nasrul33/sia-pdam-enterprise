@@ -10,6 +10,8 @@ public final class Permissions {
     public static final String PAYMENT_RECONCILE = "hasAuthority('payment.reconcile')";
     public static final String PAYMENT_RECONCILIATION_HANDOFF_NOTE = "hasAuthority('payment.reconciliation.handoff-note')";
     public static final String PAYMENT_RECONCILIATION_SIGNOFF = "hasAuthority('payment.reconciliation.signoff')";
+    public static final String PAYMENT_RECONCILIATION_STALE_ACKNOWLEDGE =
+            "hasAuthority('payment.reconciliation.stale-acknowledge')";
     public static final String PAYMENT_REVERSE = "hasAuthority('payment.reverse')";
     public static final String PAYMENT_WEBHOOK_READ = "hasAuthority('payment.webhook.read')";
     public static final String ACCOUNT_MANAGE = "hasAuthority('account.manage')";
@@ -22,6 +24,8 @@ public final class Permissions {
             PAYMENT_RECONCILE + " and " + PAYMENT_RECONCILIATION_SIGNOFF;
     public static final String PAYMENT_RECONCILE_AND_RECONCILIATION_HANDOFF_NOTE =
             PAYMENT_RECONCILE + " and " + PAYMENT_RECONCILIATION_HANDOFF_NOTE;
+    public static final String PAYMENT_RECONCILE_AND_RECONCILIATION_STALE_ACKNOWLEDGE =
+            PAYMENT_RECONCILE + " and " + PAYMENT_RECONCILIATION_STALE_ACKNOWLEDGE;
     public static final String BILLING_GENERATE = "hasAuthority('billing.generate')";
     public static final String INVOICE_ISSUE = "hasAuthority('invoice.issue')";
 

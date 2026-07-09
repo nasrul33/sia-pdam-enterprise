@@ -115,6 +115,45 @@ public class BillingBatchApplicationService {
     }
 
     @Transactional(readOnly = true)
+    public BillingBatchIssueReadiness issueReadiness(UUID batchId) {
+        BillingBatch batch = getBatch(batchId);
+        List<Invoice> invoices = invoiceRepository.findByBillingBatchId(batch.getId());
+        long draftInvoices = invoices.stream()
+                .filter(invoice -> invoice.getStatus() == InvoiceStatus.DRAFT)
+                .count();
+        long issuedOrPaidInvoices = invoices.stream()
+                .filter(BillingBatchApplicationService::hasFinancialImpact)
+                .count();
+        long blockedInvoices = invoices.size() - draftInvoices;
+        long missingJournalTraceInvoices = invoices.stream()
+                .filter(BillingBatchApplicationService::hasFinancialImpact)
+                .filter(invoice -> invoice.getIssueJournalEntryId() == null)
+                .count();
+        BigDecimal draftAmount = invoices.stream()
+                .filter(invoice -> invoice.getStatus() == InvoiceStatus.DRAFT)
+                .map(Invoice::getOutstandingAmount)
+                .reduce(BigDecimal.ZERO.setScale(2), BigDecimal::add);
+        BigDecimal outstandingAmount = invoices.stream()
+                .map(Invoice::getOutstandingAmount)
+                .reduce(BigDecimal.ZERO.setScale(2), BigDecimal::add);
+        boolean readyToIssue = batch.getStatus() == BillingBatchStatus.COMPLETED
+                && draftInvoices > 0
+                && missingJournalTraceInvoices == 0;
+
+        return new BillingBatchIssueReadiness(
+                batch,
+                invoices.size(),
+                draftInvoices,
+                issuedOrPaidInvoices,
+                blockedInvoices,
+                missingJournalTraceInvoices,
+                draftAmount,
+                outstandingAmount,
+                readyToIssue
+        );
+    }
+
+    @Transactional(readOnly = true)
     public Page<Invoice> listInvoices(String period, InvoiceStatus status, int page, int size) {
         Pageable pageable = pageable(page, size, Sort.by("createdAt").descending());
         String normalizedPeriod = normalizeOptionalPeriod(period);
@@ -294,6 +333,12 @@ public class BillingBatchApplicationService {
         return invoices.stream()
                 .map(invoice -> Money.of(invoice.getSubtotal(), CurrencyCode.IDR))
                 .reduce(Money.zero(), Money::add);
+    }
+
+    private static boolean hasFinancialImpact(Invoice invoice) {
+        return invoice.getStatus() == InvoiceStatus.ISSUED
+                || invoice.getStatus() == InvoiceStatus.PARTIAL_PAID
+                || invoice.getStatus() == InvoiceStatus.PAID;
     }
 
     private static Pageable pageable(int page, int size, Sort sort) {

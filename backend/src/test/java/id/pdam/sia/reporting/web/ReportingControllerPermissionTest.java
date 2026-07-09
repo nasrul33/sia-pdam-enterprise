@@ -132,6 +132,30 @@ class ReportingControllerPermissionTest {
                 "hasAuthority('payment.reconcile')"
         );
         assertPermission(
+                ReportingController.class.getMethod(
+                        "paymentReconciliationHandoffStalePacketSummary",
+                        PaymentReconciliationHandoffStatus.class,
+                        String.class,
+                        boolean.class,
+                        LocalDate.class,
+                        LocalDate.class
+                ),
+                "hasAuthority('payment.reconcile')"
+        );
+        assertPermission(
+                ReportingController.class.getMethod(
+                        "acknowledgePaymentReconciliationHandoffStalePacket",
+                        PaymentReconciliationHandoffStatus.class,
+                        String.class,
+                        boolean.class,
+                        LocalDate.class,
+                        LocalDate.class,
+                        PaymentReconciliationHandoffAcknowledgementRequest.class,
+                        Principal.class
+                ),
+                "hasAuthority('payment.reconcile') and hasAuthority('payment.reconciliation.stale-acknowledge')"
+        );
+        assertPermission(
                 ReportingController.class.getMethod("paymentReconciliationHandoffNotes", UUID.class),
                 "hasAuthority('payment.reconcile')"
         );

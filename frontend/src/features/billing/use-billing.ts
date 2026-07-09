@@ -1,6 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query/query-keys";
-import { generateBillingBatch, issueInvoice, listBatchInvoices, listBillingBatches, listInvoices } from "./billing-api";
+import {
+  generateBillingBatch,
+  getBillingBatchIssueReadiness,
+  issueInvoice,
+  listBatchInvoices,
+  listBillingBatches,
+  listInvoices
+} from "./billing-api";
 import type {
   BillingBatchFilters,
   GenerateBillingBatchPayload,
@@ -32,6 +39,14 @@ export function useBatchInvoices(batchId: string | null, enabled = true) {
   });
 }
 
+export function useBillingBatchIssueReadiness(batchId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: [...queryKeys.billingBatches, "issue-readiness", batchId],
+    queryFn: () => getBillingBatchIssueReadiness(batchId ?? ""),
+    enabled: enabled && Boolean(batchId)
+  });
+}
+
 export function useGenerateBillingBatch() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -49,6 +64,7 @@ export function useIssueInvoice() {
     mutationFn: (input: { invoiceId: string; payload: IssueInvoicePayload }) => issueInvoice(input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.invoices });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.billingBatches });
       void queryClient.invalidateQueries({ queryKey: queryKeys.journals });
     }
   });

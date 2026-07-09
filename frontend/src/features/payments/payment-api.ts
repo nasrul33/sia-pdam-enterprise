@@ -4,9 +4,11 @@ import {
   paymentReconciliationSessionSchema,
   paymentReconciliationEvidenceReportSchema,
   paymentReconciliationHandoffAgingBucketReportSchema,
+  paymentReconciliationHandoffAcknowledgementSchema,
   paymentReconciliationHandoffNoteListSchema,
   paymentReconciliationHandoffNoteSchema,
   paymentReconciliationHandoffOwnerSlaReportSchema,
+  paymentReconciliationHandoffStalePacketSummarySchema,
   paymentReconciliationHandoffWorkloadPageSchema,
   paymentReconciliationReviewRegisterPageSchema,
   paymentPageSchema,
@@ -18,6 +20,7 @@ import {
   type CreatePaymentReconciliationSessionPayload,
   type PaymentFilters,
   type PaymentReconciliationExportFilters,
+  type PaymentReconciliationHandoffAcknowledgementPayload,
   type PaymentReconciliationHandoffNotePayload,
   type PaymentReconciliationHandoffOwnerSlaFilters,
   type PaymentReconciliationHandoffWorkloadFilters,
@@ -295,6 +298,28 @@ export async function exportPaymentReconciliationHandoffAgingEvidencePacketCsv(
   return apiGetText(
     `/api/reports/payment-reconciliation-handoff-notes/aging-buckets/evidence-packet/export${query ? `?${query}` : ""}`
   );
+}
+
+export async function getPaymentReconciliationHandoffStalePacketSummary(
+  filters: PaymentReconciliationHandoffOwnerSlaFilters
+) {
+  const query = reconciliationHandoffOwnerSlaParams(filters).toString();
+  const payload = await apiGet<unknown>(
+    `/api/reports/payment-reconciliation-handoff-notes/aging-buckets/evidence-packet/summary${query ? `?${query}` : ""}`
+  );
+  return paymentReconciliationHandoffStalePacketSummarySchema.parse(payload);
+}
+
+export async function acknowledgePaymentReconciliationHandoffStalePacket(input: {
+  filters: PaymentReconciliationHandoffOwnerSlaFilters;
+  payload: PaymentReconciliationHandoffAcknowledgementPayload;
+}) {
+  const query = reconciliationHandoffOwnerSlaParams(input.filters).toString();
+  const response = await apiPost<PaymentReconciliationHandoffAcknowledgementPayload, unknown>(
+    `/api/reports/payment-reconciliation-handoff-notes/aging-buckets/evidence-packet/acknowledgements${query ? `?${query}` : ""}`,
+    input.payload
+  );
+  return paymentReconciliationHandoffAcknowledgementSchema.parse(response);
 }
 
 export async function listPaymentReconciliationHandoffNotes(sessionId: string) {

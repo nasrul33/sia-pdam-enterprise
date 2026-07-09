@@ -16,11 +16,15 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -263,11 +267,42 @@ public class BankReconciliationHandoffWorkloadApplicationService {
     }
 
     @Transactional(readOnly = true)
-    public String staleEvidencePacketCsv(PaymentReconciliationHandoffWorkloadFilters filters) {
+    public PaymentReconciliationHandoffStalePacketReport staleEvidencePacket(
+            PaymentReconciliationHandoffWorkloadFilters filters
+    ) {
+        PaymentReconciliationHandoffWorkloadFilters normalized = normalize(filters);
         Page<PaymentReconciliationHandoffWorkloadEntry> rows = loadActiveWorkload(
-                normalize(filters),
+                normalized,
                 PageRequest.of(0, MAX_EXPORT_ROWS, WORKLOAD_SORT)
         );
+        List<PaymentReconciliationHandoffWorkloadEntry> staleRows = rows.getContent()
+                .stream()
+                .filter(row -> row.overdueDays() > 0)
+                .sorted(staleEvidencePacketSort())
+                .toList();
+        long ownerCount = staleRows.stream()
+                .map(BankReconciliationHandoffWorkloadApplicationService::ownerLabel)
+                .distinct()
+                .count();
+        long maxOverdueDays = staleRows.stream()
+                .mapToLong(PaymentReconciliationHandoffWorkloadEntry::overdueDays)
+                .max()
+                .orElse(0);
+
+        return new PaymentReconciliationHandoffStalePacketReport(
+                staleRows,
+                packetScopeHash(normalized, staleRows),
+                filterSnapshot(normalized),
+                staleRows.size(),
+                ownerCount,
+                maxOverdueDays,
+                Instant.now()
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public String staleEvidencePacketCsv(PaymentReconciliationHandoffWorkloadFilters filters) {
+        PaymentReconciliationHandoffStalePacketReport report = staleEvidencePacket(filters);
         StringBuilder builder = new StringBuilder();
         appendRow(
                 builder,
@@ -294,35 +329,31 @@ public class BankReconciliationHandoffWorkloadApplicationService {
                 "updated_at",
                 "generated_at"
         );
-        rows.getContent()
-                .stream()
-                .filter(row -> row.overdueDays() > 0)
-                .sorted(staleEvidencePacketSort())
-                .forEach(row -> appendRow(
-                        builder,
-                        ownerLabel(row),
-                        row.handoffOwner() == null,
-                        agingBucketCode(row.overdueDays()),
-                        agingBucketLabel(row.overdueDays()),
-                        row.overdueDays(),
-                        row.noteId(),
-                        row.sessionId(),
-                        row.sessionNumber(),
-                        row.bankAccountReference(),
-                        row.completedAt(),
-                        row.reviewStatus(),
-                        row.signedOffBy(),
-                        row.signedOffAt(),
-                        row.handoffStatus(),
-                        row.handoffDueDate(),
-                        row.revisionCount(),
-                        row.noteText(),
-                        row.createdBy(),
-                        row.createdAt(),
-                        row.updatedBy(),
-                        row.updatedAt(),
-                        row.generatedAt()
-                ));
+        report.rows().forEach(row -> appendRow(
+                builder,
+                ownerLabel(row),
+                row.handoffOwner() == null,
+                agingBucketCode(row.overdueDays()),
+                agingBucketLabel(row.overdueDays()),
+                row.overdueDays(),
+                row.noteId(),
+                row.sessionId(),
+                row.sessionNumber(),
+                row.bankAccountReference(),
+                row.completedAt(),
+                row.reviewStatus(),
+                row.signedOffBy(),
+                row.signedOffAt(),
+                row.handoffStatus(),
+                row.handoffDueDate(),
+                row.revisionCount(),
+                row.noteText(),
+                row.createdBy(),
+                row.createdAt(),
+                row.updatedBy(),
+                row.updatedAt(),
+                row.generatedAt()
+        ));
         return builder.toString();
     }
 
@@ -572,6 +603,45 @@ public class BankReconciliationHandoffWorkloadApplicationService {
             return 1;
         }
         return 2;
+    }
+
+    private static String packetScopeHash(
+            PaymentReconciliationHandoffWorkloadFilters filters,
+            List<PaymentReconciliationHandoffWorkloadEntry> rows
+    ) {
+        String canonicalRows = rows.stream()
+                .map(row -> String.join(
+                        "|",
+                        row.noteId().toString(),
+                        row.sessionId().toString(),
+                        row.handoffStatus().name(),
+                        row.handoffOwner() == null ? "" : row.handoffOwner(),
+                        row.handoffDueDate() == null ? "" : row.handoffDueDate().toString(),
+                        String.valueOf(row.overdueDays()),
+                        row.updatedAt() == null ? "" : row.updatedAt().toString()
+                ))
+                .collect(Collectors.joining(";"));
+        return sha256(filterSnapshot(filters) + "|rows=" + canonicalRows);
+    }
+
+    private static String filterSnapshot(PaymentReconciliationHandoffWorkloadFilters filters) {
+        return String.join(
+                "|",
+                "handoffStatus=" + (filters.handoffStatus() == null ? "ALL" : filters.handoffStatus().name()),
+                "handoffOwner=" + (filters.handoffOwner() == null ? "" : filters.handoffOwner()),
+                "unassignedOnly=" + filters.unassignedOnly(),
+                "dueFrom=" + (filters.dueFrom() == null ? "" : filters.dueFrom()),
+                "dueTo=" + (filters.dueTo() == null ? "" : filters.dueTo())
+        );
+    }
+
+    private static String sha256(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return "sha256:" + HexFormat.of().formatHex(digest.digest(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is not available", exception);
+        }
     }
 
     private static void appendRow(StringBuilder builder, Object... values) {

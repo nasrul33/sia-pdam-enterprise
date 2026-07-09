@@ -1,11 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query/query-keys";
 import {
+  acknowledgePaymentReconciliationHandoffStalePacket,
   completePaymentReconciliationSession,
   createPaymentReconciliationHandoffNote,
   createPaymentReconciliationAdjustment,
   createPaymentReconciliationSession,
   getPaymentReconciliationHandoffAgingBuckets,
+  getPaymentReconciliationHandoffStalePacketSummary,
   getPaymentReconciliationEvidenceReport,
   getPaymentReconciliationSession,
   getPayment,
@@ -28,6 +30,7 @@ import type {
   CreatePaymentReconciliationAdjustmentPayload,
   CreatePaymentReconciliationSessionPayload,
   PaymentFilters,
+  PaymentReconciliationHandoffAcknowledgementPayload,
   PaymentReconciliationHandoffNotePayload,
   PaymentReconciliationHandoffOwnerSlaFilters,
   PaymentReconciliationHandoffWorkloadFilters,
@@ -147,6 +150,17 @@ export function usePaymentReconciliationHandoffAgingBuckets(
   });
 }
 
+export function usePaymentReconciliationHandoffStalePacketSummary(
+  filters: PaymentReconciliationHandoffOwnerSlaFilters,
+  enabled = true
+) {
+  return useQuery({
+    queryKey: [...queryKeys.payments, "reconciliation-handoff-stale-packet-summary", filters],
+    queryFn: () => getPaymentReconciliationHandoffStalePacketSummary(filters),
+    enabled
+  });
+}
+
 export function useCreatePaymentReconciliationSession() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -224,6 +238,19 @@ export function useRevisePaymentReconciliationHandoffNote() {
   return useMutation({
     mutationFn: (input: { sessionId: string; noteId: string; payload: PaymentReconciliationHandoffNotePayload }) =>
       revisePaymentReconciliationHandoffNote(input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.payments });
+    }
+  });
+}
+
+export function useAcknowledgePaymentReconciliationHandoffStalePacket() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      filters: PaymentReconciliationHandoffOwnerSlaFilters;
+      payload: PaymentReconciliationHandoffAcknowledgementPayload;
+    }) => acknowledgePaymentReconciliationHandoffStalePacket(input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.payments });
     }

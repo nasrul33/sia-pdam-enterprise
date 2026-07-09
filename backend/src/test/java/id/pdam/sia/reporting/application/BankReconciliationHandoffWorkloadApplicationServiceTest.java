@@ -401,9 +401,18 @@ class BankReconciliationHandoffWorkloadApplicationServiceTest {
         when(revisionRepository.countRevisionsByNoteIdIn(anyCollection()))
                 .thenReturn(List.of(count(overdueNineDays.getId(), 2), count(unassignedOverdue.getId(), 1)));
 
-        String csv = service.staleEvidencePacketCsv(
-                new PaymentReconciliationHandoffWorkloadFilters(null, null, false, null, null)
+        PaymentReconciliationHandoffWorkloadFilters filters =
+                new PaymentReconciliationHandoffWorkloadFilters(null, null, false, null, null);
+        PaymentReconciliationHandoffStalePacketReport report = service.staleEvidencePacket(filters);
+        String csv = service.staleEvidencePacketCsv(filters);
+
+        assertThat(report.packetScopeHash()).startsWith("sha256:");
+        assertThat(report.filterSnapshot()).isEqualTo(
+                "handoffStatus=ALL|handoffOwner=|unassignedOnly=false|dueFrom=|dueTo="
         );
+        assertThat(report.staleNoteCount()).isEqualTo(4);
+        assertThat(report.ownerCount()).isEqualTo(2);
+        assertThat(report.maxOverdueDays()).isEqualTo(9);
 
         assertThat(csv)
                 .startsWith("packet_owner,unassigned,aging_bucket,aging_bucket_label,overdue_days")

@@ -334,6 +334,12 @@ export type PaymentReconciliationHandoffWorkloadFilterDraft = {
   dueTo: string;
 };
 
+export type PaymentReconciliationHandoffAcknowledgementDraft = {
+  packetScopeHash: string;
+  staleNoteCount: number;
+  reason: string;
+};
+
 export type CounterPaymentAllocationDraft = {
   invoiceId: string;
   amount: string;
@@ -401,6 +407,10 @@ export function canSignOffPaymentReconciliations(permissions: PaymentCommandPerm
 
 export function canManageReconciliationHandoffNotes(permissions: PaymentCommandPermissionState): boolean {
   return permissions.canManageReconciliationHandoffNotes;
+}
+
+export function canAcknowledgeStaleHandoffPackets(permissions: PaymentCommandPermissionState): boolean {
+  return permissions.canAcknowledgeStaleHandoffPackets;
 }
 
 export function canReversePayment(permissions: PaymentCommandPermissionState): boolean {
@@ -715,6 +725,29 @@ export function reconciliationHandoffWorkloadFilterErrors(
   }
   if (draft.unassignedOnly && draft.handoffOwner.trim()) {
     errors.push("Filter owner tidak boleh diisi saat scope tanpa owner dipilih.");
+  }
+
+  return errors;
+}
+
+export function reconciliationHandoffStalePacketAcknowledgementErrors(
+  draft: PaymentReconciliationHandoffAcknowledgementDraft
+): string[] {
+  const errors: string[] = [];
+  const packetScopeHash = draft.packetScopeHash.trim();
+  const reason = draft.reason.trim();
+
+  if (!packetScopeHash) {
+    errors.push("Scope hash evidence packet wajib tersedia.");
+  }
+  if (draft.staleNoteCount <= 0) {
+    errors.push("Tidak ada stale handoff packet untuk di-acknowledge.");
+  }
+  if (!reason) {
+    errors.push("Alasan acknowledgement wajib diisi.");
+  }
+  if (reason.length > 500) {
+    errors.push("Alasan acknowledgement maksimal 500 karakter.");
   }
 
   return errors;

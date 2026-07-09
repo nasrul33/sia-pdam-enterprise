@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { financialCommandPermissions, resolveFinancialCommandPermissions } from "../security/financial-command-permissions.ts";
 import {
+  billingIssueReadinessCopy,
   canIssueInvoice,
   filterInvoicesByStatus,
   generateBillingBatchErrors,
@@ -65,6 +66,40 @@ test("filterInvoicesByStatus scopes batch drill-down invoices by selected status
 test("invoiceScopeTitle identifies all-invoice and selected batch surfaces", () => {
   assert.equal(invoiceScopeTitle(null), "Invoice");
   assert.equal(invoiceScopeTitle({ batchNumber: "BIL-202607-AREA-01" }), "Invoice Batch BIL-202607-AREA-01");
+});
+
+test("billingIssueReadinessCopy surfaces readiness and journal trace risks", () => {
+  assert.deepEqual(billingIssueReadinessCopy(null), {
+    label: "Belum dipilih",
+    tone: "neutral",
+    description: "Pilih billing batch untuk membaca readiness issue invoice."
+  });
+  assert.deepEqual(
+    billingIssueReadinessCopy({
+      readyToIssue: false,
+      draftInvoices: 1,
+      missingJournalTraceInvoices: 1,
+      totalInvoices: 2
+    }),
+    {
+      label: "Trace bermasalah",
+      tone: "danger",
+      description: "Ada invoice berdampak finansial yang belum punya journal trace."
+    }
+  );
+  assert.deepEqual(
+    billingIssueReadinessCopy({
+      readyToIssue: true,
+      draftInvoices: 3,
+      missingJournalTraceInvoices: 0,
+      totalInvoices: 4
+    }),
+    {
+      label: "Siap issue",
+      tone: "success",
+      description: "3 invoice draft siap masuk workflow issue."
+    }
+  );
 });
 
 test("generateBillingBatchErrors validates period, dates, area, and audit reason", () => {

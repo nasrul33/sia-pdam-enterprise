@@ -6,7 +6,7 @@
 - Repository: sia-pdam-enterprise
 - Objective: Rebuild sistem PDAM berbasis Java/Spring Boot dan Next.js
 - Current phase: Bootstrap
-- Last updated: 2026-07-08
+- Last updated: 2026-07-09
 
 ## Immutable Context
 
@@ -16,6 +16,13 @@
 - Database: PostgreSQL + Flyway.
 - Architecture: Modular monolith.
 - Financial rules: no monetary primitive outside BigDecimal/Money, posted journal immutable, period lock mandatory.
+
+## Blueprint Source
+
+- Source repository: `https://github.com/nasrul33/SIA-PDAM.git`
+- Local reference path: `.blueprint/SIA-PDAM` (ignored from git)
+- Usage rule: blueprint is domain/backlog/acceptance reference only. Laravel/Livewire implementation is not copied into the Java/Spring and Next.js target stack.
+- Mapping document: `docs/12-BLUEPRINT-MAPPING.md`
 
 ## Business Rules
 
@@ -33,6 +40,7 @@
 | BR-BIL-002 | Tariff blocks must be sequential, contiguous, and end with an unbounded block | Billing | confirmed |
 | BR-BIL-003 | Billing batch generation is idempotent and creates draft invoices from verified readings | Billing | confirmed |
 | BR-BIL-004 | Invoice issue posts receivable debit and revenue credit through accounting service before status becomes issued | Billing | confirmed |
+| BR-BIL-005 | Billing batch issue readiness is read-only and flags draft amount, blocked invoices, and missing journal trace before operator issue action | Billing/Reporting | confirmed |
 | BR-PAY-001 | Payment idempotency is enforced in DB | Payment | confirmed |
 | BR-PAY-002 | Payment webhook signature must be validated before persistence | Payment | confirmed |
 | BR-PAY-003 | Counter payment allocation total must equal payment amount and duplicate retry must be no-op | Payment | confirmed |
@@ -49,6 +57,7 @@
 | BR-PAY-014 | Bank reconciliation handoff owner escalation is read-only, grouped by owner/status including unassigned queues, and must not mutate evidence, notes, journals, payments, or ledger records | Payment/Reporting | confirmed |
 | BR-PAY-015 | Bank reconciliation active handoff aging buckets are read-only, exclude cleared notes, and group due-today and stale overdue workload by owner without mutating evidence or ledger records | Payment/Reporting | confirmed |
 | BR-PAY-016 | Bank reconciliation stale evidence packet export is read-only, includes active overdue handoff note detail grouped by owner and aging bucket, and must not send notifications or mutate reconciliation evidence | Payment/Reporting | confirmed |
+| BR-PAY-017 | Supervisor stale handoff packet acknowledgement stores reason, actor, timestamp, filter snapshot, and packet scope hash without mutating handoff notes, evidence, payments, journals, or ledger rows | Payment/Reporting | confirmed |
 | BR-REC-001 | Receivable aging uses open invoice outstanding balance with current, 30, 60, 90, and over-90 day buckets | Receivable | confirmed |
 | BR-REC-002 | Collection and dunning action requires active customer context, overdue open invoice for invoice-level action, and no duplicate active action by invoice/type | Receivable | confirmed |
 | BR-REC-003 | Invoice-level collection action must verify invoice connection belongs to requested customer | Receivable | confirmed |
@@ -61,6 +70,7 @@
 | BR-SEC-005 | Payment settlement, reversal, and webhook event read endpoints require granular backend permissions while provider webhook remains HMAC-authenticated | Security/Payment | confirmed |
 | BR-SEC-006 | Accounting and billing financial command endpoints require granular backend permissions | Security/Accounting/Billing | confirmed |
 | BR-SEC-007 | Bank reconciliation sign-off requires `payment.reconciliation.signoff` plus reconciliation read authority; auditor read access cannot mutate approval | Security/Payment | confirmed |
+| BR-SEC-009 | Supervisor stale handoff acknowledgement requires `payment.reconciliation.stale-acknowledge` plus reconciliation read authority and is not granted to auditor or cashier roles | Security/Payment | confirmed |
 | BR-SEC-008 | `/api/auth/me` is a public session-state endpoint that returns anonymous state without credentials and full authorities only for authenticated users | Security/Auth | confirmed |
 | BR-UI-002 | Collection action frontend visibility follows backend-provided authorities | Frontend/Security | confirmed |
 | BR-UI-003 | Financial command frontend visibility follows backend-provided accounting, billing, and payment authorities | Frontend/Security | confirmed |
@@ -92,6 +102,7 @@
 | REQ-BIL-001 | Kalkulasi tarif progresif valid | Billing | tariff_versions effective active lookup + tariff_blocks progressive calculation | T-050 | TariffEngineApplicationServiceTest |
 | REQ-BIL-002 | Generate tagihan idempotent | Billing | billing_batches idempotency_key + period/area unique + draft invoices | T-054 | BillingBatchApplicationServiceTest |
 | REQ-BIL-003 | Issue invoice menghasilkan jurnal piutang/pendapatan | Billing/Accounting | `/api/invoices/{id}/issue` calls AccountingApplicationService, posts source journal, links invoice to issue journal | T-082 | BillingBatchApplicationServiceTest, AccountingApplicationServiceTest |
+| REQ-BIL-004 | Readiness issue batch billing | Billing | `/api/billing-batches/{batchId}/issue-readiness` summarizes total/draft/blocked invoices, draft amount, outstanding amount, and missing journal trace without mutating invoice or journal state | T-115A | BillingBatchApplicationServiceTest, billing-workspace-model.test.ts |
 | REQ-PAY-001 | Payment idempotent | Payment | `idempotency_keys` + `payments.idempotency_key` + duplicate no-op result hydration | T-062 | PaymentIdempotencyTest |
 | REQ-PAY-002 | Webhook pembayaran tervalidasi signature | Payment | HMAC SHA-256 `X-Payment-Signature` + `payment_webhook_events` | T-060 | PaymentWebhookApplicationServiceTest |
 | REQ-PAY-003 | Settlement pembayaran posting kas/bank dan piutang | Payment/Accounting | `/api/payments/counter` calls AccountingApplicationService, posts source journal, links payment to settlement journal | T-083 | PaymentIdempotencyTest, AccountingApplicationServiceTest |
@@ -107,6 +118,7 @@
 | REQ-PAY-013 | Escalation owner SLA handoff rekonsiliasi | Payment/Reporting | `/api/reports/payment-reconciliation-handoff-notes/owner-sla` and `/owner-sla/export` group workload by owner/status, include unassigned queue support, escalation priority, truncation flag, and bounded CSV export while keeping evidence immutable | T-112 | BankReconciliationHandoffWorkloadApplicationServiceTest, ReportingControllerPermissionTest |
 | REQ-PAY-014 | Aging bucket handoff aktif rekonsiliasi | Payment/Reporting | `/api/reports/payment-reconciliation-handoff-notes/aging-buckets` and `/aging-buckets/export` group active OPEN/IN_PROGRESS notes by owner into due-today, overdue 1-3, 4-7, and over-7 day buckets with stale-only CSV export | T-113 | BankReconciliationHandoffWorkloadApplicationServiceTest, ReportingControllerPermissionTest |
 | REQ-PAY-015 | Stale evidence packet handoff rekonsiliasi | Payment/Reporting | `/api/reports/payment-reconciliation-handoff-notes/aging-buckets/evidence-packet/export` exports active overdue handoff note details grouped by owner and aging bucket with session trace and revision count without notification or evidence mutation | T-114 | BankReconciliationHandoffWorkloadApplicationServiceTest, ReportingControllerPermissionTest |
+| REQ-PAY-016 | Acknowledgement stale evidence packet | Payment/Reporting | `/api/reports/payment-reconciliation-handoff-notes/aging-buckets/evidence-packet/summary` computes current packet scope hash and POST `/acknowledgements` stores one idempotent acknowledgement per hash with reason, actor, timestamp, counts, and filter snapshot without mutating handoff evidence or ledger rows | T-115 | BankReconciliationHandoffAcknowledgementApplicationServiceTest, BankReconciliationHandoffWorkloadApplicationServiceTest, ReportingControllerPermissionTest |
 | REQ-REC-001 | Aging piutang valid | Receivable | `receivable_aging_snapshots` generated from open `ISSUED/PARTIAL_PAID` invoices | T-070 | AgingServiceTest |
 | REQ-REC-002 | Aksi penagihan piutang terkendali | Receivable | `/api/collection-actions` creates overdue invoice dunning actions, blocks duplicate active action, and controls start/complete/cancel transitions | T-085 | CollectionActionApplicationServiceTest |
 | REQ-REC-003 | Aksi penagihan invoice hanya untuk customer pemilik sambungan | Receivable/Connection | Collection action validates `invoice.connectionId -> connection.customerId` before saving or auditing | T-087 | CollectionActionApplicationServiceTest |
@@ -129,10 +141,11 @@
 | REQ-SEC-016 | Permission escalation owner handoff note | Security/Payment/Reporting | Handoff owner SLA list/export requires `payment.reconcile` and remains read-only; note mutation is still isolated behind `payment.reconciliation.handoff-note` | T-112 | ReportingControllerPermissionTest |
 | REQ-SEC-017 | Permission aging bucket handoff aktif | Security/Payment/Reporting | Handoff aging bucket list/export requires `payment.reconcile` and remains read-only; stale export does not grant note mutation rights | T-113 | ReportingControllerPermissionTest |
 | REQ-SEC-018 | Permission evidence packet handoff stale | Security/Payment/Reporting | Handoff stale evidence packet export requires `payment.reconcile` and remains read-only; packet export does not send notifications, create escalation tasks, or grant note mutation rights | T-114 | ReportingControllerPermissionTest |
+| REQ-SEC-020 | Permission acknowledgement packet handoff stale | Security/Payment/Reporting | Stale packet acknowledgement requires `payment.reconcile` plus `payment.reconciliation.stale-acknowledge`; Flyway V19 grants only `super-admin` and `finance-supervisor`, not auditor or cashier roles | T-115 | ReportingControllerPermissionTest, PaymentReconciliationHandoffAcknowledgementMigrationTest, financial-command-permissions.test.ts |
 | REQ-SEC-019 | Auth-state endpoint aman untuk browser lokal | Security/Auth | `GET /api/auth/me` is permit-all, returns `{authenticated:false, authorities:[]}` for anonymous requests, and returns DB-backed authorities when Basic Auth is supplied; sensitive command endpoints remain permission-enforced | HOTFIX-LOCAL-001 | AuthControllerTest, SecurityConfigTest, browser smoke |
 | REQ-UI-001 | Workspace penagihan piutang siap operasional | Frontend | `/receivables/collection-actions` provides typed API integration, filters, create form, workflow actions, loading/error/empty states, and mutation feedback | T-086 | npm lint, typecheck, build |
 | REQ-UI-002 | Visibility aksi penagihan permission-aware | Frontend/Security | Frontend reads `/api/auth/me`, gates list/create/execute/cancel controls by `collection-action.*` authorities, and keeps backend enforcement authoritative | T-091 | AuthControllerTest, collection-action-permissions.test.ts |
-| REQ-UI-003 | Visibility command finansial permission-aware | Frontend/Security | Dashboard reads `/api/auth/me` and shows accounting/billing/payment command access from `account.manage`, `period.manage`, `period.close`, `journal.create`, `journal.post`, `billing.generate`, `invoice.issue`, `payment.counter`, `payment.read`, `payment.reconcile`, `payment.reconciliation.handoff-note`, `payment.reconciliation.signoff`, `payment.reverse`, and `payment.webhook.read` authorities | T-094,T-099,T-101,T-102,T-107,T-110 | financial-command-permissions.test.ts, npm test:permissions, npm typecheck/lint/build |
+| REQ-UI-003 | Visibility command finansial permission-aware | Frontend/Security | Dashboard reads `/api/auth/me` and shows accounting/billing/payment command access from `account.manage`, `period.manage`, `period.close`, `journal.create`, `journal.post`, `billing.generate`, `invoice.issue`, `payment.counter`, `payment.read`, `payment.reconcile`, `payment.reconciliation.handoff-note`, `payment.reconciliation.signoff`, `payment.reconciliation.stale-acknowledge`, `payment.reverse`, and `payment.webhook.read` authorities | T-094,T-099,T-101,T-102,T-107,T-110,T-115 | financial-command-permissions.test.ts, npm test:permissions, npm typecheck/lint/build |
 | REQ-UI-004 | Workspace akuntansi fondasi | Frontend/Accounting | `/accounting` lists CoA, accounting periods, and journals with typed API schemas, summary cards, status badges, journal filter, loading/error/empty states, and permission-aware command availability | T-095 | accounting-workspace-model.test.ts, npm test:permissions, npm typecheck/lint/build |
 | REQ-UI-005 | Workflow command akuntansi | Frontend/Accounting | `/accounting` supports permission-gated CoA creation, accounting period creation, period closing-review/lock confirmation, manual journal draft creation with debit-credit validation, and journal posting confirmation with audit reason | T-096 | accounting-workspace-model.test.ts, npm test:permissions, npm typecheck/lint/build |
 | REQ-UI-006 | Workspace billing fondasi | Frontend/Billing | `/billing` lists billing batches and invoices with typed schemas/hooks, period/status filters, summary cards, idempotent batch generation, draft invoice issue confirmation, account validation, loading/error/empty states, and permission-aware commands | T-097 | billing-workspace-model.test.ts, npm test:permissions, npm typecheck/lint/build |
@@ -158,11 +171,13 @@
 | REQ-UI-026 | Frontend aging piutang | Frontend/Receivable | `/receivables/aging` exposes snapshot list/detail/by-period lookup and generate workflow with audit reason | T-119 | npm typecheck/lint/build |
 | REQ-UI-027 | Frontend laporan neraca saldo | Frontend/Reporting | `/reports/trial-balance` exposes posted-ledger trial balance filter, balance status, account lines, and empty/error/loading states | T-120 | npm typecheck/lint/build |
 | REQ-UI-028 | Premium enterprise UI shell | Frontend | App shell, dashboard, page header, status badge, loading, empty, and error states use a high-contrast command-center style with active navigation, responsive mobile nav, clearer hierarchy, and no letter-spacing overrides | T-121 | npm typecheck/lint/build, route smoke |
+| REQ-UI-029 | Supervisor acknowledgement stale packet | Frontend/Payment | `/payments` shows current stale packet summary/hash in the handoff workload panel and gates acknowledgement by `payment.reconciliation.stale-acknowledge`, requiring reason and using backend scope hash validation | T-115 | payment-workspace-model.test.ts, financial-command-permissions.test.ts, npm test:permissions/typecheck/lint/build |
 
 ## Decision Log
 
 | Date | Decision | Reason | Impact |
 |---|---|---|---|
+| 2026-07-09 | Use `nasrul33/SIA-PDAM` as blueprint reference | User selected the legacy Laravel SIA-PDAM repo as the canonical domain/backlog source | New work must inspect blueprint behavior first, translate it into Java/Spring + Next.js contracts, and update traceability without copy-pasting framework code |
 | 2026-07-05 | Use new repo | Avoid disturbing legacy Laravel repo | Clean rewrite |
 | 2026-07-05 | Use modular monolith | Financial consistency and simpler deployment | Modules stay in one backend |
 | 2026-07-05 | Use Java 26 | User requested latest Java | Latest Java SE release baseline |
@@ -256,10 +271,10 @@
 
 ## Current Implementation State
 
-- Completed: repository scaffold, docs baseline, backend skeleton, frontend dashboard shell, premium enterprise frontend visual system refresh, Money primitive, accounting domain skeleton, persisted audit primitive, idempotency primitive, V2 domain foundation migration, quality gate verification, initial GitHub push, repository-backed Accounting API, customer/connection API foundation, metering API foundation, billing batch foundation, payment webhook foundation, payment idempotency foundation, receivable aging foundation, posted reporting foundation, ledger materialization from posted journals, controlled invoice issue with receivable/revenue posting, controlled counter payment settlement with cash/bank receivable posting, controlled payment reversal with receivable restoration and reversal journal, receivable collection action workflow with dunning controls, frontend receivable collection workspace, collection invoice-customer ownership validation, collection action granular permission enforcement, database-backed user/role/permission authentication, RBAC role/permission seed catalog, secure bootstrap admin provisioning, permission-aware collection action frontend visibility, payment granular permission enforcement and seed catalog, accounting and billing command permission enforcement and seed catalog, permission-aware financial command dashboard visibility, accounting workspace foundation, accounting command workflows, billing workspace foundation, accounting journal detail drawer, payment settlement workspace visibility, billing batch invoice drill-down, payment read permission, payment list/detail API, payment register reconciliation visibility, payment reconciliation export, bank statement matching, persisted reconciliation sessions, exception resolution workflow, bank statement import adapter/template validation, controlled reconciliation adjustment workflow, bank reconciliation evidence report, month-end bank reconciliation sign-off controls, reconciliation review register with exception SLA visibility, reconciliation reviewer handoff export, controlled reviewer handoff notes, handoff note SLA dashboard/workload export, handoff note owner escalation drill-down, handoff active aging bucket stale export, and stale handoff evidence packet export.
+- Completed: repository scaffold, docs baseline, backend skeleton, frontend dashboard shell, premium enterprise frontend visual system refresh, Money primitive, accounting domain skeleton, persisted audit primitive, idempotency primitive, V2 domain foundation migration, quality gate verification, initial GitHub push, repository-backed Accounting API, customer/connection API foundation, metering API foundation, billing batch foundation, payment webhook foundation, payment idempotency foundation, receivable aging foundation, posted reporting foundation, ledger materialization from posted journals, controlled invoice issue with receivable/revenue posting, controlled counter payment settlement with cash/bank receivable posting, controlled payment reversal with receivable restoration and reversal journal, receivable collection action workflow with dunning controls, frontend receivable collection workspace, collection invoice-customer ownership validation, collection action granular permission enforcement, database-backed user/role/permission authentication, RBAC role/permission seed catalog, secure bootstrap admin provisioning, permission-aware collection action frontend visibility, payment granular permission enforcement and seed catalog, accounting and billing command permission enforcement and seed catalog, permission-aware financial command dashboard visibility, accounting workspace foundation, accounting command workflows, billing workspace foundation, accounting journal detail drawer, payment settlement workspace visibility, billing batch invoice drill-down, billing batch issue readiness, payment read permission, payment list/detail API, payment register reconciliation visibility, payment reconciliation export, bank statement matching, persisted reconciliation sessions, exception resolution workflow, bank statement import adapter/template validation, controlled reconciliation adjustment workflow, bank reconciliation evidence report, month-end bank reconciliation sign-off controls, reconciliation review register with exception SLA visibility, reconciliation reviewer handoff export, controlled reviewer handoff notes, handoff note SLA dashboard/workload export, handoff note owner escalation drill-down, handoff active aging bucket stale export, stale handoff evidence packet export, and supervisor stale handoff acknowledgement workflow.
 - In progress: none.
 - Blocked: official tariff values, numbering format, final production auth mechanism decision beyond Basic auth.
-- Next actions: add supervisor stale handoff acknowledgement workflow.
+- Next actions: add acknowledgement register/history visibility for stale handoff packets.
 
 ## Latest Verification Snapshot
 

@@ -38,6 +38,7 @@ import { cn } from "@/lib/utils";
 import { resolveFinancialCommandPermissions } from "@/features/security/financial-command-permissions";
 import {
   allocationTotalAmount,
+  canAcknowledgeStaleHandoffPackets,
   canManageReconciliationHandoffNotes,
   canReadPayments,
   canReconcilePayments,
@@ -58,6 +59,7 @@ import {
   reconciliationHandoffAgingEvidencePacketExportFilename,
   reconciliationHandoffOwnerDrilldownFilter,
   reconciliationHandoffOwnerSlaExportFilename,
+  reconciliationHandoffStalePacketAcknowledgementErrors,
   reconciliationHandoffWorkloadExportFilename,
   reconciliationHandoffWorkloadFilterErrors,
   reconciliationSignOffErrors,
@@ -92,6 +94,7 @@ import type {
   PaymentReconciliationHandoffNotePayload,
   PaymentReconciliationHandoffOwnerSlaEntry,
   PaymentReconciliationHandoffStatus,
+  PaymentReconciliationHandoffStalePacketSummary,
   PaymentReconciliationHandoffWorkloadEntry,
   PaymentReconciliationMatchReport,
   PaymentReconciliationMatchStatus,
@@ -125,6 +128,7 @@ import {
   exportPaymentReconciliationReviewRegisterCsv
 } from "./payment-api";
 import {
+  useAcknowledgePaymentReconciliationHandoffStalePacket,
   useCompletePaymentReconciliationSession,
   useCreatePaymentReconciliationHandoffNote,
   useCreatePaymentReconciliationAdjustment,
@@ -135,6 +139,7 @@ import {
   usePaymentReconciliationHandoffAgingBuckets,
   usePaymentReconciliationHandoffNotes,
   usePaymentReconciliationHandoffOwnerSla,
+  usePaymentReconciliationHandoffStalePacketSummary,
   usePaymentReconciliationHandoffWorkload,
   usePaymentReconciliationReviewRegister,
   usePaymentReconciliationSession,
@@ -533,6 +538,7 @@ function PaymentCommandPanel({ permissions }: Readonly<{ permissions: PaymentPer
       <CommandStatus label="Payment Reconcile" allowed={permissions.canReconcilePayments} />
       <CommandStatus label="Reconciliation Handoff Notes" allowed={permissions.canManageReconciliationHandoffNotes} />
       <CommandStatus label="Reconciliation Sign-off" allowed={permissions.canSignOffPaymentReconciliations} highRisk />
+      <CommandStatus label="Stale Packet Acknowledge" allowed={permissions.canAcknowledgeStaleHandoffPackets} highRisk />
       <CommandStatus label="Payment Reversal" allowed={permissions.canReversePayments} highRisk />
       <CommandStatus label="Webhook Event Read" allowed={permissions.canReadWebhookEvents} />
     </div>
@@ -1542,7 +1548,10 @@ function ReconciliationHandoffNotesPanel({
   );
 }
 
-function PaymentReconciliationHandoffWorkloadPanel({ allowed }: Readonly<{ allowed: boolean }>) {
+function PaymentReconciliationHandoffWorkloadPanel({
+  allowed,
+  canAcknowledge
+}: Readonly<{ allowed: boolean; canAcknowledge: boolean }>) {
   const [filter, setFilter] = useState<PaymentReconciliationHandoffWorkloadFilterDraft>(
     defaultReconciliationHandoffWorkloadFilter
   );
@@ -1552,6 +1561,9 @@ function PaymentReconciliationHandoffWorkloadPanel({ allowed }: Readonly<{ allow
   const [isExportingAgingBuckets, setIsExportingAgingBuckets] = useState(false);
   const [isExportingEvidencePacket, setIsExportingEvidencePacket] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [acknowledgementReason, setAcknowledgementReason] = useState("");
+  const [acknowledgementError, setAcknowledgementError] = useState<string | null>(null);
+  const [acknowledgementSuccess, setAcknowledgementSuccess] = useState<string | null>(null);
   const filterErrors = reconciliationHandoffWorkloadFilterErrors(filter);
   const filtersValid = filterErrors.length === 0;
   const ownerSlaFilters = useMemo(
@@ -1575,6 +1587,11 @@ function PaymentReconciliationHandoffWorkloadPanel({ allowed }: Readonly<{ allow
   const workloadQuery = usePaymentReconciliationHandoffWorkload(filters, allowed && filtersValid);
   const ownerSlaQuery = usePaymentReconciliationHandoffOwnerSla(ownerSlaFilters, allowed && filtersValid);
   const agingBucketQuery = usePaymentReconciliationHandoffAgingBuckets(ownerSlaFilters, allowed && filtersValid);
+  const stalePacketSummaryQuery = usePaymentReconciliationHandoffStalePacketSummary(
+    ownerSlaFilters,
+    allowed && filtersValid
+  );
+  const acknowledgementMutation = useAcknowledgePaymentReconciliationHandoffStalePacket();
   const entries = useMemo(() => workloadQuery.data?.items ?? [], [workloadQuery.data?.items]);
   const summary = useMemo(() => summarizeReconciliationHandoffWorkload(entries), [entries]);
   const ownerSlaEntries = useMemo(() => ownerSlaQuery.data?.owners ?? [], [ownerSlaQuery.data?.owners]);
@@ -1588,6 +1605,9 @@ function PaymentReconciliationHandoffWorkloadPanel({ allowed }: Readonly<{ allow
     setFilter(defaultReconciliationHandoffWorkloadFilter);
     setPage(0);
     setExportError(null);
+    setAcknowledgementError(null);
+    setAcknowledgementSuccess(null);
+    setAcknowledgementReason("");
   }
 
   async function handleExport() {
@@ -1678,6 +1698,46 @@ function PaymentReconciliationHandoffWorkloadPanel({ allowed }: Readonly<{ allow
     }
   }
 
+  async function handleAcknowledgeStalePacket(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setAcknowledgementError(null);
+    setAcknowledgementSuccess(null);
+    acknowledgementMutation.reset();
+
+    if (!canAcknowledge) {
+      setAcknowledgementError("User tidak memiliki permission payment.reconciliation.stale-acknowledge.");
+      return;
+    }
+
+    const packetSummary = stalePacketSummaryQuery.data;
+    const errors = reconciliationHandoffStalePacketAcknowledgementErrors({
+      packetScopeHash: packetSummary?.packetScopeHash ?? "",
+      staleNoteCount: packetSummary?.staleNoteCount ?? 0,
+      reason: acknowledgementReason
+    });
+    if (errors.length > 0) {
+      setAcknowledgementError(errors[0]);
+      return;
+    }
+
+    try {
+      const result = await acknowledgementMutation.mutateAsync({
+        filters: ownerSlaFilters,
+        payload: {
+          packetScopeHash: packetSummary?.packetScopeHash ?? "",
+          reason: acknowledgementReason.trim()
+        }
+      });
+      setAcknowledgementReason("");
+      setAcknowledgementSuccess(
+        `${result.staleNoteCount} stale notes di-acknowledge oleh ${result.acknowledgedBy}.`
+      );
+      void stalePacketSummaryQuery.refetch();
+    } catch (error) {
+      setAcknowledgementError(apiErrorMessage(error, "Gagal acknowledge stale packet handoff."));
+    }
+  }
+
   function applyOwnerDrilldown(
     entry: { handoffOwner: string | null; unassigned: boolean },
     handoffStatus: PaymentReconciliationHandoffStatus | "ALL" = "ALL"
@@ -1713,7 +1773,7 @@ function PaymentReconciliationHandoffWorkloadPanel({ allowed }: Readonly<{ allow
           <h2 className="text-base font-bold text-slate-950">Handoff SLA Workload</h2>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {workloadQuery.isFetching || ownerSlaQuery.isFetching || agingBucketQuery.isFetching ? (
+          {workloadQuery.isFetching || ownerSlaQuery.isFetching || agingBucketQuery.isFetching || stalePacketSummaryQuery.isFetching ? (
             <span className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600">
               <Loader2 className="size-4 animate-spin" aria-hidden="true" />
               Memperbarui
@@ -1775,6 +1835,24 @@ function PaymentReconciliationHandoffWorkloadPanel({ allowed }: Readonly<{ allow
           <MetricPill label=">7 Hari" value={agingBucketSummary.overdueOver7Notes} tone={agingBucketSummary.overdueOver7Notes > 0 ? "danger" : "success"} />
           <MetricPill label="Stale" value={agingBucketSummary.staleNotes} tone={agingBucketSummary.staleNotes > 0 ? "danger" : "success"} />
         </div>
+
+        <StalePacketAcknowledgementPanel
+          summary={stalePacketSummaryQuery.data ?? null}
+          isLoading={stalePacketSummaryQuery.isLoading}
+          error={stalePacketSummaryQuery.error}
+          canAcknowledge={canAcknowledge}
+          reason={acknowledgementReason}
+          isPending={acknowledgementMutation.isPending}
+          localError={acknowledgementError}
+          successMessage={acknowledgementSuccess}
+          onReasonChange={(value) => {
+            setAcknowledgementReason(value);
+            setAcknowledgementError(null);
+            setAcknowledgementSuccess(null);
+          }}
+          onSubmit={handleAcknowledgeStalePacket}
+          onRetry={() => void stalePacketSummaryQuery.refetch()}
+        />
 
         <div className="grid gap-3 lg:grid-cols-[170px_1fr_150px_1fr_1fr_auto]">
           <label className="block">
@@ -1967,6 +2045,107 @@ function PaymentReconciliationHandoffWorkloadPanel({ allowed }: Readonly<{ allow
         </div>
       </div>
     </div>
+  );
+}
+
+function StalePacketAcknowledgementPanel({
+  summary,
+  isLoading,
+  error,
+  canAcknowledge,
+  reason,
+  isPending,
+  localError,
+  successMessage,
+  onReasonChange,
+  onSubmit,
+  onRetry
+}: Readonly<{
+  summary: PaymentReconciliationHandoffStalePacketSummary | null;
+  isLoading: boolean;
+  error: unknown;
+  canAcknowledge: boolean;
+  reason: string;
+  isPending: boolean;
+  localError: string | null;
+  successMessage: string | null;
+  onReasonChange: (value: string) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onRetry: () => void;
+}>) {
+  const disabled = !canAcknowledge || isPending || isLoading || Boolean(error) || (summary?.staleNoteCount ?? 0) <= 0;
+
+  return (
+    <form onSubmit={onSubmit} className="rounded-lg border border-red-200 bg-red-50 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="size-5 text-red-800" aria-hidden="true" />
+            <h3 className="text-sm font-bold text-red-950">Supervisor Stale Packet Acknowledgement</h3>
+          </div>
+          <p className="mt-1 text-sm leading-6 font-semibold text-red-900">
+            Acknowledgement hanya mencatat review supervisor atas packet stale aktif. Note, evidence, payment, jurnal, dan ledger tidak dimutasi.
+          </p>
+        </div>
+        <StatusBadge label={canAcknowledge ? "High Risk" : "Locked"} tone={canAcknowledge ? "danger" : "neutral"} />
+      </div>
+
+      {isLoading ? (
+        <div className="mt-3 flex items-center gap-2 text-sm font-bold text-red-900">
+          <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+          Membaca scope hash packet
+        </div>
+      ) : null}
+
+      {error ? (
+        <div className="mt-3 space-y-3">
+          <InlineMessage type="error" message={apiErrorMessage(error, "Summary stale packet tidak tersedia.")} />
+          <button type="button" className={secondaryButtonClass} onClick={onRetry}>
+            <RotateCcw className="size-4" aria-hidden="true" />
+            Muat Ulang Packet
+          </button>
+        </div>
+      ) : null}
+
+      {!isLoading && !error ? (
+        <>
+          <div className="mt-4 grid gap-2 md:grid-cols-4">
+            <MetricPill label="Stale Packet" value={summary?.staleNoteCount ?? 0} tone={(summary?.staleNoteCount ?? 0) > 0 ? "danger" : "success"} />
+            <MetricPill label="Owner" value={summary?.ownerCount ?? 0} tone="info" />
+            <MetricPill label="Max Overdue" value={summary?.maxOverdueDays ?? 0} tone={(summary?.maxOverdueDays ?? 0) > 7 ? "danger" : "warning"} />
+            <div className="rounded-lg border border-red-200 bg-white p-3">
+              <p className="text-xs font-bold uppercase text-red-800">Scope Hash</p>
+              <p className="mt-1 font-mono text-xs font-black text-red-950">{shortId(summary?.packetScopeHash ?? null)}</p>
+            </div>
+          </div>
+          <label className="mt-4 block">
+            <span className="text-xs font-bold uppercase text-red-800">Alasan Acknowledgement</span>
+            <textarea
+              className={textareaClass}
+              value={reason}
+              maxLength={500}
+              disabled={disabled}
+              placeholder="Supervisor sudah review packet stale dan menugaskan follow-up owner."
+              onChange={(event) => onReasonChange(event.target.value)}
+            />
+          </label>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <button type="submit" className={dangerButtonClass} disabled={disabled}>
+              {isPending ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <ShieldCheck className="size-4" aria-hidden="true" />}
+              Acknowledge Packet
+            </button>
+            {!canAcknowledge ? (
+              <span className="text-sm font-bold text-red-900">Permission payment.reconciliation.stale-acknowledge diperlukan.</span>
+            ) : null}
+          </div>
+        </>
+      ) : null}
+
+      <div className="mt-3 space-y-2">
+        {localError ? <InlineMessage type="error" message={localError} /> : null}
+        {successMessage ? <InlineMessage type="success" message={successMessage} /> : null}
+      </div>
+    </form>
   );
 }
 
@@ -3979,6 +4158,8 @@ export function PaymentWorkspace() {
     permissions.canReconcilePayments && canSignOffPaymentReconciliations(permissions);
   const canManageReconciliationNotes =
     permissions.canReconcilePayments && canManageReconciliationHandoffNotes(permissions);
+  const canAcknowledgeStalePackets =
+    permissions.canReconcilePayments && canAcknowledgeStaleHandoffPackets(permissions);
   const accountsEnabled =
     queryEnabled &&
     (permissions.canSettleCounterPayments || permissions.canReversePayments || canCreateReconciliationAdjustments);
@@ -4158,7 +4339,10 @@ export function PaymentWorkspace() {
                 allowed={canReconcilePayments(permissions)}
                 canManageNotes={canManageReconciliationNotes}
               />
-              <PaymentReconciliationHandoffWorkloadPanel allowed={canReconcilePayments(permissions)} />
+              <PaymentReconciliationHandoffWorkloadPanel
+                allowed={canReconcilePayments(permissions)}
+                canAcknowledge={canAcknowledgeStalePackets}
+              />
               <PaymentFilterToolbar
                 provider={provider}
                 status={status}

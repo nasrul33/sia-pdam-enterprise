@@ -60,6 +60,11 @@ public class BillingBatchController {
                 .toList();
     }
 
+    @GetMapping("/billing-batches/{batchId}/issue-readiness")
+    public BillingBatchIssueReadinessResponse getBatchIssueReadiness(@PathVariable UUID batchId) {
+        return BillingBatchIssueReadinessResponse.from(billingBatchApplicationService.issueReadiness(batchId));
+    }
+
     @PostMapping("/billing-batches/generate")
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize(Permissions.BILLING_GENERATE)

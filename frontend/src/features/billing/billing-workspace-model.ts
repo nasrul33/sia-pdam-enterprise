@@ -1,6 +1,6 @@
 import type { BillingCommandPermissionState } from "@/features/security/financial-command-permissions";
 import type { Account } from "@/features/accounting/accounting-schema";
-import type { BillingBatch, BillingBatchStatus, Invoice, InvoiceStatus } from "./billing-schema";
+import type { BillingBatch, BillingBatchIssueReadiness, BillingBatchStatus, Invoice, InvoiceStatus } from "./billing-schema";
 
 type BatchSummarySubject = {
   status: BillingBatchStatus;
@@ -63,6 +63,48 @@ export function filterInvoicesByStatus<TInvoice extends Pick<Invoice, "status">>
 
 export function invoiceScopeTitle(selectedBatch: Pick<BillingBatch, "batchNumber"> | null): string {
   return selectedBatch ? `Invoice Batch ${selectedBatch.batchNumber}` : "Invoice";
+}
+
+export function billingIssueReadinessCopy(
+  readiness: Pick<
+    BillingBatchIssueReadiness,
+    "readyToIssue" | "draftInvoices" | "missingJournalTraceInvoices" | "totalInvoices"
+  > | null
+): { label: string; tone: "success" | "warning" | "danger" | "neutral"; description: string } {
+  if (!readiness) {
+    return {
+      label: "Belum dipilih",
+      tone: "neutral",
+      description: "Pilih billing batch untuk membaca readiness issue invoice."
+    };
+  }
+  if (readiness.totalInvoices === 0) {
+    return {
+      label: "Kosong",
+      tone: "warning",
+      description: "Batch tidak memiliki invoice untuk diproses."
+    };
+  }
+  if (readiness.missingJournalTraceInvoices > 0) {
+    return {
+      label: "Trace bermasalah",
+      tone: "danger",
+      description: "Ada invoice berdampak finansial yang belum punya journal trace."
+    };
+  }
+  if (!readiness.readyToIssue) {
+    return {
+      label: "Tidak ada draft",
+      tone: "neutral",
+      description: "Tidak ada invoice draft yang dapat di-issue pada scope ini."
+    };
+  }
+
+  return {
+    label: "Siap issue",
+    tone: "success",
+    description: `${readiness.draftInvoices} invoice draft siap masuk workflow issue.`
+  };
 }
 
 export function generateBillingBatchErrors(input: GenerateBillingBatchDraft): string[] {

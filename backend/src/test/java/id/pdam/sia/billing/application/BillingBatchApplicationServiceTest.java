@@ -267,6 +267,76 @@ class BillingBatchApplicationServiceTest {
     }
 
     @Test
+    void summarizesBatchIssueReadinessWithDraftAmountsAndJournalTraceGuard() {
+        BillingBatch batch = new BillingBatch("BB-202607-AREA-01", "2026-07", "AREA-01", "bill-202607-area01");
+        batch.markCompleted();
+        Invoice draftInvoice = new Invoice(
+                batch.getId(),
+                UUID.randomUUID(),
+                "INV-202607-SR-0001",
+                "2026-07",
+                new BigDecimal("46250.00"),
+                DUE_DATE
+        );
+        Invoice issuedInvoice = new Invoice(
+                batch.getId(),
+                UUID.randomUUID(),
+                "INV-202607-SR-0002",
+                "2026-07",
+                new BigDecimal("100000.00"),
+                DUE_DATE
+        );
+        issuedInvoice.markIssued(Instant.parse("2026-07-31T12:00:00Z"), UUID.randomUUID());
+
+        when(billingBatchRepository.findById(batch.getId())).thenReturn(Optional.of(batch));
+        when(invoiceRepository.findByBillingBatchId(batch.getId())).thenReturn(List.of(draftInvoice, issuedInvoice));
+
+        BillingBatchIssueReadiness readiness = service.issueReadiness(batch.getId());
+
+        assertThat(readiness.readyToIssue()).isTrue();
+        assertThat(readiness.totalInvoices()).isEqualTo(2);
+        assertThat(readiness.draftInvoices()).isEqualTo(1);
+        assertThat(readiness.issuedOrPaidInvoices()).isEqualTo(1);
+        assertThat(readiness.blockedInvoices()).isEqualTo(1);
+        assertThat(readiness.missingJournalTraceInvoices()).isZero();
+        assertThat(readiness.draftAmount()).isEqualByComparingTo("46250.00");
+        assertThat(readiness.outstandingAmount()).isEqualByComparingTo("146250.00");
+    }
+
+    @Test
+    void blocksBatchIssueReadinessWhenIssuedInvoiceHasNoJournalTrace() {
+        BillingBatch batch = new BillingBatch("BB-202607-AREA-02", "2026-07", "AREA-02", "bill-202607-area02");
+        batch.markCompleted();
+        Invoice draftInvoice = new Invoice(
+                batch.getId(),
+                UUID.randomUUID(),
+                "INV-202607-SR-0003",
+                "2026-07",
+                new BigDecimal("50000.00"),
+                DUE_DATE
+        );
+        Invoice issuedWithoutTrace = new Invoice(
+                batch.getId(),
+                UUID.randomUUID(),
+                "INV-202607-SR-0004",
+                "2026-07",
+                new BigDecimal("75000.00"),
+                DUE_DATE
+        );
+        issuedWithoutTrace.markIssued(Instant.parse("2026-07-31T12:00:00Z"));
+
+        when(billingBatchRepository.findById(batch.getId())).thenReturn(Optional.of(batch));
+        when(invoiceRepository.findByBillingBatchId(batch.getId())).thenReturn(List.of(draftInvoice, issuedWithoutTrace));
+
+        BillingBatchIssueReadiness readiness = service.issueReadiness(batch.getId());
+
+        assertThat(readiness.readyToIssue()).isFalse();
+        assertThat(readiness.missingJournalTraceInvoices()).isEqualTo(1);
+        assertThat(readiness.draftInvoices()).isEqualTo(1);
+        assertThat(readiness.draftAmount()).isEqualByComparingTo("50000.00");
+    }
+
+    @Test
     void rejectsIssueWhenInvoiceIsNotDraftBeforeAccountingPosting() {
         UUID receivableAccountId = UUID.randomUUID();
         UUID revenueAccountId = UUID.randomUUID();

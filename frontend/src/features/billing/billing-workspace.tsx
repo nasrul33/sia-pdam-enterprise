@@ -28,6 +28,7 @@ import { resolveFinancialCommandPermissions } from "@/features/security/financia
 import { apiErrorMessage } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 import {
+  billingIssueReadinessCopy,
   canIssueInvoice,
   filterInvoicesByStatus,
   generateBillingBatchErrors,
@@ -37,6 +38,7 @@ import {
 } from "./billing-workspace-model";
 import type {
   BillingBatch,
+  BillingBatchIssueReadiness,
   BillingBatchStatus,
   GenerateBillingBatchPayload,
   Invoice,
@@ -44,7 +46,14 @@ import type {
   IssueInvoicePayload
 } from "./billing-schema";
 import { billingBatchStatusValues, invoiceStatusValues } from "./billing-schema";
-import { useBatchInvoices, useBillingBatches, useGenerateBillingBatch, useInvoices, useIssueInvoice } from "./use-billing";
+import {
+  useBatchInvoices,
+  useBillingBatches,
+  useBillingBatchIssueReadiness,
+  useGenerateBillingBatch,
+  useInvoices,
+  useIssueInvoice
+} from "./use-billing";
 
 type StatusFilter<TStatus extends string> = TStatus | "ALL";
 type BillingPermissions = ReturnType<typeof resolveFinancialCommandPermissions>["billing"];
@@ -227,6 +236,95 @@ function CommandStatus({
         {highRisk ? <StatusBadge label="High" tone="danger" /> : null}
         <StatusBadge label={allowed ? "Aktif" : "Terkunci"} tone={allowed ? "success" : "neutral"} />
       </div>
+    </div>
+  );
+}
+
+function BillingIssueReadinessPanel({
+  selectedBatch,
+  readiness,
+  isLoading,
+  error,
+  onRetry
+}: Readonly<{
+  selectedBatch: BillingBatch | null;
+  readiness: BillingBatchIssueReadiness | null;
+  isLoading: boolean;
+  error: unknown;
+  onRetry: () => void;
+}>) {
+  const copy = billingIssueReadinessCopy(readiness);
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="size-5 text-teal-700" aria-hidden="true" />
+            <h3 className="text-sm font-bold text-slate-950">Issue Readiness</h3>
+          </div>
+          <p className="mt-1 text-sm font-semibold text-slate-600">
+            {selectedBatch ? selectedBatch.batchNumber : "Pilih batch untuk membaca kontrol issue."}
+          </p>
+        </div>
+        <StatusBadge label={copy.label} tone={copy.tone} />
+      </div>
+
+      {isLoading ? (
+        <div className="mt-4 flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm font-bold text-slate-700">
+          <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+          Membaca readiness
+        </div>
+      ) : null}
+
+      {error ? (
+        <div className="mt-4 space-y-3">
+          <InlineMessage type="error" message={apiErrorMessage(error, "Readiness billing tidak tersedia.")} />
+          <button type="button" className={secondaryButtonClass} onClick={onRetry}>
+            <RotateCcw className="size-4" aria-hidden="true" />
+            Muat Ulang
+          </button>
+        </div>
+      ) : null}
+
+      {!isLoading && !error ? (
+        <div className="mt-4 space-y-3">
+          <p className="text-sm leading-6 font-semibold text-slate-700">{copy.description}</p>
+          <div className="grid grid-cols-2 gap-2">
+            <ReadinessMetric label="Total" value={readiness?.totalInvoices ?? 0} />
+            <ReadinessMetric label="Draft" value={readiness?.draftInvoices ?? 0} />
+            <ReadinessMetric label="Blocked" value={readiness?.blockedInvoices ?? 0} />
+            <ReadinessMetric label="Missing Trace" value={readiness?.missingJournalTraceInvoices ?? 0} danger />
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <div className="flex items-center justify-between gap-3 text-sm">
+              <span className="font-bold text-slate-700">Draft Amount</span>
+              <span className="font-black text-slate-950">
+                <MoneyText value={readiness?.draftAmount ?? 0} />
+              </span>
+            </div>
+            <div className="mt-2 flex items-center justify-between gap-3 text-sm">
+              <span className="font-bold text-slate-700">Outstanding</span>
+              <span className="font-black text-slate-950">
+                <MoneyText value={readiness?.outstandingAmount ?? 0} />
+              </span>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ReadinessMetric({
+  label,
+  value,
+  danger = false
+}: Readonly<{ label: string; value: number; danger?: boolean }>) {
+  return (
+    <div className={cn("rounded-lg border p-3", danger && value > 0 ? "border-red-200 bg-red-50" : "border-slate-200 bg-slate-50")}>
+      <p className={cn("text-xs font-bold uppercase", danger && value > 0 ? "text-red-800" : "text-slate-600")}>{label}</p>
+      <p className={cn("mt-1 text-lg font-black", danger && value > 0 ? "text-red-900" : "text-slate-950")}>{value}</p>
     </div>
   );
 }
@@ -724,6 +822,10 @@ export function BillingWorkspace() {
     globalInvoiceQueryEnabled
   );
   const batchInvoicesQuery = useBatchInvoices(selectedBatch?.id ?? null, queryEnabled && Boolean(selectedBatch));
+  const issueReadinessQuery = useBillingBatchIssueReadiness(
+    selectedBatch?.id ?? null,
+    queryEnabled && Boolean(selectedBatch)
+  );
   const accountsQuery = useAccounts({ page: 0, size: 100 }, queryEnabled);
 
   const batches = useMemo(() => batchesQuery.data?.items ?? [], [batchesQuery.data?.items]);
@@ -747,6 +849,7 @@ export function BillingWorkspace() {
     void batchesQuery.refetch();
     if (selectedBatch) {
       void batchInvoicesQuery.refetch();
+      void issueReadinessQuery.refetch();
     } else {
       void invoicesQuery.refetch();
     }
@@ -850,6 +953,13 @@ export function BillingWorkspace() {
             </div>
             <div className="space-y-4">
               <BillingCommandPanel permissions={permissions} />
+              <BillingIssueReadinessPanel
+                selectedBatch={selectedBatch}
+                readiness={issueReadinessQuery.data ?? null}
+                isLoading={issueReadinessQuery.isLoading}
+                error={issueReadinessQuery.error}
+                onRetry={() => void issueReadinessQuery.refetch()}
+              />
               <GenerateBatchForm allowed={permissions.canGenerateBilling} />
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
                 <div className="flex items-center gap-2 text-sm font-bold text-amber-900">
