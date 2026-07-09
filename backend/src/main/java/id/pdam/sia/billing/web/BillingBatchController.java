@@ -1,6 +1,7 @@
 package id.pdam.sia.billing.web;
 
 import id.pdam.sia.billing.application.BillingBatchApplicationService;
+import id.pdam.sia.billing.application.InvoiceDocumentApplicationService;
 import id.pdam.sia.billing.domain.BillingBatchStatus;
 import id.pdam.sia.billing.domain.InvoiceStatus;
 import id.pdam.sia.shared.security.Permissions;
@@ -31,9 +32,14 @@ import java.util.UUID;
 @RequestMapping("/api")
 public class BillingBatchController {
     private final BillingBatchApplicationService billingBatchApplicationService;
+    private final InvoiceDocumentApplicationService invoiceDocumentApplicationService;
 
-    public BillingBatchController(BillingBatchApplicationService billingBatchApplicationService) {
+    public BillingBatchController(
+            BillingBatchApplicationService billingBatchApplicationService,
+            InvoiceDocumentApplicationService invoiceDocumentApplicationService
+    ) {
         this.billingBatchApplicationService = billingBatchApplicationService;
+        this.invoiceDocumentApplicationService = invoiceDocumentApplicationService;
     }
 
     @GetMapping("/billing-batches")
@@ -90,6 +96,12 @@ public class BillingBatchController {
         );
     }
 
+    @GetMapping("/invoices/{invoiceId}/document")
+    @PreAuthorize(Permissions.INVOICE_VIEW)
+    public InvoiceDocumentResponse getInvoiceDocument(@PathVariable UUID invoiceId) {
+        return InvoiceDocumentResponse.from(invoiceDocumentApplicationService.build(invoiceId));
+    }
+
     @PostMapping("/invoices/{invoiceId}/issue")
     @PreAuthorize(Permissions.INVOICE_ISSUE)
     public InvoiceResponse issueInvoice(
@@ -98,6 +110,16 @@ public class BillingBatchController {
             Principal principal
     ) {
         return InvoiceResponse.from(billingBatchApplicationService.issueInvoice(invoiceId, request, actor(principal)));
+    }
+
+    @PostMapping("/invoices/{invoiceId}/void")
+    @PreAuthorize(Permissions.INVOICE_CORRECT_APPROVE)
+    public InvoiceResponse voidInvoice(
+            @PathVariable UUID invoiceId,
+            @Valid @RequestBody VoidInvoiceRequest request,
+            Principal principal
+    ) {
+        return InvoiceResponse.from(billingBatchApplicationService.voidInvoice(invoiceId, request, actor(principal)));
     }
 
     private static String actor(Principal principal) {

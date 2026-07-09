@@ -33,6 +33,10 @@ export type IssueInvoiceDraft = {
   reason: string;
 };
 
+export type VoidInvoiceDraft = {
+  reason: string;
+};
+
 export function summarizeBillingWorkspace(input: {
   batches: readonly BatchSummarySubject[];
   invoices: readonly InvoiceSummarySubject[];
@@ -48,6 +52,17 @@ export function summarizeBillingWorkspace(input: {
 
 export function canIssueInvoice(invoice: Pick<Invoice, "status">, permissions: BillingCommandPermissionState): boolean {
   return permissions.canIssueInvoices && invoice.status === "DRAFT";
+}
+
+export function canViewInvoiceDocument(permissions: BillingCommandPermissionState): boolean {
+  return permissions.canViewInvoices;
+}
+
+export function canVoidInvoice(
+  invoice: Pick<Invoice, "status" | "paidAmount" | "issueJournalEntryId">,
+  permissions: BillingCommandPermissionState
+): boolean {
+  return permissions.canCorrectInvoices && invoice.status === "ISSUED" && invoice.paidAmount === 0 && Boolean(invoice.issueJournalEntryId);
 }
 
 export function filterInvoicesByStatus<TInvoice extends Pick<Invoice, "status">>(
@@ -155,6 +170,28 @@ export function issueInvoiceErrors(input: {
     errors.push("Akun pendapatan wajib bertipe pendapatan.");
   }
 
+  if (!input.draft.reason.trim()) {
+    errors.push("Alasan audit wajib diisi.");
+  }
+
+  return errors;
+}
+
+export function voidInvoiceErrors(input: {
+  invoice: Pick<Invoice, "status" | "paidAmount" | "issueJournalEntryId">;
+  draft: VoidInvoiceDraft;
+}): string[] {
+  const errors: string[] = [];
+
+  if (input.invoice.status !== "ISSUED") {
+    errors.push("Void hanya boleh untuk invoice issued yang belum dibayar.");
+  }
+  if (input.invoice.paidAmount > 0) {
+    errors.push("Invoice yang sudah dibayar harus reversal pembayaran terlebih dahulu.");
+  }
+  if (!input.invoice.issueJournalEntryId) {
+    errors.push("Invoice issued wajib memiliki journal trace sebelum void.");
+  }
   if (!input.draft.reason.trim()) {
     errors.push("Alasan audit wajib diisi.");
   }

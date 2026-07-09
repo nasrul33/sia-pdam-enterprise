@@ -27,11 +27,15 @@ test("resolveFinancialCommandPermissions maps billing command authorities", () =
   assert.deepEqual(
     resolveFinancialCommandPermissions([
       financialCommandPermissions.billingGenerate,
-      financialCommandPermissions.invoiceIssue
+      financialCommandPermissions.invoiceView,
+      financialCommandPermissions.invoiceIssue,
+      financialCommandPermissions.invoiceCorrectApprove
     ]).billing,
     {
       canGenerateBilling: true,
-      canIssueInvoices: true
+      canViewInvoices: true,
+      canIssueInvoices: true,
+      canCorrectInvoices: true
     }
   );
 });
@@ -63,7 +67,9 @@ test("resolveFinancialCommandPermissions maps payment command authorities", () =
 test("visibleFinancialCommandGroups marks individual commands by permission", () => {
   const state = resolveFinancialCommandPermissions([
     financialCommandPermissions.journalCreate,
+    financialCommandPermissions.invoiceView,
     financialCommandPermissions.invoiceIssue,
+    financialCommandPermissions.invoiceCorrectApprove,
     financialCommandPermissions.paymentReconcile,
     financialCommandPermissions.paymentReconciliationHandoffNote,
     financialCommandPermissions.paymentReconciliationSignoff,
@@ -83,7 +89,11 @@ test("visibleFinancialCommandGroups marks individual commands by permission", ()
       },
       {
         title: "Billing",
-        allowed: [financialCommandPermissions.invoiceIssue]
+        allowed: [
+          financialCommandPermissions.invoiceView,
+          financialCommandPermissions.invoiceIssue,
+          financialCommandPermissions.invoiceCorrectApprove
+        ]
       },
       {
         title: "Payment",

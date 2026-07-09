@@ -20,6 +20,14 @@ class BillingControllerPermissionTest {
                 method("issueInvoice", UUID.class, IssueInvoiceRequest.class, Principal.class),
                 "hasAuthority('invoice.issue')"
         );
+        assertPermission(
+                method("getInvoiceDocument", UUID.class),
+                "hasAuthority('invoice.view')"
+        );
+        assertPermission(
+                method("voidInvoice", UUID.class, VoidInvoiceRequest.class, Principal.class),
+                "hasAuthority('invoice.correct.approve')"
+        );
     }
 
     private static Method method(String name, Class<?>... parameterTypes) throws NoSuchMethodException {

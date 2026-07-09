@@ -2,6 +2,7 @@ package id.pdam.sia.billing.application;
 
 import id.pdam.sia.accounting.application.AccountingApplicationService;
 import id.pdam.sia.accounting.application.BillingInvoicePostingCommand;
+import id.pdam.sia.accounting.application.BillingInvoiceVoidPostingCommand;
 import id.pdam.sia.accounting.domain.JournalEntry;
 import id.pdam.sia.billing.domain.BillingBatch;
 import id.pdam.sia.billing.domain.BillingBatchStatus;
@@ -13,6 +14,7 @@ import id.pdam.sia.billing.repository.InvoiceLineRepository;
 import id.pdam.sia.billing.repository.InvoiceRepository;
 import id.pdam.sia.billing.web.GenerateBillingBatchRequest;
 import id.pdam.sia.billing.web.IssueInvoiceRequest;
+import id.pdam.sia.billing.web.VoidInvoiceRequest;
 import id.pdam.sia.connection.domain.Connection;
 import id.pdam.sia.connection.repository.ConnectionRepository;
 import id.pdam.sia.metering.domain.MeterReading;
@@ -334,6 +336,77 @@ class BillingBatchApplicationServiceTest {
         assertThat(readiness.missingJournalTraceInvoices()).isEqualTo(1);
         assertThat(readiness.draftInvoices()).isEqualTo(1);
         assertThat(readiness.draftAmount()).isEqualByComparingTo("50000.00");
+    }
+
+    @Test
+    void voidsIssuedUnpaidInvoiceThroughAccountingReversalWorkflow() {
+        UUID issueJournalId = UUID.randomUUID();
+        Invoice invoice = new Invoice(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                "INV-202607-SR-0005",
+                "2026-07",
+                new BigDecimal("46250.00"),
+                DUE_DATE
+        );
+        invoice.markIssued(Instant.parse("2026-07-31T12:00:00Z"), issueJournalId);
+        JournalEntry voidJournal = JournalEntry.draft("BIL-VOID-INV-202607-SR-0005", UUID.randomUUID(), "Void invoice");
+
+        when(invoiceRepository.findById(invoice.getId())).thenReturn(Optional.of(invoice));
+        when(accountingApplicationService.postBillingInvoiceVoid(any(BillingInvoiceVoidPostingCommand.class), eq("billing.supervisor")))
+                .thenReturn(voidJournal);
+        when(invoiceRepository.save(any(Invoice.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Invoice result = service.voidInvoice(
+                invoice.getId(),
+                new VoidInvoiceRequest("Salah baca meter"),
+                "billing.supervisor"
+        );
+
+        assertThat(result.getStatus()).isEqualTo(InvoiceStatus.VOID);
+        assertThat(result.getOutstandingAmount()).isEqualByComparingTo("0.00");
+        assertThat(result.getVoidJournalEntryId()).isEqualTo(voidJournal.getId());
+        assertThat(result.getVoidedAt()).isNotNull();
+
+        ArgumentCaptor<BillingInvoiceVoidPostingCommand> commandCaptor = ArgumentCaptor.forClass(BillingInvoiceVoidPostingCommand.class);
+        verify(accountingApplicationService).postBillingInvoiceVoid(commandCaptor.capture(), eq("billing.supervisor"));
+        assertThat(commandCaptor.getValue().invoiceNumber()).isEqualTo("INV-202607-SR-0005");
+        assertThat(commandCaptor.getValue().invoiceId()).isEqualTo(invoice.getId());
+        assertThat(commandCaptor.getValue().period()).isEqualTo("2026-07");
+        assertThat(commandCaptor.getValue().originalJournalEntryId()).isEqualTo(issueJournalId);
+        verify(auditTrailService).record(
+                "billing.supervisor",
+                "BILLING",
+                "VOID_INVOICE",
+                invoice.getId().toString(),
+                "Salah baca meter"
+        );
+    }
+
+    @Test
+    void rejectsVoidWhenInvoiceHasPaymentBeforeAccountingPosting() {
+        Invoice invoice = new Invoice(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                "INV-202607-SR-0006",
+                "2026-07",
+                new BigDecimal("46250.00"),
+                DUE_DATE
+        );
+        invoice.markIssued(Instant.parse("2026-07-31T12:00:00Z"), UUID.randomUUID());
+        invoice.applyPayment(new BigDecimal("10000.00"));
+
+        when(invoiceRepository.findById(invoice.getId())).thenReturn(Optional.of(invoice));
+
+        assertThatThrownBy(() -> service.voidInvoice(
+                invoice.getId(),
+                new VoidInvoiceRequest("Salah baca meter"),
+                "billing.supervisor"
+        ))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("Only issued unpaid invoice can be voided");
+
+        verify(accountingApplicationService, never()).postBillingInvoiceVoid(any(), any());
     }
 
     @Test

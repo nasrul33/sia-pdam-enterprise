@@ -30,11 +30,14 @@ import { cn } from "@/lib/utils";
 import {
   billingIssueReadinessCopy,
   canIssueInvoice,
+  canViewInvoiceDocument,
+  canVoidInvoice,
   filterInvoicesByStatus,
   generateBillingBatchErrors,
   invoiceScopeTitle,
   issueInvoiceErrors,
-  summarizeBillingWorkspace
+  summarizeBillingWorkspace,
+  voidInvoiceErrors
 } from "./billing-workspace-model";
 import type {
   BillingBatch,
@@ -42,8 +45,10 @@ import type {
   BillingBatchStatus,
   GenerateBillingBatchPayload,
   Invoice,
+  InvoiceDocument,
   InvoiceStatus,
-  IssueInvoicePayload
+  IssueInvoicePayload,
+  VoidInvoicePayload
 } from "./billing-schema";
 import { billingBatchStatusValues, invoiceStatusValues } from "./billing-schema";
 import {
@@ -51,8 +56,10 @@ import {
   useBillingBatches,
   useBillingBatchIssueReadiness,
   useGenerateBillingBatch,
+  useInvoiceDocument,
   useInvoices,
-  useIssueInvoice
+  useIssueInvoice,
+  useVoidInvoice
 } from "./use-billing";
 
 type StatusFilter<TStatus extends string> = TStatus | "ALL";
@@ -71,6 +78,11 @@ type IssueInvoiceDraft = {
   invoice: Invoice;
   receivableAccountId: string;
   revenueAccountId: string;
+  reason: string;
+};
+
+type VoidInvoiceDraft = {
+  invoice: Invoice;
   reason: string;
 };
 
@@ -212,7 +224,9 @@ function BillingCommandPanel({ permissions }: Readonly<{ permissions: BillingPer
         </div>
       </div>
       <CommandStatus label="Generate Billing" allowed={permissions.canGenerateBilling} />
+      <CommandStatus label="Lihat Dokumen Invoice" allowed={permissions.canViewInvoices} />
       <CommandStatus label="Issue Invoice" allowed={permissions.canIssueInvoices} highRisk />
+      <CommandStatus label="Void/Koreksi Invoice" allowed={permissions.canCorrectInvoices} highRisk />
     </div>
   );
 }
@@ -555,6 +569,140 @@ function BatchTable({
   );
 }
 
+function InvoiceDocumentPanel({
+  invoice,
+  document,
+  isLoading,
+  error,
+  onRetry,
+  onClose
+}: Readonly<{
+  invoice: Invoice;
+  document: InvoiceDocument | null;
+  isLoading: boolean;
+  error: unknown;
+  onRetry: () => void;
+  onClose: () => void;
+}>) {
+  return (
+    <div className="border-t border-slate-200 bg-slate-50 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-black text-slate-950">Dokumen Rekening {invoice.invoiceNumber}</p>
+          <p className="mt-1 text-sm font-semibold text-slate-600">
+            Preview data rekening terstruktur dari invoice, sambungan, pelanggan, dan baris tagihan.
+          </p>
+        </div>
+        <button type="button" className={secondaryButtonClass} onClick={onClose}>
+          <X className="size-4" aria-hidden="true" />
+          Tutup
+        </button>
+      </div>
+
+      {isLoading ? (
+        <div className="mt-4 flex items-center gap-2 rounded-lg border border-slate-200 bg-white p-4 text-sm font-bold text-slate-700">
+          <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+          Memuat dokumen rekening
+        </div>
+      ) : null}
+
+      {error ? (
+        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4">
+          <InlineMessage type="error" message={apiErrorMessage(error, "Gagal memuat dokumen rekening.")} />
+          <button type="button" className={secondaryButtonClass + " mt-3"} onClick={onRetry}>
+            <RotateCcw className="size-4" aria-hidden="true" />
+            Coba lagi
+          </button>
+        </div>
+      ) : null}
+
+      {document ? (
+        <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+          <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-black text-slate-950">{document.customer.fullName}</p>
+              <StatusBadge label={invoiceStatusLabels[document.status]} tone={invoiceStatusTones[document.status]} />
+            </div>
+            <div className="mt-4 grid gap-3 text-sm">
+              <DocumentField label="Nomor Pelanggan" value={document.customer.customerNumber} />
+              <DocumentField label="Nomor Sambungan" value={document.connection.connectionNumber} />
+              <DocumentField label="Meter" value={document.connection.meterNumber} />
+              <DocumentField label="Alamat" value={document.customer.addressLine ?? "-"} />
+              <DocumentField label="Area" value={document.customer.areaCode ?? "-"} />
+              <DocumentField label="Jatuh Tempo" value={formatDate(document.dueDate)} />
+              <DocumentField label="Jurnal Issue" value={shortId(document.issueJournalEntryId)} mono />
+              <DocumentField label="Jurnal Void" value={shortId(document.voidJournalEntryId)} mono />
+              <DocumentField label="Void At" value={formatDateTime(document.voidedAt)} />
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <DocumentMetric label="Subtotal" value={<MoneyText value={document.subtotal} />} />
+              <DocumentMetric label="Outstanding" value={<MoneyText value={document.outstandingAmount} />} />
+              <DocumentMetric label="Denda" value={<MoneyText value={document.penaltyAmount} />} />
+              <DocumentMetric label="Dibayar" value={<MoneyText value={document.paidAmount} />} />
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+            <div className="border-b border-slate-200 px-4 py-3">
+              <p className="text-sm font-black text-slate-950">Komponen Rekening</p>
+            </div>
+            {document.lines.length === 0 ? (
+              <div className="p-4 text-sm font-semibold text-slate-600">Belum ada baris komponen pada invoice ini.</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-slate-200 text-sm">
+                  <thead className="bg-slate-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left font-bold text-slate-700">Tipe</th>
+                      <th className="px-4 py-3 text-left font-bold text-slate-700">Deskripsi</th>
+                      <th className="px-4 py-3 text-right font-bold text-slate-700">Qty</th>
+                      <th className="px-4 py-3 text-right font-bold text-slate-700">Harga</th>
+                      <th className="px-4 py-3 text-right font-bold text-slate-700">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {document.lines.map((line) => (
+                      <tr key={`${line.lineType}-${line.description}-${line.amount}`}>
+                        <td className="whitespace-nowrap px-4 py-3 font-mono text-xs font-bold text-slate-700">{line.lineType}</td>
+                        <td className="px-4 py-3 font-semibold text-slate-800">{line.description}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-slate-700">{line.quantity.toLocaleString("id-ID")}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-slate-700">
+                          <MoneyText value={line.unitPrice} />
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-right font-black text-slate-950">
+                          <MoneyText value={line.amount} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function DocumentField({ label, value, mono = false }: Readonly<{ label: string; value: string; mono?: boolean }>) {
+  return (
+    <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-2 last:border-b-0 last:pb-0">
+      <span className="font-semibold text-slate-500">{label}</span>
+      <span className={cn("text-right font-bold text-slate-950", mono ? "font-mono text-xs" : "")}>{value}</span>
+    </div>
+  );
+}
+
+function DocumentMetric({ label, value }: Readonly<{ label: string; value: ReactNode }>) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+      <p className="text-xs font-bold uppercase text-slate-500">{label}</p>
+      <p className="mt-1 text-sm font-black text-slate-950">{value}</p>
+    </div>
+  );
+}
+
 function InvoiceTable({
   title,
   description,
@@ -575,9 +723,13 @@ function InvoiceTable({
   onClearBatch: () => void;
 }>) {
   const issueMutation = useIssueInvoice();
+  const voidMutation = useVoidInvoice();
   const [draft, setDraft] = useState<IssueInvoiceDraft | null>(null);
+  const [voidDraft, setVoidDraft] = useState<VoidInvoiceDraft | null>(null);
+  const [documentInvoice, setDocumentInvoice] = useState<Invoice | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const documentQuery = useInvoiceDocument(documentInvoice?.id ?? null, Boolean(documentInvoice));
   const receivableAccounts = useMemo(() => accounts.filter((account) => account.type === "ASSET"), [accounts]);
   const revenueAccounts = useMemo(() => accounts.filter((account) => account.type === "REVENUE"), [accounts]);
 
@@ -610,10 +762,28 @@ function InvoiceTable({
     setLocalError(null);
     setSuccessMessage(null);
     issueMutation.reset();
+    setVoidDraft(null);
     setDraft({
       invoice,
       receivableAccountId: "",
       revenueAccountId: "",
+      reason: ""
+    });
+  }
+
+  function openDocument(invoice: Invoice) {
+    setLocalError(null);
+    setSuccessMessage(null);
+    setDocumentInvoice(invoice);
+  }
+
+  function openVoid(invoice: Invoice) {
+    setLocalError(null);
+    setSuccessMessage(null);
+    voidMutation.reset();
+    setDraft(null);
+    setVoidDraft({
+      invoice,
       reason: ""
     });
   }
@@ -644,8 +814,37 @@ function InvoiceTable({
     }
   }
 
+  async function submitVoid() {
+    if (!voidDraft) {
+      return;
+    }
+
+    setLocalError(null);
+    const payload: VoidInvoicePayload = {
+      reason: normalizeInput(voidDraft.reason)
+    };
+    const errors = voidInvoiceErrors({ invoice: voidDraft.invoice, draft: payload });
+    if (errors.length > 0) {
+      setLocalError(errors[0]);
+      return;
+    }
+
+    try {
+      await voidMutation.mutateAsync({ invoiceId: voidDraft.invoice.id, payload });
+      setSuccessMessage(`Invoice ${voidDraft.invoice.invoiceNumber} berhasil di-void dengan jurnal koreksi.`);
+      setVoidDraft(null);
+      if (documentInvoice?.id === voidDraft.invoice.id) {
+        void documentQuery.refetch();
+      }
+    } catch {
+      return;
+    }
+  }
+
   const errorMessage =
-    localError ?? (issueMutation.isError ? apiErrorMessage(issueMutation.error, "Gagal issue invoice.") : null);
+    localError ??
+    (issueMutation.isError ? apiErrorMessage(issueMutation.error, "Gagal issue invoice.") : null) ??
+    (voidMutation.isError ? apiErrorMessage(voidMutation.error, "Gagal void invoice.") : null);
 
   return (
     <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
@@ -699,21 +898,51 @@ function InvoiceTable({
                 <td className="whitespace-nowrap px-5 py-4 text-slate-700">{formatDate(invoice.dueDate)}</td>
                 <td className="whitespace-nowrap px-5 py-4 font-mono text-xs text-slate-600">{shortId(invoice.issueJournalEntryId)}</td>
                 <td className="whitespace-nowrap px-5 py-4">
-                  <button
-                    type="button"
-                    className={dangerButtonClass}
-                    disabled={!canIssueInvoice(invoice, permissions) || issueMutation.isPending}
-                    onClick={() => openIssue(invoice)}
-                  >
-                    <Send className="size-4" aria-hidden="true" />
-                    Issue
-                  </button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      className={secondaryButtonClass}
+                      disabled={!canViewInvoiceDocument(permissions)}
+                      onClick={() => openDocument(invoice)}
+                    >
+                      <FileText className="size-4" aria-hidden="true" />
+                      Dokumen
+                    </button>
+                    <button
+                      type="button"
+                      className={dangerButtonClass}
+                      disabled={!canIssueInvoice(invoice, permissions) || issueMutation.isPending}
+                      onClick={() => openIssue(invoice)}
+                    >
+                      <Send className="size-4" aria-hidden="true" />
+                      Issue
+                    </button>
+                    <button
+                      type="button"
+                      className={dangerButtonClass}
+                      disabled={!canVoidInvoice(invoice, permissions) || voidMutation.isPending}
+                      onClick={() => openVoid(invoice)}
+                    >
+                      <RotateCcw className="size-4" aria-hidden="true" />
+                      Void
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      {documentInvoice ? (
+        <InvoiceDocumentPanel
+          invoice={documentInvoice}
+          document={documentQuery.data ?? null}
+          isLoading={documentQuery.isLoading}
+          error={documentQuery.error}
+          onRetry={() => void documentQuery.refetch()}
+          onClose={() => setDocumentInvoice(null)}
+        />
+      ) : null}
       {draft ? (
         <div className="border-t border-slate-200 bg-red-50 p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -778,6 +1007,58 @@ function InvoiceTable({
               Issue Invoice
             </button>
             <StatusBadge label="High Risk" tone="danger" />
+          </div>
+        </div>
+      ) : null}
+      {voidDraft ? (
+        <div className="border-t border-slate-200 bg-red-50 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-bold text-red-950">Konfirmasi Void Invoice</p>
+              <p className="mt-1 text-sm font-semibold text-red-800">
+                {voidDraft.invoice.invoiceNumber} akan membalik jurnal issue asli dan menghapus outstanding dari piutang aktif.
+              </p>
+            </div>
+            <button type="button" className={secondaryButtonClass} onClick={() => setVoidDraft(null)}>
+              <X className="size-4" aria-hidden="true" />
+              Batal
+            </button>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <div className="rounded-lg border border-red-200 bg-white p-3">
+              <p className="text-xs font-bold uppercase text-red-700">Outstanding</p>
+              <p className="mt-1 text-sm font-black text-red-950">
+                <MoneyText value={voidDraft.invoice.outstandingAmount} />
+              </p>
+            </div>
+            <div className="rounded-lg border border-red-200 bg-white p-3">
+              <p className="text-xs font-bold uppercase text-red-700">Paid</p>
+              <p className="mt-1 text-sm font-black text-red-950">
+                <MoneyText value={voidDraft.invoice.paidAmount} />
+              </p>
+            </div>
+            <div className="rounded-lg border border-red-200 bg-white p-3">
+              <p className="text-xs font-bold uppercase text-red-700">Journal Trace</p>
+              <p className="mt-1 font-mono text-xs font-black text-red-950">{shortId(voidDraft.invoice.issueJournalEntryId)}</p>
+            </div>
+          </div>
+          <label className="mt-4 block">
+            <span className="text-xs font-bold uppercase text-red-800">Alasan Audit</span>
+            <textarea
+              className={textareaClass}
+              value={voidDraft.reason}
+              maxLength={500}
+              disabled={voidMutation.isPending}
+              onChange={(event) => setVoidDraft((current) => (current ? { ...current, reason: event.target.value } : current))}
+            />
+          </label>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <button type="button" className={dangerButtonClass} onClick={submitVoid} disabled={voidMutation.isPending}>
+              {voidMutation.isPending ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <RotateCcw className="size-4" aria-hidden="true" />}
+              Void Invoice
+            </button>
+            <StatusBadge label="High Risk" tone="danger" />
+            <StatusBadge label="Jurnal Pembalik" tone="warning" />
           </div>
         </div>
       ) : null}

@@ -157,6 +157,96 @@ class AccountingApplicationServiceTest {
     }
 
     @Test
+    void postsBillingInvoiceVoidJournalByReversingOriginalPostedBillingLines() {
+        AccountingPeriod period = new AccountingPeriod("2026-07");
+        UUID receivableAccountId = UUID.randomUUID();
+        UUID revenueAccountId = UUID.randomUUID();
+        UUID invoiceId = UUID.randomUUID();
+        JournalEntry originalJournal = JournalEntry.draftFromSource(
+                "BIL-INV-202607-SR-0001",
+                period.getId(),
+                "Issue invoice",
+                "BILLING",
+                invoiceId,
+                "INV-202607-SR-0001"
+        );
+        originalJournal.addLine(receivableAccountId, new BigDecimal("46250.00"), BigDecimal.ZERO, "Piutang tagihan");
+        originalJournal.addLine(revenueAccountId, BigDecimal.ZERO, new BigDecimal("46250.00"), "Pendapatan air");
+        originalJournal.post(period, "billing.admin");
+
+        when(journalEntryRepository.existsBySourceModuleAndSourceRecordId("BILLING_VOID", invoiceId)).thenReturn(false);
+        when(accountingPeriodRepository.findByPeriod("2026-07")).thenReturn(Optional.of(period));
+        when(journalEntryRepository.findWithLinesById(originalJournal.getId())).thenReturn(Optional.of(originalJournal));
+        when(journalEntryRepository.findByJournalNumber("BIL-VOID-INV-202607-SR-0001")).thenReturn(Optional.empty());
+        when(journalEntryRepository.save(any(JournalEntry.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        JournalEntry journal = service.postBillingInvoiceVoid(
+                new BillingInvoiceVoidPostingCommand(
+                        "INV-202607-SR-0001",
+                        invoiceId,
+                        "2026-07",
+                        originalJournal.getId(),
+                        "Salah baca meter"
+                ),
+                "billing.supervisor"
+        );
+
+        assertThat(journal.getStatus()).isEqualTo(JournalStatus.POSTED);
+        assertThat(journal.getSourceModule()).isEqualTo("BILLING_VOID");
+        assertThat(journal.getSourceRecordId()).isEqualTo(invoiceId);
+        assertThat(journal.getSourceDocumentNumber()).isEqualTo("INV-202607-SR-0001");
+        assertThat(journal.getLines()).hasSize(2);
+        assertThat(journal.getLines().get(0).getAccountId()).isEqualTo(receivableAccountId);
+        assertThat(journal.getLines().get(0).getCredit()).isEqualByComparingTo("46250.00");
+        assertThat(journal.getLines().get(1).getAccountId()).isEqualTo(revenueAccountId);
+        assertThat(journal.getLines().get(1).getDebit()).isEqualByComparingTo("46250.00");
+        verify(ledgerEntryMaterializationService).materializePostedJournal(journal);
+        verify(auditTrailService).record(
+                "billing.supervisor",
+                "ACCOUNTING",
+                "POST_JOURNAL",
+                journal.getId().toString(),
+                "Salah baca meter"
+        );
+    }
+
+    @Test
+    void rejectsBillingInvoiceVoidWhenOriginalJournalDoesNotBelongToInvoice() {
+        AccountingPeriod period = new AccountingPeriod("2026-07");
+        UUID invoiceId = UUID.randomUUID();
+        JournalEntry originalJournal = JournalEntry.draftFromSource(
+                "BIL-INV-202607-SR-OTHER",
+                period.getId(),
+                "Issue invoice",
+                "BILLING",
+                UUID.randomUUID(),
+                "INV-202607-SR-OTHER"
+        );
+        originalJournal.addLine(UUID.randomUUID(), new BigDecimal("1000.00"), BigDecimal.ZERO, "Piutang");
+        originalJournal.addLine(UUID.randomUUID(), BigDecimal.ZERO, new BigDecimal("1000.00"), "Pendapatan");
+        originalJournal.post(period, "billing.admin");
+
+        when(journalEntryRepository.existsBySourceModuleAndSourceRecordId("BILLING_VOID", invoiceId)).thenReturn(false);
+        when(accountingPeriodRepository.findByPeriod("2026-07")).thenReturn(Optional.of(period));
+        when(journalEntryRepository.findWithLinesById(originalJournal.getId())).thenReturn(Optional.of(originalJournal));
+
+        assertThatThrownBy(() -> service.postBillingInvoiceVoid(
+                new BillingInvoiceVoidPostingCommand(
+                        "INV-202607-SR-0001",
+                        invoiceId,
+                        "2026-07",
+                        originalJournal.getId(),
+                        "Salah baca meter"
+                ),
+                "billing.supervisor"
+        ))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("does not belong to this invoice");
+
+        verify(journalEntryRepository, never()).save(any(JournalEntry.class));
+    }
+
+    @Test
     void rejectsBillingInvoicePostingWhenSourceInvoiceAlreadyHasJournal() {
         UUID invoiceId = UUID.randomUUID();
         UUID receivableAccountId = UUID.randomUUID();

@@ -4,6 +4,7 @@ import id.pdam.sia.accounting.domain.Account;
 import id.pdam.sia.accounting.domain.AccountType;
 import id.pdam.sia.accounting.domain.AccountingPeriod;
 import id.pdam.sia.accounting.domain.JournalEntry;
+import id.pdam.sia.accounting.domain.JournalLine;
 import id.pdam.sia.accounting.domain.JournalStatus;
 import id.pdam.sia.accounting.repository.AccountRepository;
 import id.pdam.sia.accounting.repository.AccountingPeriodRepository;
@@ -217,6 +218,78 @@ public class AccountingApplicationService {
 
         JournalEntry saved = journalEntryRepository.save(journal);
         postingService.post(saved, period, actor, command.reason());
+        return saved;
+    }
+
+    @Transactional
+    public JournalEntry postBillingInvoiceVoid(BillingInvoiceVoidPostingCommand command, String actor) {
+        if (command == null) {
+            throw new BusinessException("BILLING_VOID_POSTING_COMMAND_REQUIRED", "Billing invoice void posting command is required.");
+        }
+        String invoiceNumber = requireNormalize(
+                command.invoiceNumber(),
+                "BILLING_VOID_INVOICE_NUMBER_REQUIRED",
+                "Billing invoice number is required."
+        );
+        if (command.invoiceId() == null) {
+            throw new BusinessException("BILLING_VOID_INVOICE_REQUIRED", "Billing invoice id is required.");
+        }
+        if (command.originalJournalEntryId() == null) {
+            throw new BusinessException("BILLING_VOID_ORIGINAL_JOURNAL_REQUIRED", "Original billing journal is required.");
+        }
+        String periodValue = normalizeAccountingPeriod(command.period());
+        String reason = requireNormalize(command.reason(), "BILLING_VOID_REASON_REQUIRED", "Billing invoice void reason is required.");
+        if (journalEntryRepository.existsBySourceModuleAndSourceRecordId("BILLING_VOID", command.invoiceId())) {
+            throw new BusinessException(
+                    "BILLING_VOID_JOURNAL_DUPLICATE",
+                    "Invoice already has a billing void journal."
+            );
+        }
+
+        AccountingPeriod period = accountingPeriodRepository.findByPeriod(periodValue)
+                .orElseThrow(() -> new BusinessException("ACCOUNTING_PERIOD_NOT_FOUND", "Accounting period was not found."));
+        JournalEntry originalJournal = journalEntryRepository.findWithLinesById(command.originalJournalEntryId())
+                .orElseThrow(() -> new BusinessException("BILLING_VOID_ORIGINAL_JOURNAL_NOT_FOUND", "Original billing journal was not found."));
+        if (originalJournal.getStatus() != JournalStatus.POSTED) {
+            throw new BusinessException("BILLING_VOID_ORIGINAL_JOURNAL_NOT_POSTED", "Original billing journal must be posted.");
+        }
+        if (!"BILLING".equals(originalJournal.getSourceModule()) || !command.invoiceId().equals(originalJournal.getSourceRecordId())) {
+            throw new BusinessException("BILLING_VOID_SOURCE_MISMATCH", "Original journal does not belong to this invoice.");
+        }
+
+        String journalNumber = billingVoidJournalNumber(invoiceNumber);
+        journalEntryRepository.findByJournalNumber(journalNumber).ifPresent(existing -> {
+            throw new BusinessException("JOURNAL_NUMBER_DUPLICATE", "Journal number already exists.");
+        });
+
+        JournalEntry journal = JournalEntry.draftFromSource(
+                journalNumber,
+                period.getId(),
+                "Void invoice " + invoiceNumber,
+                "BILLING_VOID",
+                command.invoiceId(),
+                invoiceNumber
+        );
+        for (JournalLine originalLine : originalJournal.getLines()) {
+            if (originalLine.getDebit().signum() > 0) {
+                journal.addLine(
+                        originalLine.getAccountId(),
+                        BigDecimal.ZERO,
+                        originalLine.getDebit(),
+                        "Pembalik debit " + invoiceNumber
+                );
+            } else {
+                journal.addLine(
+                        originalLine.getAccountId(),
+                        originalLine.getCredit(),
+                        BigDecimal.ZERO,
+                        "Pembalik kredit " + invoiceNumber
+                );
+            }
+        }
+
+        JournalEntry saved = journalEntryRepository.save(journal);
+        postingService.post(saved, period, actor, reason);
         return saved;
     }
 
@@ -520,6 +593,10 @@ public class AccountingApplicationService {
 
     private static String billingJournalNumber(String invoiceNumber) {
         return sourceJournalNumber("BIL-", invoiceNumber);
+    }
+
+    private static String billingVoidJournalNumber(String invoiceNumber) {
+        return sourceJournalNumber("BIL-VOID-", invoiceNumber);
     }
 
     private static String paymentJournalNumber(String paymentNumber) {

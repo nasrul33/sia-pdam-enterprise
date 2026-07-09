@@ -4,16 +4,21 @@ import { financialCommandPermissions, resolveFinancialCommandPermissions } from 
 import {
   billingIssueReadinessCopy,
   canIssueInvoice,
+  canViewInvoiceDocument,
+  canVoidInvoice,
   filterInvoicesByStatus,
   generateBillingBatchErrors,
   invoiceScopeTitle,
   issueInvoiceErrors,
-  summarizeBillingWorkspace
+  summarizeBillingWorkspace,
+  voidInvoiceErrors
 } from "./billing-workspace-model.ts";
 
 const billingPermissions = resolveFinancialCommandPermissions([
   financialCommandPermissions.billingGenerate,
-  financialCommandPermissions.invoiceIssue
+  financialCommandPermissions.invoiceView,
+  financialCommandPermissions.invoiceIssue,
+  financialCommandPermissions.invoiceCorrectApprove
 ]).billing;
 
 test("summarizeBillingWorkspace summarizes batch and invoice control states", () => {
@@ -40,6 +45,44 @@ test("canIssueInvoice requires invoice.issue authority and draft status", () => 
   assert.equal(canIssueInvoice({ status: "DRAFT" }, billingPermissions), true);
   assert.equal(canIssueInvoice({ status: "ISSUED" }, billingPermissions), false);
   assert.equal(canIssueInvoice({ status: "DRAFT" }, resolveFinancialCommandPermissions([]).billing), false);
+});
+
+test("invoice document and void guards follow permissions and accounting trace state", () => {
+  assert.equal(canViewInvoiceDocument(billingPermissions), true);
+  assert.equal(canViewInvoiceDocument(resolveFinancialCommandPermissions([]).billing), false);
+  assert.equal(
+    canVoidInvoice(
+      {
+        status: "ISSUED",
+        paidAmount: 0,
+        issueJournalEntryId: "00000000-0000-0000-0000-000000000001"
+      },
+      billingPermissions
+    ),
+    true
+  );
+  assert.equal(
+    canVoidInvoice(
+      {
+        status: "PARTIAL_PAID",
+        paidAmount: 1000,
+        issueJournalEntryId: "00000000-0000-0000-0000-000000000001"
+      },
+      billingPermissions
+    ),
+    false
+  );
+  assert.equal(
+    canVoidInvoice(
+      {
+        status: "ISSUED",
+        paidAmount: 0,
+        issueJournalEntryId: null
+      },
+      billingPermissions
+    ),
+    false
+  );
 });
 
 test("filterInvoicesByStatus scopes batch drill-down invoices by selected status", () => {
@@ -150,5 +193,24 @@ test("issueInvoiceErrors requires asset receivable and revenue accounts", () => 
       ]
     }),
     ["Akun pendapatan wajib bertipe pendapatan.", "Alasan audit wajib diisi."]
+  );
+});
+
+test("voidInvoiceErrors blocks paid or trace-less invoice and requires reason", () => {
+  assert.deepEqual(
+    voidInvoiceErrors({
+      invoice: {
+        status: "PARTIAL_PAID",
+        paidAmount: 1000,
+        issueJournalEntryId: null
+      },
+      draft: { reason: "" }
+    }),
+    [
+      "Void hanya boleh untuk invoice issued yang belum dibayar.",
+      "Invoice yang sudah dibayar harus reversal pembayaran terlebih dahulu.",
+      "Invoice issued wajib memiliki journal trace sebelum void.",
+      "Alasan audit wajib diisi."
+    ]
   );
 });

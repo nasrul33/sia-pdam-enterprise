@@ -2,6 +2,7 @@ package id.pdam.sia.billing.application;
 
 import id.pdam.sia.accounting.application.AccountingApplicationService;
 import id.pdam.sia.accounting.application.BillingInvoicePostingCommand;
+import id.pdam.sia.accounting.application.BillingInvoiceVoidPostingCommand;
 import id.pdam.sia.accounting.domain.JournalEntry;
 import id.pdam.sia.billing.domain.BillingBatch;
 import id.pdam.sia.billing.domain.BillingBatchStatus;
@@ -14,6 +15,7 @@ import id.pdam.sia.billing.repository.InvoiceLineRepository;
 import id.pdam.sia.billing.repository.InvoiceRepository;
 import id.pdam.sia.billing.web.GenerateBillingBatchRequest;
 import id.pdam.sia.billing.web.IssueInvoiceRequest;
+import id.pdam.sia.billing.web.VoidInvoiceRequest;
 import id.pdam.sia.billing.web.CalculateTariffRequest;
 import id.pdam.sia.connection.domain.Connection;
 import id.pdam.sia.connection.domain.ConnectionStatus;
@@ -198,6 +200,43 @@ public class BillingBatchApplicationService {
         invoice.markIssued(Instant.now(), journal.getId());
         Invoice saved = invoiceRepository.save(invoice);
         auditTrailService.record(actor, "BILLING", "ISSUE_INVOICE", saved.getId().toString(), request.reason());
+        return saved;
+    }
+
+    @Transactional
+    public Invoice voidInvoice(UUID invoiceId, VoidInvoiceRequest request, String actor) {
+        if (invoiceId == null) {
+            throw new BusinessException("INVOICE_ID_REQUIRED", "Invoice id is required.");
+        }
+        if (request == null) {
+            throw new BusinessException("INVOICE_VOID_REQUEST_REQUIRED", "Invoice void request is required.");
+        }
+
+        Invoice invoice = invoiceRepository.findById(invoiceId)
+                .orElseThrow(() -> new BusinessException("INVOICE_NOT_FOUND", "Invoice was not found."));
+        if (invoice.getStatus() != InvoiceStatus.ISSUED) {
+            throw new BusinessException("INVOICE_VOID_STATUS_INVALID", "Only issued unpaid invoice can be voided.");
+        }
+        if (invoice.getIssueJournalEntryId() == null) {
+            throw new BusinessException("INVOICE_VOID_ISSUE_JOURNAL_REQUIRED", "Issued invoice must have journal trace before void.");
+        }
+        if (invoice.getPaidAmount().signum() > 0) {
+            throw new BusinessException("INVOICE_VOID_PAID_INVALID", "Paid or partial paid invoice must be reversed before void.");
+        }
+
+        JournalEntry journal = accountingApplicationService.postBillingInvoiceVoid(
+                new BillingInvoiceVoidPostingCommand(
+                        invoice.getInvoiceNumber(),
+                        invoice.getId(),
+                        invoice.getPeriod(),
+                        invoice.getIssueJournalEntryId(),
+                        request.reason()
+                ),
+                actor
+        );
+        invoice.voidUnpaid(Instant.now(), journal.getId());
+        Invoice saved = invoiceRepository.save(invoice);
+        auditTrailService.record(actor, "BILLING", "VOID_INVOICE", saved.getId().toString(), request.reason());
         return saved;
     }
 

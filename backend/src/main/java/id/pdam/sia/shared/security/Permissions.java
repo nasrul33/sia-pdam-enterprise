@@ -27,7 +27,9 @@ public final class Permissions {
     public static final String PAYMENT_RECONCILE_AND_RECONCILIATION_STALE_ACKNOWLEDGE =
             PAYMENT_RECONCILE + " and " + PAYMENT_RECONCILIATION_STALE_ACKNOWLEDGE;
     public static final String BILLING_GENERATE = "hasAuthority('billing.generate')";
+    public static final String INVOICE_VIEW = "hasAuthority('invoice.view')";
     public static final String INVOICE_ISSUE = "hasAuthority('invoice.issue')";
+    public static final String INVOICE_CORRECT_APPROVE = "hasAuthority('invoice.correct.approve')";
 
     private Permissions() {
     }

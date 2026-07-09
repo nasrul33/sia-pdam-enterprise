@@ -3,16 +3,19 @@ import { queryKeys } from "@/lib/query/query-keys";
 import {
   generateBillingBatch,
   getBillingBatchIssueReadiness,
+  getInvoiceDocument,
   issueInvoice,
   listBatchInvoices,
   listBillingBatches,
-  listInvoices
+  listInvoices,
+  voidInvoice
 } from "./billing-api";
 import type {
   BillingBatchFilters,
   GenerateBillingBatchPayload,
   InvoiceFilters,
-  IssueInvoicePayload
+  IssueInvoicePayload,
+  VoidInvoicePayload
 } from "./billing-schema";
 
 export function useBillingBatches(filters: BillingBatchFilters, enabled = true) {
@@ -47,6 +50,14 @@ export function useBillingBatchIssueReadiness(batchId: string | null, enabled = 
   });
 }
 
+export function useInvoiceDocument(invoiceId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: [...queryKeys.invoices, "document", invoiceId],
+    queryFn: () => getInvoiceDocument(invoiceId ?? ""),
+    enabled: enabled && Boolean(invoiceId)
+  });
+}
+
 export function useGenerateBillingBatch() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -62,6 +73,18 @@ export function useIssueInvoice() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: { invoiceId: string; payload: IssueInvoicePayload }) => issueInvoice(input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.invoices });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.billingBatches });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.journals });
+    }
+  });
+}
+
+export function useVoidInvoice() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { invoiceId: string; payload: VoidInvoicePayload }) => voidInvoice(input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.invoices });
       void queryClient.invalidateQueries({ queryKey: queryKeys.billingBatches });

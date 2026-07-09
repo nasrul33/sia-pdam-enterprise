@@ -5,7 +5,9 @@ export const financialCommandPermissions = {
   journalCreate: "journal.create",
   journalPost: "journal.post",
   billingGenerate: "billing.generate",
+  invoiceView: "invoice.view",
   invoiceIssue: "invoice.issue",
+  invoiceCorrectApprove: "invoice.correct.approve",
   paymentCounter: "payment.counter",
   paymentRead: "payment.read",
   paymentReconcile: "payment.reconcile",
@@ -26,7 +28,9 @@ export type AccountingCommandPermissionState = {
 
 export type BillingCommandPermissionState = {
   canGenerateBilling: boolean;
+  canViewInvoices: boolean;
   canIssueInvoices: boolean;
+  canCorrectInvoices: boolean;
 };
 
 export type PaymentCommandPermissionState = {
@@ -70,7 +74,9 @@ export function resolveFinancialCommandPermissions(authorities: readonly string[
   };
   const billing = {
     canGenerateBilling: authoritySet.has(financialCommandPermissions.billingGenerate),
-    canIssueInvoices: authoritySet.has(financialCommandPermissions.invoiceIssue)
+    canViewInvoices: authoritySet.has(financialCommandPermissions.invoiceView),
+    canIssueInvoices: authoritySet.has(financialCommandPermissions.invoiceIssue),
+    canCorrectInvoices: authoritySet.has(financialCommandPermissions.invoiceCorrectApprove)
   };
   const payment = {
     canSettleCounterPayments: authoritySet.has(financialCommandPermissions.paymentCounter),
@@ -96,7 +102,9 @@ export function resolveFinancialCommandPermissions(authorities: readonly string[
       accounting.canCreateJournals ||
       accounting.canPostJournals ||
       billing.canGenerateBilling ||
+      billing.canViewInvoices ||
       billing.canIssueInvoices ||
+      billing.canCorrectInvoices ||
       payment.canSettleCounterPayments ||
       payment.canReadPayments ||
       payment.canReconcilePayments ||
@@ -155,9 +163,21 @@ export function visibleFinancialCommandGroups(state: FinancialCommandPermissionS
           risk: "medium"
         },
         {
+          label: "Lihat Dokumen Invoice",
+          permission: financialCommandPermissions.invoiceView,
+          allowed: state.billing.canViewInvoices,
+          risk: "medium"
+        },
+        {
           label: "Issue Invoice",
           permission: financialCommandPermissions.invoiceIssue,
           allowed: state.billing.canIssueInvoices,
+          risk: "high"
+        },
+        {
+          label: "Void/Koreksi Invoice",
+          permission: financialCommandPermissions.invoiceCorrectApprove,
+          allowed: state.billing.canCorrectInvoices,
           risk: "high"
         }
       ]

@@ -47,6 +47,10 @@ public class Invoice extends BaseEntity {
 
     private UUID issueJournalEntryId;
 
+    private Instant voidedAt;
+
+    private UUID voidJournalEntryId;
+
     @Column(nullable = false)
     private LocalDate dueDate;
 
@@ -131,6 +135,28 @@ public class Invoice extends BaseEntity {
         }
     }
 
+    public void voidUnpaid(Instant voidedAt, UUID voidJournalEntryId) {
+        if (voidedAt == null) {
+            throw new BusinessException("INVOICE_VOIDED_AT_REQUIRED", "Invoice void timestamp is required.");
+        }
+        if (voidJournalEntryId == null) {
+            throw new BusinessException("INVOICE_VOID_JOURNAL_REQUIRED", "Invoice void journal is required.");
+        }
+        if (status != InvoiceStatus.ISSUED) {
+            throw new BusinessException("INVOICE_VOID_STATUS_INVALID", "Only issued unpaid invoice can be voided.");
+        }
+        if (issueJournalEntryId == null) {
+            throw new BusinessException("INVOICE_VOID_ISSUE_JOURNAL_REQUIRED", "Issued invoice must have journal trace before void.");
+        }
+        if (paidAmount.signum() > 0) {
+            throw new BusinessException("INVOICE_VOID_PAID_INVALID", "Paid or partial paid invoice must be reversed before void.");
+        }
+        this.status = InvoiceStatus.VOID;
+        this.outstandingAmount = BigDecimal.ZERO.setScale(2);
+        this.voidedAt = voidedAt;
+        this.voidJournalEntryId = voidJournalEntryId;
+    }
+
     private static String require(String value, String code, String message) {
         if (value == null || value.isBlank()) {
             throw new BusinessException(code, message);
@@ -198,6 +224,14 @@ public class Invoice extends BaseEntity {
 
     public UUID getIssueJournalEntryId() {
         return issueJournalEntryId;
+    }
+
+    public Instant getVoidedAt() {
+        return voidedAt;
+    }
+
+    public UUID getVoidJournalEntryId() {
+        return voidJournalEntryId;
     }
 
     public LocalDate getDueDate() {

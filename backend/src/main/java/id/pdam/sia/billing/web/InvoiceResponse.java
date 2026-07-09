@@ -21,6 +21,8 @@ public record InvoiceResponse(
         BigDecimal outstandingAmount,
         Instant issuedAt,
         UUID issueJournalEntryId,
+        Instant voidedAt,
+        UUID voidJournalEntryId,
         LocalDate dueDate,
         Instant createdAt,
         Instant updatedAt
@@ -39,6 +41,8 @@ public record InvoiceResponse(
                 invoice.getOutstandingAmount(),
                 invoice.getIssuedAt(),
                 invoice.getIssueJournalEntryId(),
+                invoice.getVoidedAt(),
+                invoice.getVoidJournalEntryId(),
                 invoice.getDueDate(),
                 invoice.getCreatedAt(),
                 invoice.getUpdatedAt()

@@ -29,9 +29,49 @@ export const invoiceSchema = z.object({
   outstandingAmount: z.coerce.number().nonnegative(),
   issuedAt: z.string().min(1).nullable(),
   issueJournalEntryId: z.string().uuid().nullable(),
+  voidedAt: z.string().min(1).nullable(),
+  voidJournalEntryId: z.string().uuid().nullable(),
   dueDate: z.string().min(1),
   createdAt: z.string().min(1),
   updatedAt: z.string().min(1)
+});
+
+export const invoiceDocumentLineSchema = z.object({
+  lineType: z.string().min(1),
+  description: z.string().min(1),
+  quantity: z.coerce.number().nonnegative(),
+  unitPrice: z.coerce.number().nonnegative(),
+  amount: z.coerce.number().nonnegative()
+});
+
+export const invoiceDocumentSchema = z.object({
+  invoiceId: z.string().uuid(),
+  invoiceNumber: z.string().min(1),
+  period: z.string().regex(/^\d{4}-\d{2}$/),
+  status: invoiceStatusSchema,
+  customer: z.object({
+    id: z.string().uuid(),
+    customerNumber: z.string().min(1),
+    fullName: z.string().min(1),
+    addressLine: z.string().nullable(),
+    areaCode: z.string().nullable(),
+    phoneNumber: z.string().nullable()
+  }),
+  connection: z.object({
+    id: z.string().uuid(),
+    connectionNumber: z.string().min(1),
+    meterNumber: z.string().min(1)
+  }),
+  lines: z.array(invoiceDocumentLineSchema),
+  subtotal: z.coerce.number().nonnegative(),
+  penaltyAmount: z.coerce.number().nonnegative(),
+  paidAmount: z.coerce.number().nonnegative(),
+  outstandingAmount: z.coerce.number().nonnegative(),
+  dueDate: z.string().min(1),
+  issuedAt: z.string().min(1).nullable(),
+  issueJournalEntryId: z.string().uuid().nullable(),
+  voidedAt: z.string().min(1).nullable(),
+  voidJournalEntryId: z.string().uuid().nullable()
 });
 
 export const billingBatchPageSchema = z.object({
@@ -74,6 +114,7 @@ export type BillingBatchStatus = z.infer<typeof billingBatchStatusSchema>;
 export type InvoiceStatus = z.infer<typeof invoiceStatusSchema>;
 export type BillingBatch = z.infer<typeof billingBatchSchema>;
 export type Invoice = z.infer<typeof invoiceSchema>;
+export type InvoiceDocument = z.infer<typeof invoiceDocumentSchema>;
 export type BillingBatchPage = z.infer<typeof billingBatchPageSchema>;
 export type InvoicePage = z.infer<typeof invoicePageSchema>;
 export type BatchInvoiceList = z.infer<typeof batchInvoiceListSchema>;
@@ -105,5 +146,9 @@ export type GenerateBillingBatchPayload = {
 export type IssueInvoicePayload = {
   receivableAccountId: string;
   revenueAccountId: string;
+  reason: string;
+};
+
+export type VoidInvoicePayload = {
   reason: string;
 };
