@@ -54,6 +54,7 @@ Baseline parity sudah ditambahkan untuk gap besar blueprint:
 - `BP-SEC-001`: audit-chain table, writer, dan verification endpoint.
 - `BP-OPS-001`: app settings backend dan frontend.
 - Customer/Connection blueprint gap: connection request workflow dan customer history read surface.
+- Focused backend regression tests sudah ditambahkan untuk AP posting/settlement, asset depreciation, journal reversal, closing entry, opening balance duplicate guard, bank mutation import/reconcile, installment plan, dunning, allowance delegation, dan audit-chain verification.
 
 Frontend parity route yang ditambahkan:
 
@@ -75,6 +76,6 @@ Frontend parity route yang ditambahkan:
 
 ## Immediate Next Adoption Targets
 
-1. TestingAgent: add focused tests for V22 workflows: AP posting, asset depreciation/disposal, bank mutation reconcile, installment plan, allowance, audit-chain verify.
-2. MeteringAgent: deepen blueprint parity for offline reading import and explicit reading lock semantics.
-3. DevOpsAgent: add CI coverage for blueprint baseline routes and Docker Compose smoke targets.
+1. MeteringAgent: deepen blueprint parity for offline reading import and explicit reading lock semantics.
+2. DevOpsAgent: add CI coverage for blueprint baseline routes and Docker Compose smoke targets.
+3. TestingAgent: add DB-backed migration/constraint tests for V22 tables when a dedicated integration-test database gate is introduced.
