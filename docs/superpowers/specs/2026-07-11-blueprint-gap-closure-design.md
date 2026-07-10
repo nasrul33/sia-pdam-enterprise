@@ -81,7 +81,7 @@ Endpoint preview checklist dapat dipanggil dengan permission `period.manage`. Tr
 - `waste_charge`;
 - `penalty_rate`.
 
-Constraint memastikan seluruh komponen bernilai non-negatif dan `penalty_rate` berada pada rentang yang disepakati model, yaitu `0..100` persen. Migrasi bersifat additive sehingga data lama tetap valid dengan nilai nol.
+Constraint memastikan seluruh komponen bernilai non-negatif dan `penalty_rate` berada pada rentang `0..1` sebagai fraksi desimal; `0.0500` berarti 5 persen. Migrasi bersifat additive sehingga data lama tetap valid dengan nilai nol.
 
 ### Kalkulasi dan Invoice
 
