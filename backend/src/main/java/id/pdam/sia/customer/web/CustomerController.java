@@ -2,6 +2,7 @@ package id.pdam.sia.customer.web;
 
 import id.pdam.sia.customer.application.CustomerApplicationService;
 import id.pdam.sia.customer.domain.CustomerStatus;
+import id.pdam.sia.shared.security.Permissions;
 import id.pdam.sia.shared.web.PageResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -32,6 +33,7 @@ public class CustomerController {
     }
 
     @GetMapping
+    @PreAuthorize(Permissions.CUSTOMER_READ)
     public PageResponse<CustomerSummaryResponse> listCustomers(
             @RequestParam(required = false) CustomerStatus status,
             @RequestParam(required = false) String search,
@@ -44,13 +46,14 @@ public class CustomerController {
     }
 
     @GetMapping("/{customerId}")
+    @PreAuthorize(Permissions.CUSTOMER_READ)
     public CustomerResponse getCustomer(@PathVariable UUID customerId) {
         return CustomerResponse.from(customerApplicationService.getCustomer(customerId));
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(Permissions.CUSTOMER_MANAGE)
     public CustomerResponse createCustomer(@Valid @RequestBody CreateCustomerRequest request, Principal principal) {
         return CustomerResponse.from(customerApplicationService.createCustomer(request, actor(principal)));
     }

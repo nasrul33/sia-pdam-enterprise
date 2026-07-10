@@ -58,15 +58,15 @@ Accounting command endpoints are enforced server-side through method security fo
 |---|---|---|---|
 | GET | /api/customers | list customers with `status`, `search`, pagination | customer.read |
 | GET | /api/customers/{id} | customer detail with addresses | customer.read |
-| POST | /api/customers | create customer and primary address | customer.create |
+| POST | /api/customers | create customer and primary address | customer.manage |
 | GET | /api/tariff-groups | list tariff groups | tariff.read |
 | POST | /api/tariff-groups | create tariff group | tariff.manage |
 | GET | /api/connections | list connections with `customerId`, `status`, pagination | connection.read |
 | GET | /api/connections/{id} | connection detail | connection.read |
-| POST | /api/connections | create draft connection | connection.create |
-| POST | /api/connections/{id}/activate | activate draft/suspended connection | connection.lifecycle |
-| POST | /api/connections/{id}/suspend | suspend active connection | connection.lifecycle |
-| POST | /api/connections/{id}/terminate | terminate active/suspended connection | connection.lifecycle |
+| POST | /api/connections | create draft connection | connection.manage |
+| POST | /api/connections/{id}/activate | activate draft/suspended connection | connection.manage |
+| POST | /api/connections/{id}/suspend | suspend active connection | connection.manage |
+| POST | /api/connections/{id}/terminate | terminate active/suspended connection | connection.manage |
 
 Connection creation requires active customer, existing tariff group, unique connection number, and `reason` for audit trail.
 
@@ -81,10 +81,10 @@ Connection creation requires active customer, existing tariff group, unique conn
 | GET | /api/meter-readings/{id} | meter reading detail | meter-reading.read |
 | POST | /api/meter-readings | create draft meter reading | meter-reading.create |
 | POST | /api/meter-readings/offline-import | import offline readings with row-level imported/skipped/invalid result | meter-reading.create |
-| POST | /api/meter-readings/{id}/submit | submit draft/rejected reading | meter-reading.submit |
+| POST | /api/meter-readings/{id}/submit | submit draft/rejected reading | meter-reading.verify |
 | POST | /api/meter-readings/{id}/verify | verify submitted reading | meter-reading.verify |
 | POST | /api/meter-readings/{id}/reject | reject submitted reading | meter-reading.verify |
-| POST | /api/meter-readings/{id}/lock | lock verified reading for billing generation | meter-reading.verify |
+| POST | /api/meter-readings/{id}/lock | lock verified reading for billing generation | meter-reading.lock |
 
 Meter reading creation requires active connection, existing route, valid `yyyy-MM` period, `currentReading >= previousReading`, unique connection-period, and `reason` for audit trail. Offline import creates an import batch and records every source row as `IMPORTED`, `SKIPPED`, or `INVALID`; invalid source connection IDs are kept as audit references and do not fail the whole batch. Billing can consume only readings that have moved from `VERIFIED` to `LOCKED`.
 
@@ -286,7 +286,7 @@ Allowed handoff statuses are `OPEN`, `IN_PROGRESS`, and `CLEARED`. Create and re
 | GET | /api/receivable-aging-snapshots/by-period/{period} | aging snapshot by `yyyy-MM` period | receivable-aging.read |
 | POST | /api/receivable-aging-snapshots/generate | generate or refresh period aging snapshot | receivable-aging.generate |
 
-`POST /api/receivable-aging-snapshots/generate` requires authentication, `period`, `asOfDate`, and `reason`. Aging uses only open invoices with status `ISSUED` or `PARTIAL_PAID` and positive outstanding amount. Bucket rules are: `current` for not-yet-due or due today, `bucket30` for 1-30 days overdue, `bucket60` for 31-60 days, `bucket90` for 61-90 days, and `bucketOver90` for more than 90 days. This is an operational receivable snapshot; final financial reporting must still use posted ledger entries.
+`POST /api/receivable-aging-snapshots/generate` requires `receivable-aging.generate`, `period`, `asOfDate`, and `reason`. Aging uses only open invoices with status `ISSUED` or `PARTIAL_PAID` and positive outstanding amount. Bucket rules are: `current` for not-yet-due or due today, `bucket30` for 1-30 days overdue, `bucket60` for 31-60 days, `bucket90` for 61-90 days, and `bucketOver90` for more than 90 days. This is an operational receivable snapshot; final financial reporting must still use posted ledger entries.
 
 ## Receivable Collection
 

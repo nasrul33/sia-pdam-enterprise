@@ -47,6 +47,21 @@ public final class Permissions {
     public static final String AUDIT_CHAIN_VERIFY = "hasAuthority('audit-chain.verify')";
     public static final String CONNECTION_REQUEST_MANAGE = "hasAuthority('connection-request.manage')";
     public static final String CUSTOMER_HISTORY_READ = "hasAuthority('customer-history.read')";
+    public static final String CUSTOMER_READ = "hasAuthority('customer.read')";
+    public static final String CUSTOMER_MANAGE = "hasAuthority('customer.manage')";
+    public static final String CONNECTION_READ = "hasAuthority('connection.read')";
+    public static final String CONNECTION_MANAGE = "hasAuthority('connection.manage')";
+    public static final String METER_ROUTE_READ = "hasAuthority('meter-route.read')";
+    public static final String METER_ROUTE_MANAGE = "hasAuthority('meter-route.manage')";
+    public static final String METER_READING_READ = "hasAuthority('meter-reading.read')";
+    public static final String METER_READING_CREATE = "hasAuthority('meter-reading.create')";
+    public static final String METER_READING_VERIFY = "hasAuthority('meter-reading.verify')";
+    public static final String METER_READING_LOCK = "hasAuthority('meter-reading.lock')";
+    public static final String TARIFF_READ = "hasAuthority('tariff.read')";
+    public static final String TARIFF_MANAGE = "hasAuthority('tariff.manage')";
+    public static final String TARIFF_CALCULATE = "hasAuthority('tariff.calculate')";
+    public static final String RECEIVABLE_AGING_READ = "hasAuthority('receivable-aging.read')";
+    public static final String RECEIVABLE_AGING_GENERATE = "hasAuthority('receivable-aging.generate')";
 
     private Permissions() {
     }

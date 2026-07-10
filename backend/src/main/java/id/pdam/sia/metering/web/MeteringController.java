@@ -2,6 +2,7 @@ package id.pdam.sia.metering.web;
 
 import id.pdam.sia.metering.application.MeteringApplicationService;
 import id.pdam.sia.metering.domain.MeterReadingStatus;
+import id.pdam.sia.shared.security.Permissions;
 import id.pdam.sia.shared.web.PageResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -33,6 +34,7 @@ public class MeteringController {
     }
 
     @GetMapping("/meter-routes")
+    @PreAuthorize(Permissions.METER_ROUTE_READ)
     public PageResponse<MeterRouteResponse> listRoutes(
             @RequestParam(required = false) String areaCode,
             @RequestParam(defaultValue = "0") @Min(0) int page,
@@ -42,18 +44,20 @@ public class MeteringController {
     }
 
     @GetMapping("/meter-routes/{routeId}")
+    @PreAuthorize(Permissions.METER_ROUTE_READ)
     public MeterRouteResponse getRoute(@PathVariable UUID routeId) {
         return MeterRouteResponse.from(meteringApplicationService.getRoute(routeId));
     }
 
     @PostMapping("/meter-routes")
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(Permissions.METER_ROUTE_MANAGE)
     public MeterRouteResponse createRoute(@Valid @RequestBody CreateMeterRouteRequest request, Principal principal) {
         return MeterRouteResponse.from(meteringApplicationService.createRoute(request, actor(principal)));
     }
 
     @GetMapping("/meter-readings")
+    @PreAuthorize(Permissions.METER_READING_READ)
     public PageResponse<MeterReadingResponse> listReadings(
             @RequestParam(required = false) UUID routeId,
             @RequestParam(required = false) @Pattern(regexp = "^\\d{4}-\\d{2}$") String period,
@@ -67,20 +71,21 @@ public class MeteringController {
     }
 
     @GetMapping("/meter-readings/{readingId}")
+    @PreAuthorize(Permissions.METER_READING_READ)
     public MeterReadingResponse getReading(@PathVariable UUID readingId) {
         return MeterReadingResponse.from(meteringApplicationService.getReading(readingId));
     }
 
     @PostMapping("/meter-readings")
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(Permissions.METER_READING_CREATE)
     public MeterReadingResponse createReading(@Valid @RequestBody CreateMeterReadingRequest request, Principal principal) {
         return MeterReadingResponse.from(meteringApplicationService.createReading(request, actor(principal)));
     }
 
     @PostMapping("/meter-readings/offline-import")
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(Permissions.METER_READING_CREATE)
     public MeterReadingImportResponse importOfflineReadings(
             @Valid @RequestBody ImportMeterReadingsRequest request,
             Principal principal
@@ -89,7 +94,7 @@ public class MeteringController {
     }
 
     @PostMapping("/meter-readings/{readingId}/submit")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(Permissions.METER_READING_VERIFY)
     public MeterReadingResponse submitReading(
             @PathVariable UUID readingId,
             @Valid @RequestBody MeteringWorkflowRequest request,
@@ -101,7 +106,7 @@ public class MeteringController {
     }
 
     @PostMapping("/meter-readings/{readingId}/verify")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(Permissions.METER_READING_VERIFY)
     public MeterReadingResponse verifyReading(
             @PathVariable UUID readingId,
             @Valid @RequestBody MeteringWorkflowRequest request,
@@ -113,7 +118,7 @@ public class MeteringController {
     }
 
     @PostMapping("/meter-readings/{readingId}/reject")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(Permissions.METER_READING_VERIFY)
     public MeterReadingResponse rejectReading(
             @PathVariable UUID readingId,
             @Valid @RequestBody MeteringWorkflowRequest request,
@@ -125,7 +130,7 @@ public class MeteringController {
     }
 
     @PostMapping("/meter-readings/{readingId}/lock")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(Permissions.METER_READING_LOCK)
     public MeterReadingResponse lockReading(
             @PathVariable UUID readingId,
             @Valid @RequestBody MeteringWorkflowRequest request,

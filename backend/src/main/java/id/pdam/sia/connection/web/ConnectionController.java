@@ -2,6 +2,7 @@ package id.pdam.sia.connection.web;
 
 import id.pdam.sia.connection.application.ConnectionApplicationService;
 import id.pdam.sia.connection.domain.ConnectionStatus;
+import id.pdam.sia.shared.security.Permissions;
 import id.pdam.sia.shared.web.PageResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -32,6 +33,7 @@ public class ConnectionController {
     }
 
     @GetMapping("/tariff-groups")
+    @PreAuthorize(Permissions.TARIFF_READ)
     public PageResponse<TariffGroupResponse> listTariffGroups(
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "25") @Min(1) @Max(100) int size
@@ -41,7 +43,7 @@ public class ConnectionController {
 
     @PostMapping("/tariff-groups")
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(Permissions.TARIFF_MANAGE)
     public TariffGroupResponse createTariffGroup(
             @Valid @RequestBody CreateTariffGroupRequest request,
             Principal principal
@@ -50,6 +52,7 @@ public class ConnectionController {
     }
 
     @GetMapping("/connections")
+    @PreAuthorize(Permissions.CONNECTION_READ)
     public PageResponse<ConnectionResponse> listConnections(
             @RequestParam(required = false) UUID customerId,
             @RequestParam(required = false) ConnectionStatus status,
@@ -62,19 +65,20 @@ public class ConnectionController {
     }
 
     @GetMapping("/connections/{connectionId}")
+    @PreAuthorize(Permissions.CONNECTION_READ)
     public ConnectionResponse getConnection(@PathVariable UUID connectionId) {
         return ConnectionResponse.from(connectionApplicationService.getConnection(connectionId));
     }
 
     @PostMapping("/connections")
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(Permissions.CONNECTION_MANAGE)
     public ConnectionResponse createConnection(@Valid @RequestBody CreateConnectionRequest request, Principal principal) {
         return ConnectionResponse.from(connectionApplicationService.createConnection(request, actor(principal)));
     }
 
     @PostMapping("/connections/{connectionId}/activate")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(Permissions.CONNECTION_MANAGE)
     public ConnectionResponse activateConnection(
             @PathVariable UUID connectionId,
             @Valid @RequestBody ConnectionWorkflowRequest request,
@@ -86,7 +90,7 @@ public class ConnectionController {
     }
 
     @PostMapping("/connections/{connectionId}/suspend")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(Permissions.CONNECTION_MANAGE)
     public ConnectionResponse suspendConnection(
             @PathVariable UUID connectionId,
             @Valid @RequestBody ConnectionWorkflowRequest request,
@@ -98,7 +102,7 @@ public class ConnectionController {
     }
 
     @PostMapping("/connections/{connectionId}/terminate")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(Permissions.CONNECTION_MANAGE)
     public ConnectionResponse terminateConnection(
             @PathVariable UUID connectionId,
             @Valid @RequestBody ConnectionWorkflowRequest request,

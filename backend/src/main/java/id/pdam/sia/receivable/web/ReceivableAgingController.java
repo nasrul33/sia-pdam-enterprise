@@ -1,6 +1,7 @@
 package id.pdam.sia.receivable.web;
 
 import id.pdam.sia.receivable.application.ReceivableAgingApplicationService;
+import id.pdam.sia.shared.security.Permissions;
 import id.pdam.sia.shared.web.PageResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -32,6 +33,7 @@ public class ReceivableAgingController {
     }
 
     @GetMapping("/receivable-aging-snapshots")
+    @PreAuthorize(Permissions.RECEIVABLE_AGING_READ)
     public PageResponse<ReceivableAgingSnapshotResponse> listSnapshots(
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "25") @Min(1) @Max(100) int size
@@ -42,11 +44,13 @@ public class ReceivableAgingController {
     }
 
     @GetMapping("/receivable-aging-snapshots/{snapshotId}")
+    @PreAuthorize(Permissions.RECEIVABLE_AGING_READ)
     public ReceivableAgingSnapshotResponse getSnapshot(@PathVariable UUID snapshotId) {
         return ReceivableAgingSnapshotResponse.from(receivableAgingApplicationService.getSnapshot(snapshotId));
     }
 
     @GetMapping("/receivable-aging-snapshots/by-period/{period}")
+    @PreAuthorize(Permissions.RECEIVABLE_AGING_READ)
     public ReceivableAgingSnapshotResponse getSnapshotByPeriod(
             @PathVariable @Pattern(regexp = "^\\d{4}-\\d{2}$") String period
     ) {
@@ -55,7 +59,7 @@ public class ReceivableAgingController {
 
     @PostMapping("/receivable-aging-snapshots/generate")
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(Permissions.RECEIVABLE_AGING_GENERATE)
     public ReceivableAgingSnapshotResponse generateSnapshot(
             @Valid @RequestBody GenerateReceivableAgingSnapshotRequest request,
             Principal principal

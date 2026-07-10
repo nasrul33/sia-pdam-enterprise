@@ -2,6 +2,7 @@ package id.pdam.sia.billing.web;
 
 import id.pdam.sia.billing.application.TariffEngineApplicationService;
 import id.pdam.sia.billing.domain.TariffVersionStatus;
+import id.pdam.sia.shared.security.Permissions;
 import id.pdam.sia.shared.web.PageResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -33,6 +34,7 @@ public class TariffController {
     }
 
     @GetMapping("/tariff-versions")
+    @PreAuthorize(Permissions.TARIFF_READ)
     public PageResponse<TariffVersionResponse> listVersions(
             @RequestParam(required = false) UUID tariffGroupId,
             @RequestParam(required = false) TariffVersionStatus status,
@@ -45,13 +47,14 @@ public class TariffController {
     }
 
     @GetMapping("/tariff-versions/{tariffVersionId}")
+    @PreAuthorize(Permissions.TARIFF_READ)
     public TariffVersionResponse getVersion(@PathVariable UUID tariffVersionId) {
         return TariffVersionResponse.from(tariffEngineApplicationService.getVersion(tariffVersionId));
     }
 
     @PostMapping("/tariff-versions")
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(Permissions.TARIFF_MANAGE)
     public TariffVersionResponse createVersion(
             @Valid @RequestBody CreateTariffVersionRequest request,
             Principal principal
@@ -60,6 +63,7 @@ public class TariffController {
     }
 
     @GetMapping("/tariff-versions/{tariffVersionId}/blocks")
+    @PreAuthorize(Permissions.TARIFF_READ)
     public List<TariffBlockResponse> listBlocks(@PathVariable UUID tariffVersionId) {
         return tariffEngineApplicationService.listBlocks(tariffVersionId).stream()
                 .map(TariffBlockResponse::from)
@@ -68,7 +72,7 @@ public class TariffController {
 
     @PostMapping("/tariff-versions/{tariffVersionId}/blocks")
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(Permissions.TARIFF_MANAGE)
     public TariffBlockResponse addBlock(
             @PathVariable UUID tariffVersionId,
             @Valid @RequestBody CreateTariffBlockRequest request,
@@ -78,7 +82,7 @@ public class TariffController {
     }
 
     @PostMapping("/tariff-versions/{tariffVersionId}/activate")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(Permissions.TARIFF_MANAGE)
     public TariffVersionResponse activateVersion(
             @PathVariable UUID tariffVersionId,
             @Valid @RequestBody TariffWorkflowRequest request,
@@ -90,7 +94,7 @@ public class TariffController {
     }
 
     @PostMapping("/tariff-versions/{tariffVersionId}/archive")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(Permissions.TARIFF_MANAGE)
     public TariffVersionResponse archiveVersion(
             @PathVariable UUID tariffVersionId,
             @Valid @RequestBody TariffWorkflowRequest request,
@@ -102,6 +106,7 @@ public class TariffController {
     }
 
     @PostMapping("/tariff-calculations")
+    @PreAuthorize(Permissions.TARIFF_CALCULATE)
     public TariffCalculationResponse calculate(@Valid @RequestBody CalculateTariffRequest request) {
         return TariffCalculationResponse.from(tariffEngineApplicationService.calculate(request));
     }
