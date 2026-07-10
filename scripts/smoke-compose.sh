@@ -105,4 +105,6 @@ if [ "$failed_migrations" != "0" ]; then
 fi
 echo "OK Flyway migration history has no failed entries"
 
+sh scripts/check-migration-constraints.sh
+
 echo "Docker Compose smoke verification complete."

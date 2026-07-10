@@ -38,7 +38,7 @@ CI runs the full route smoke after backend, frontend, and compose-config gates p
 sh scripts/smoke-compose.sh
 ```
 
-The smoke script builds and starts the stack, waits for `/actuator/health`, verifies anonymous `/api/auth/me`, checks all baseline frontend routes, and fails if Flyway has any failed migration entry. By default it keeps the local stack running after success. CI sets `SMOKE_KEEP_RUNNING=0` so containers are torn down after the job.
+The smoke script builds and starts the stack, waits for `/actuator/health`, verifies anonymous `/api/auth/me`, checks all baseline frontend routes, fails if Flyway has any failed migration entry, and then runs the V22/V23 PostgreSQL constraint checks. By default it keeps the local stack running after success. CI sets `SMOKE_KEEP_RUNNING=0` so containers are torn down after the job.
 
 Current frontend route coverage:
 
@@ -70,6 +70,14 @@ cd backend
 gradle flywayValidate
 gradle flywayMigrate
 ```
+
+DB-backed migration constraint checks run against the PostgreSQL service from Docker Compose:
+
+```bash
+sh scripts/check-migration-constraints.sh
+```
+
+The SQL file `backend/src/test/resources/db/v22-v23-constraint-checks.sql` validates V22 blueprint tables and V23 metering import/lock tables inside one transaction and ends with `ROLLBACK`, so the check does not persist fixture data.
 
 Current smoke verification also starts backend with PostgreSQL and confirms Flyway applies migrations before Hibernate validation:
 
