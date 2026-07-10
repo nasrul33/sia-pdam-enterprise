@@ -6,9 +6,14 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class AuditTrailService {
     private final AuditLogRepository auditLogRepository;
+    private final AuditChainApplicationService auditChainApplicationService;
 
-    public AuditTrailService(AuditLogRepository auditLogRepository) {
+    public AuditTrailService(
+            AuditLogRepository auditLogRepository,
+            AuditChainApplicationService auditChainApplicationService
+    ) {
         this.auditLogRepository = auditLogRepository;
+        this.auditChainApplicationService = auditChainApplicationService;
     }
 
     @Transactional
@@ -18,6 +23,8 @@ public class AuditTrailService {
 
     @Transactional
     public AuditLog record(AuditTrailEntry entry) {
-        return auditLogRepository.save(AuditLog.from(entry));
+        AuditLog auditLog = auditLogRepository.save(AuditLog.from(entry));
+        auditChainApplicationService.append(auditLog);
+        return auditLog;
     }
 }

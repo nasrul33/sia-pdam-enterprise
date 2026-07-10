@@ -12,7 +12,8 @@ import static org.mockito.Mockito.when;
 
 class AuditTrailServiceTest {
     private final AuditLogRepository auditLogRepository = mock(AuditLogRepository.class);
-    private final AuditTrailService auditTrailService = new AuditTrailService(auditLogRepository);
+    private final AuditChainApplicationService auditChainApplicationService = mock(AuditChainApplicationService.class);
+    private final AuditTrailService auditTrailService = new AuditTrailService(auditLogRepository, auditChainApplicationService);
 
     @Test
     void persistsSensitiveActionAuditLog() {
@@ -30,6 +31,7 @@ class AuditTrailServiceTest {
         assertThat(auditLog.getModule()).isEqualTo("ACCOUNTING");
         assertThat(auditLog.getAction()).isEqualTo("POST_JOURNAL");
         verify(auditLogRepository).save(any(AuditLog.class));
+        verify(auditChainApplicationService).append(any(AuditLog.class));
     }
 
     @Test

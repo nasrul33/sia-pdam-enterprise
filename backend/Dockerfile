@@ -1,4 +1,5 @@
 FROM gradle:9.6.1-jdk26 AS build
+ENV GRADLE_OPTS="-Dhttps.protocols=TLSv1.3,TLSv1.2 -Dorg.gradle.internal.http.connectionTimeout=120000 -Dorg.gradle.internal.http.socketTimeout=120000"
 WORKDIR /workspace
 COPY settings.gradle.kts build.gradle.kts ./
 COPY src ./src

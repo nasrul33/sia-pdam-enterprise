@@ -43,4 +43,10 @@ public class PaymentQueryController {
     public PaymentSettlementResponse getPayment(@PathVariable UUID paymentId) {
         return PaymentSettlementResponse.from(paymentQueryApplicationService.getPayment(paymentId));
     }
+
+    @GetMapping("/{paymentId}/receipt")
+    @PreAuthorize(Permissions.PAYMENT_READ)
+    public PaymentSettlementResponse getPaymentReceipt(@PathVariable UUID paymentId) {
+        return PaymentSettlementResponse.from(paymentQueryApplicationService.getPayment(paymentId));
+    }
 }

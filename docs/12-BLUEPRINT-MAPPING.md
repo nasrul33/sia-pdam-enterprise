@@ -43,6 +43,28 @@ Repo blueprint dipakai sebagai referensi domain, acceptance criteria, backlog, d
 | BP-OPS-001 | Application settings/admin configuration surface | FrontendAgent + BackendFoundationAgent | Medium |
 | BP-DB-001 | Blueprint performance indexes reviewed against current PostgreSQL schema | DatabaseAgent | Medium |
 
+## Adoption Status - 2026-07-10
+
+Baseline parity sudah ditambahkan untuk gap besar blueprint:
+
+- `BP-PAY-001` dan `BP-PAY-002`: tabel `bank_mutations`, import backend, daily reconciliation command, dan receipt endpoint eksplisit.
+- `BP-REC-001` dan `BP-REC-002`: installment plan/items, dunning runner, dan allowance posting ke accounting.
+- `BP-ACC-001`, `BP-ACC-002`, dan `BP-ACC-003`: suppliers, AP payables, fixed assets, depreciation/disposal, journal reversal, opening balance, dan closing entry.
+- `BP-REP-001`: financial statements dan tax recap dari posted ledger.
+- `BP-SEC-001`: audit-chain table, writer, dan verification endpoint.
+- `BP-OPS-001`: app settings backend dan frontend.
+- Customer/Connection blueprint gap: connection request workflow dan customer history read surface.
+
+Frontend parity route yang ditambahkan:
+
+- `/accounting/payables`
+- `/accounting/assets`
+- `/payments/bank-mutations`
+- `/receivables/installments`
+- `/reports/financial-statements`
+- `/admin/settings`
+- `/connections/requests`
+
 ## Adoption Protocol
 
 1. Inspect the relevant blueprint files before implementing a gap.
@@ -53,6 +75,6 @@ Repo blueprint dipakai sebagai referensi domain, acceptance criteria, backlog, d
 
 ## Immediate Next Adoption Targets
 
-1. BillingAgent: compare blueprint `CorrectInvoice` and `GenerateInvoiceDocument` behavior against current invoice issue and batch readiness.
-2. PaymentAgent: compare blueprint `ImportBankMutations`, `ReconcileBankDaily`, and receipt view data against current reconciliation and stale handoff packet flow.
-3. AccountingAgent: extract journal reversal, opening balance, closing entry, AP, and asset workflows into separate guarded backlog slices.
+1. TestingAgent: add focused tests for V22 workflows: AP posting, asset depreciation/disposal, bank mutation reconcile, installment plan, allowance, audit-chain verify.
+2. MeteringAgent: deepen blueprint parity for offline reading import and explicit reading lock semantics.
+3. DevOpsAgent: add CI coverage for blueprint baseline routes and Docker Compose smoke targets.

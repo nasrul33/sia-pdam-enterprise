@@ -30,6 +30,23 @@ public final class Permissions {
     public static final String INVOICE_VIEW = "hasAuthority('invoice.view')";
     public static final String INVOICE_ISSUE = "hasAuthority('invoice.issue')";
     public static final String INVOICE_CORRECT_APPROVE = "hasAuthority('invoice.correct.approve')";
+    public static final String SUPPLIER_MANAGE = "hasAuthority('supplier.manage')";
+    public static final String PAYABLE_RECORD = "hasAuthority('payable.record')";
+    public static final String PAYABLE_SETTLE = "hasAuthority('payable.settle')";
+    public static final String ASSET_MANAGE = "hasAuthority('asset.manage')";
+    public static final String ASSET_DEPRECIATE = "hasAuthority('asset.depreciate')";
+    public static final String JOURNAL_REVERSE = "hasAuthority('journal.reverse')";
+    public static final String OPENING_BALANCE_POST = "hasAuthority('opening-balance.post')";
+    public static final String CLOSING_ENTRY_POST = "hasAuthority('closing-entry.post')";
+    public static final String BANK_MUTATION_IMPORT = "hasAuthority('bank-mutation.import')";
+    public static final String BANK_MUTATION_RECONCILE = "hasAuthority('bank-mutation.reconcile')";
+    public static final String INSTALLMENT_MANAGE = "hasAuthority('installment.manage')";
+    public static final String ALLOWANCE_POST = "hasAuthority('allowance.post')";
+    public static final String FINANCIAL_REPORT_READ = "hasAuthority('report.financial.read')";
+    public static final String SETTING_MANAGE = "hasAuthority('setting.manage')";
+    public static final String AUDIT_CHAIN_VERIFY = "hasAuthority('audit-chain.verify')";
+    public static final String CONNECTION_REQUEST_MANAGE = "hasAuthority('connection-request.manage')";
+    public static final String CUSTOMER_HISTORY_READ = "hasAuthority('customer-history.read')";
 
     private Permissions() {
     }

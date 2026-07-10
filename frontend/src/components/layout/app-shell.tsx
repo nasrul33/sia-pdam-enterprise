@@ -12,9 +12,11 @@ import {
   ClipboardList,
   Droplets,
   Gauge,
+  Landmark,
   LayoutDashboard,
   LockKeyhole,
   ReceiptText,
+  Settings,
   ShieldCheck,
   UsersRound,
   WalletCards,
@@ -46,6 +48,7 @@ const navSections: NavSection[] = [
     items: [
       { label: "Pelanggan", href: "/customers", icon: UsersRound, description: "Master pelanggan" },
       { label: "Sambungan", href: "/connections", icon: BadgeCheck, description: "Status layanan" },
+      { label: "Permohonan", href: "/connections/requests", icon: ClipboardList, description: "Request sambungan" },
       { label: "Baca Meter", href: "/metering", icon: Gauge, description: "Route dan validasi" },
       { label: "Tarif", href: "/tariffs", icon: ReceiptText, description: "Versi dan blok" }
     ]
@@ -55,10 +58,16 @@ const navSections: NavSection[] = [
     items: [
       { label: "Billing", href: "/billing", icon: ReceiptText, description: "Batch dan invoice" },
       { label: "Pembayaran", href: "/payments", icon: WalletCards, description: "Kas dan rekonsiliasi" },
+      { label: "Mutasi Bank", href: "/payments/bank-mutations", icon: Landmark, description: "Import & match" },
       { label: "Piutang", href: "/receivables/collection-actions", icon: Banknote, description: "Penagihan" },
       { label: "Aging Piutang", href: "/receivables/aging", icon: Banknote, description: "Umur piutang" },
+      { label: "Cicilan", href: "/receivables/installments", icon: Banknote, description: "Installment plan" },
       { label: "Akuntansi", href: "/accounting", icon: BookOpenCheck, description: "Jurnal dan ledger" },
-      { label: "Neraca Saldo", href: "/reports/trial-balance", icon: ClipboardList, description: "Laporan posted" }
+      { label: "AP Payables", href: "/accounting/payables", icon: Banknote, description: "Utang usaha" },
+      { label: "Aset Tetap", href: "/accounting/assets", icon: BookOpenCheck, description: "Depresiasi" },
+      { label: "Neraca Saldo", href: "/reports/trial-balance", icon: ClipboardList, description: "Laporan posted" },
+      { label: "Laporan Keuangan", href: "/reports/financial-statements", icon: ClipboardList, description: "FS & tax recap" },
+      { label: "Settings", href: "/admin/settings", icon: Settings, description: "Parameter sistem" }
     ]
   }
 ];
@@ -129,7 +138,10 @@ function MobileNavItem({ item, active }: Readonly<{ item: NavItem; active: boole
 
 export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
   const pathname = usePathname();
-  const activeItem = navItems.find((item) => isActiveRoute(pathname, item.href)) ?? navItems[0];
+  const activeItem =
+    navItems
+      .filter((item) => isActiveRoute(pathname, item.href))
+      .sort((left, right) => right.href.length - left.href.length)[0] ?? navItems[0];
   const today = new Intl.DateTimeFormat("id-ID", {
     day: "2-digit",
     month: "short",
@@ -183,7 +195,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
                 <div className="px-2.5 text-xs font-black uppercase text-slate-400">{section.title}</div>
                 <div className="space-y-1">
                   {section.items.map((item) => (
-                    <SidebarNavItem key={`${section.title}-${item.label}`} item={item} active={isActiveRoute(pathname, item.href)} />
+                    <SidebarNavItem key={`${section.title}-${item.label}`} item={item} active={activeItem.href === item.href} />
                   ))}
                 </div>
               </section>
@@ -232,7 +244,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
 
             <nav className="app-scrollbar mt-3 flex gap-2 overflow-x-auto pb-1 lg:hidden" aria-label="Navigasi modul">
               {navItems.map((item) => (
-                <MobileNavItem key={`mobile-${item.label}`} item={item} active={isActiveRoute(pathname, item.href)} />
+                <MobileNavItem key={`mobile-${item.label}`} item={item} active={activeItem.href === item.href} />
               ))}
             </nav>
           </div>
