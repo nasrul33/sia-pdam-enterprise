@@ -19,7 +19,7 @@ if [ ! -f "$CHECK_SQL" ]; then
   exit 1
 fi
 
-echo "Checking V22/V23 PostgreSQL migration constraints..."
+echo "Checking V22/V23 PostgreSQL constraints and V24 performance indexes..."
 $DOCKER_COMPOSE exec -T postgres psql \
   -U "$POSTGRES_USER" \
   -d "$POSTGRES_DB" \
@@ -28,4 +28,4 @@ $DOCKER_COMPOSE exec -T postgres psql \
   -v ON_ERROR_STOP=1 \
   < "$CHECK_SQL"
 
-echo "Migration constraint verification complete."
+echo "Migration constraint and index verification complete."

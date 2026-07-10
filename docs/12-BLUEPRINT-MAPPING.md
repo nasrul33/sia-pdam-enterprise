@@ -55,9 +55,10 @@ Baseline parity sudah ditambahkan untuk gap besar blueprint:
 - `BP-SEC-001`: audit-chain table, writer, dan verification endpoint.
 - `BP-OPS-001`: app settings backend dan frontend.
 - `BP-MTR-001`: offline meter reading import batch, row-level imported/skipped/invalid result, source device trace, explicit `LOCKED` reading workflow, dan billing generation dari locked readings only.
+- `BP-DB-001`: blueprint performance index review translated into additive PostgreSQL indexes for list filters, date-range reporting, open receivables, metering, payments, and reconciliation workloads.
 - Customer/Connection blueprint gap: connection request workflow dan customer history read surface.
 - DevOps CI parity: GitHub Actions now runs frontend permission/workspace model tests and Docker Compose route smoke for backend health, anonymous auth state, Flyway no-failure history, and all baseline frontend routes.
-- Testing parity: Docker Compose smoke now runs DB-backed V22/V23 PostgreSQL constraint checks for blueprint financial/operational tables and metering import/lock tables.
+- Testing parity: Docker Compose smoke now runs DB-backed V22/V23 PostgreSQL constraint checks plus V24 performance-index checks for blueprint financial/operational tables, metering import/lock tables, and dashboard/report query paths.
 - Focused backend regression tests sudah ditambahkan untuk AP posting/settlement, asset depreciation, journal reversal, closing entry, opening balance duplicate guard, bank mutation import/reconcile, installment plan, dunning, allowance delegation, dan audit-chain verification.
 
 Frontend parity route yang ditambahkan:
@@ -81,6 +82,5 @@ Frontend parity route yang ditambahkan:
 
 ## Immediate Next Adoption Targets
 
-1. DatabaseAgent: review blueprint performance indexes against current PostgreSQL schema after the V23 metering import/lock migration.
-2. DevOpsAgent: add deployment backup/rollback and observability runbook for production release hardening.
-3. TestingAgent: add API-level integration tests for high-risk V22/V23 workflows once a dedicated seeded integration profile is introduced.
+1. DevOpsAgent: add deployment backup/rollback and observability runbook for production release hardening.
+2. TestingAgent: add API-level integration tests for high-risk V22/V23 workflows once a dedicated seeded integration profile is introduced.

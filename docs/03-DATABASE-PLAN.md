@@ -37,6 +37,20 @@
 - payment_reconciliation_items
 - payment_reconciliation_handoff_notes
 - payment_reconciliation_handoff_note_revisions
+- payment_reconciliation_handoff_acknowledgements
+- suppliers
+- payables
+- fixed_assets
+- fixed_asset_depreciations
+- installment_plans
+- installment_items
+- bank_mutations
+- connection_requests
+- customer_histories
+- app_settings
+- audit_chain_entries
+- meter_reading_import_batches
+- meter_reading_import_items
 - receivable_aging_snapshots
 - collection_actions
 - ledger_entries
@@ -62,5 +76,12 @@
 | V15__payment_reconciliation_signoff_permission_seed.sql | sign-off permission catalog | idempotent `payment.reconciliation.signoff` grant only for approver roles |
 | V16__payment_reconciliation_handoff_notes.sql | reviewer handoff notes | current note table plus immutable revision table with status/text/reason checks and session/revision indexes |
 | V17__payment_reconciliation_handoff_note_permission_seed.sql | handoff note permission catalog | idempotent `payment.reconciliation.handoff-note` grants for super-admin, finance supervisor, and internal auditor |
+| V18__payment_reconciliation_handoff_acknowledgements.sql | stale handoff acknowledgement evidence | idempotent packet acknowledgement with scope hash, filter snapshot, counts, actor, and reason |
+| V19__payment_reconciliation_stale_acknowledgement_permission_seed.sql | stale acknowledgement permission catalog | idempotent `payment.reconciliation.stale-acknowledge` grant for supervisor roles only |
+| V20__billing_invoice_void_trace.sql | invoice void/correction traceability | invoice void journal, actor, timestamp, reason, and unpaid issued-only DB guard |
+| V21__billing_invoice_view_correct_permission_seed.sql | invoice view/correction permission catalog | idempotent `invoice.view` and `invoice.correct.approve` grants without broad cashier/auditor mutation |
+| V22__blueprint_gap_foundation.sql | blueprint baseline AP, fixed asset, receivable, bank mutation, settings, audit chain, connection request | financial/operational tables with checks, source journal traceability, and seed permissions |
+| V23__metering_offline_import_lock.sql | offline meter reading import and explicit billing lock | import batch/items, source-device trace, locked-reading guard, and billing source restriction |
+| V24__blueprint_performance_indexes.sql | blueprint performance index alignment | additive indexes for list filters, date-range reports, open receivables, metering, payments, and reconciliation workloads |
 
 Smoke test on PostgreSQL 16 confirms migrations apply from an empty schema and Hibernate validation passes afterward.

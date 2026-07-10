@@ -1,4 +1,4 @@
-\echo Checking V22/V23 DB-backed migration constraints
+\echo Checking V22/V23 constraints and V24 performance indexes
 
 \o /dev/null
 
@@ -475,6 +475,8 @@ SELECT pg_temp.expect_sqlstate(
 );
 
 DO $$
+DECLARE
+    index_name TEXT;
 BEGIN
     IF to_regclass('public.idx_meter_readings_locked_period') IS NULL THEN
         RAISE EXCEPTION 'V23 locked reading index is missing';
@@ -483,6 +485,36 @@ BEGIN
     IF to_regclass('public.idx_meter_import_items_batch_status') IS NULL THEN
         RAISE EXCEPTION 'V23 import item batch/status index is missing';
     END IF;
+
+    FOREACH index_name IN ARRAY ARRAY[
+        'idx_suppliers_status_code',
+        'idx_payables_period_status_recorded',
+        'idx_payables_status_recorded',
+        'idx_fixed_assets_status_code',
+        'idx_installment_plans_status_created',
+        'idx_billing_batches_period_status_created',
+        'idx_invoices_period_status_created',
+        'idx_invoices_open_receivables',
+        'idx_payments_channel_paid_at',
+        'idx_payments_status_channel_paid_at',
+        'idx_connection_requests_status_requested',
+        'idx_customers_status_number',
+        'idx_connections_status_number',
+        'idx_connections_customer_status_number',
+        'idx_meter_routes_area_code',
+        'idx_meter_readings_route_period_status_read',
+        'idx_meter_readings_route_status_read',
+        'idx_meter_readings_period_status_read',
+        'idx_tariff_versions_group_status_effective',
+        'idx_tariff_versions_status_effective',
+        'idx_ledger_entries_posting_date_account',
+        'idx_reconciliation_sessions_completed_review',
+        'idx_handoff_notes_active_due_status_updated'
+    ]::TEXT[] LOOP
+        IF to_regclass('public.' || index_name) IS NULL THEN
+            RAISE EXCEPTION 'V24 performance index is missing: %', index_name;
+        END IF;
+    END LOOP;
 END;
 $$;
 
@@ -490,4 +522,4 @@ ROLLBACK;
 
 \o
 
-\echo V22/V23 DB-backed migration constraints passed
+\echo V22/V23 constraints and V24 performance indexes passed
