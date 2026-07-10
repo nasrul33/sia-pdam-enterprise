@@ -41,6 +41,7 @@ Repo blueprint dipakai sebagai referensi domain, acceptance criteria, backlog, d
 | BP-REP-001 | Financial statements and tax recap from posted ledger | ReportingAgent | High |
 | BP-SEC-001 | Tamper-evident audit chain verification | SecurityAgent | Medium |
 | BP-OPS-001 | Application settings/admin configuration surface | FrontendAgent + BackendFoundationAgent | Medium |
+| BP-MTR-001 | Offline meter reading import and explicit reading lock before billing | MeteringAgent + BillingAgent + FrontendAgent | High |
 | BP-DB-001 | Blueprint performance indexes reviewed against current PostgreSQL schema | DatabaseAgent | Medium |
 
 ## Adoption Status - 2026-07-10
@@ -53,6 +54,7 @@ Baseline parity sudah ditambahkan untuk gap besar blueprint:
 - `BP-REP-001`: financial statements dan tax recap dari posted ledger.
 - `BP-SEC-001`: audit-chain table, writer, dan verification endpoint.
 - `BP-OPS-001`: app settings backend dan frontend.
+- `BP-MTR-001`: offline meter reading import batch, row-level imported/skipped/invalid result, source device trace, explicit `LOCKED` reading workflow, dan billing generation dari locked readings only.
 - Customer/Connection blueprint gap: connection request workflow dan customer history read surface.
 - Focused backend regression tests sudah ditambahkan untuk AP posting/settlement, asset depreciation, journal reversal, closing entry, opening balance duplicate guard, bank mutation import/reconcile, installment plan, dunning, allowance delegation, dan audit-chain verification.
 
@@ -65,6 +67,7 @@ Frontend parity route yang ditambahkan:
 - `/reports/financial-statements`
 - `/admin/settings`
 - `/connections/requests`
+- `/metering` now includes offline import and lock workflow controls
 
 ## Adoption Protocol
 
@@ -76,6 +79,6 @@ Frontend parity route yang ditambahkan:
 
 ## Immediate Next Adoption Targets
 
-1. MeteringAgent: deepen blueprint parity for offline reading import and explicit reading lock semantics.
-2. DevOpsAgent: add CI coverage for blueprint baseline routes and Docker Compose smoke targets.
-3. TestingAgent: add DB-backed migration/constraint tests for V22 tables when a dedicated integration-test database gate is introduced.
+1. DevOpsAgent: add CI coverage for blueprint baseline routes and Docker Compose smoke targets.
+2. TestingAgent: add DB-backed migration/constraint tests for V22/V23 tables when a dedicated integration-test database gate is introduced.
+3. DatabaseAgent: review blueprint performance indexes against current PostgreSQL schema after the V23 metering import/lock migration.

@@ -5,6 +5,7 @@ import {
   customerPageSchema,
   customerSchema,
   meterReadingPageSchema,
+  meterReadingImportSchema,
   meterReadingSchema,
   meterRoutePageSchema,
   meterRouteSchema,
@@ -23,6 +24,7 @@ import {
   type CreateCustomerPayload,
   type CreateMeterReadingPayload,
   type CreateMeterRoutePayload,
+  type ImportMeterReadingsPayload,
   type CreateTariffBlockPayload,
   type CreateTariffGroupPayload,
   type CreateTariffVersionPayload,
@@ -145,6 +147,11 @@ export async function getMeterReading(readingId: string) {
 export async function createMeterReading(payload: CreateMeterReadingPayload) {
   const response = await apiPost<CreateMeterReadingPayload, unknown>("/api/meter-readings", payload);
   return meterReadingSchema.parse(response);
+}
+
+export async function importMeterReadings(payload: ImportMeterReadingsPayload) {
+  const response = await apiPost<ImportMeterReadingsPayload, unknown>("/api/meter-readings/offline-import", payload);
+  return meterReadingImportSchema.parse(response);
 }
 
 export async function submitMeterReadingWorkflow(input: {

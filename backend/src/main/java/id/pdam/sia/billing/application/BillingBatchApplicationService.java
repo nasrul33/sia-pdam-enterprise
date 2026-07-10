@@ -269,9 +269,9 @@ public class BillingBatchApplicationService {
             throw new BusinessException("BILLING_BATCH_PERIOD_AREA_DUPLICATE", "Billing batch already exists for this period and area.");
         });
 
-        List<MeterReading> readings = meterReadingRepository.findVerifiedByAreaCodeAndPeriod(areaCode, period);
+        List<MeterReading> readings = meterReadingRepository.findLockedByAreaCodeAndPeriod(areaCode, period);
         if (readings.isEmpty()) {
-            throw new BusinessException("BILLING_BATCH_NO_VERIFIED_READINGS", "No verified meter readings were found for this period and area.");
+            throw new BusinessException("BILLING_BATCH_NO_LOCKED_READINGS", "No locked meter readings were found for this period and area.");
         }
 
         List<InvoiceDraft> drafts = readings.stream()

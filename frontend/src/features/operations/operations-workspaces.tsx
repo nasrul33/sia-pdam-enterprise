@@ -16,7 +16,9 @@ import {
   type Connection,
   type ConnectionWorkflow,
   type CustomerSummary,
+  type ImportMeterReadingRowPayload,
   type MeterReading,
+  type MeterReadingStatus,
   type MeterReadingWorkflow,
   type TariffVersion,
   type TariffVersionWorkflow
@@ -36,6 +38,7 @@ import {
   useCustomers,
   useGenerateReceivableAgingSnapshot,
   useMeterReading,
+  useImportMeterReadings,
   useMeterReadings,
   useMeterReadingWorkflow,
   useMeterRoutes,
@@ -98,6 +101,38 @@ function requiredNumber(value: string): number {
 
 function toIsoInstant(value: string): string {
   return new Date(value).toISOString();
+}
+
+function parseOfflineImportRows(rowsText: string): ImportMeterReadingRowPayload[] {
+  const rows = rowsText
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .map((line, index) => {
+      const columns = line.split(/[,\t;]/).map((column) => column.trim());
+      if (columns.length < 4) {
+        throw new Error(`Baris ${index + 1} minimal berisi connectionId, meter awal, meter akhir, dan waktu baca.`);
+      }
+      const previousReading = Number(columns[1]);
+      const currentReading = Number(columns[2]);
+      if (!Number.isFinite(previousReading) || !Number.isFinite(currentReading)) {
+        throw new Error(`Baris ${index + 1} memiliki nilai meter tidak valid.`);
+      }
+      const anomalyReason = nullIfBlank(columns[5] ?? "");
+      return {
+        connectionId: columns[0],
+        previousReading,
+        currentReading,
+        readAt: toIsoInstant(columns[3]),
+        readerId: nullIfBlank(columns[4] ?? ""),
+        anomalyFlag: anomalyReason !== null,
+        anomalyReason
+      };
+    });
+  if (rows.length === 0) {
+    throw new Error("Baris import offline belum diisi.");
+  }
+  return rows;
 }
 
 function statusTone(status: string): "success" | "warning" | "danger" | "info" | "neutral" {
@@ -207,6 +242,7 @@ function CustomerTable({
             <th className="px-4 py-3 text-left font-bold text-slate-700">Nama</th>
             <th className="px-4 py-3 text-left font-bold text-slate-700">Telepon</th>
             <th className="px-4 py-3 text-left font-bold text-slate-700">Status</th>
+            <th className="px-4 py-3 text-left font-bold text-slate-700">Lock</th>
             <th className="px-4 py-3 text-left font-bold text-slate-700">Aksi</th>
           </tr>
         </thead>
@@ -800,6 +836,9 @@ function MeterReadingTable({
               <td className="whitespace-nowrap px-4 py-3">
                 <StatusBadge label={reading.status} tone={statusTone(reading.status)} />
               </td>
+              <td className="whitespace-nowrap px-4 py-3 text-slate-700">
+                {reading.lockedAt ? formatDateTime(reading.lockedAt) : "-"}
+              </td>
               <td className="whitespace-nowrap px-4 py-3">
                 <button type="button" className={secondaryButtonClass} onClick={() => onSelect(reading.id)}>
                   Pilih
@@ -837,6 +876,15 @@ export function MeteringWorkspace() {
     workflow: "submit",
     reason: ""
   });
+  const [importForm, setImportForm] = useState({
+    sourceDeviceId: "",
+    sourceBatchReference: "",
+    routeId: "",
+    period: "",
+    rowsText: "",
+    reason: ""
+  });
+  const [importParseError, setImportParseError] = useState<string | null>(null);
 
   const routesQuery = useMeterRoutes({
     page: routeFilters.page,
@@ -848,11 +896,12 @@ export function MeteringWorkspace() {
     size: readingFilters.size,
     routeId: readingFilters.routeId || undefined,
     period: readingFilters.period || undefined,
-    status: readingFilters.status ? (readingFilters.status as "DRAFT" | "SUBMITTED" | "VERIFIED" | "REJECTED") : undefined
+    status: readingFilters.status ? (readingFilters.status as MeterReadingStatus) : undefined
   });
   const readingQuery = useMeterReading(selectedReadingId);
   const createRouteMutation = useCreateMeterRoute();
   const createReadingMutation = useCreateMeterReading();
+  const importMutation = useImportMeterReadings();
   const workflowMutation = useMeterReadingWorkflow();
 
   function submitRoute(event: FormEvent<HTMLFormElement>) {
@@ -885,6 +934,26 @@ export function MeteringWorkspace() {
     });
   }
 
+  function submitImport(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setImportParseError(null);
+    let rows: ImportMeterReadingRowPayload[];
+    try {
+      rows = parseOfflineImportRows(importForm.rowsText);
+    } catch (error) {
+      setImportParseError(error instanceof Error ? error.message : "Format import offline tidak valid.");
+      return;
+    }
+    importMutation.mutate({
+      sourceDeviceId: importForm.sourceDeviceId,
+      sourceBatchReference: importForm.sourceBatchReference,
+      routeId: importForm.routeId,
+      period: importForm.period,
+      rows,
+      reason: importForm.reason
+    });
+  }
+
   if (routesQuery.isLoading || readingsQuery.isLoading) {
     return <LoadingSkeleton />;
   }
@@ -897,7 +966,7 @@ export function MeteringWorkspace() {
       />
       <AuthNotice authenticated={authenticated} />
 
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-4 md:grid-cols-4">
         <SummaryCard label="Rute Meter" value={String(routesQuery.data?.totalItems ?? 0)} helper="Rute baca meter aktif di filter." />
         <SummaryCard
           label="Baca Meter"
@@ -910,6 +979,12 @@ export function MeteringWorkspace() {
           value={String((readingsQuery.data?.items ?? []).filter((reading) => reading.status === "VERIFIED").length)}
           helper="Pembacaan terverifikasi di halaman ini."
           tone="warning"
+        />
+        <SummaryCard
+          label="Locked"
+          value={String((readingsQuery.data?.items ?? []).filter((reading) => reading.status === "LOCKED").length)}
+          helper="Pembacaan terkunci siap billing di halaman ini."
+          tone="success"
         />
       </section>
 
@@ -1058,6 +1133,7 @@ export function MeteringWorkspace() {
                 <option value="submit">Submit</option>
                 <option value="verify">Verifikasi</option>
                 <option value="reject">Tolak</option>
+                <option value="lock">Kunci</option>
               </select>
             </Field>
             <Field label="Alasan audit">
@@ -1091,6 +1167,8 @@ export function MeteringWorkspace() {
                 <p>Route ID: {readingQuery.data.routeId}</p>
                 <p>Dibaca: {formatDateTime(readingQuery.data.readAt)}</p>
                 <p>Anomali: {readingQuery.data.anomalyFlag ? readingQuery.data.anomalyReason ?? "Ya" : "Tidak"}</p>
+                <p>Import batch: {readingQuery.data.importBatchId ?? "-"}</p>
+                <p>Dikunci: {readingQuery.data.lockedAt ? `${formatDateTime(readingQuery.data.lockedAt)} oleh ${readingQuery.data.lockedBy ?? "-"}` : "-"}</p>
                 <p>Aksi tersedia: {readingQuery.data.availableActions.join(", ") || "-"}</p>
               </div>
             ) : null}
@@ -1198,6 +1276,85 @@ export function MeteringWorkspace() {
             Simpan Baca Meter
           </button>
         </form>
+      </Section>
+
+      <Section title="Import Offline">
+        <form className="grid gap-3 lg:grid-cols-4" onSubmit={submitImport}>
+          <Field label="Device ID">
+            <input
+              className={inputClass}
+              value={importForm.sourceDeviceId}
+              onChange={(event) => setImportForm((prev) => ({ ...prev, sourceDeviceId: event.target.value }))}
+              required
+            />
+          </Field>
+          <Field label="Batch reference">
+            <input
+              className={inputClass}
+              value={importForm.sourceBatchReference}
+              onChange={(event) => setImportForm((prev) => ({ ...prev, sourceBatchReference: event.target.value }))}
+              required
+            />
+          </Field>
+          <Field label="Rute">
+            <select
+              className={inputClass}
+              value={importForm.routeId}
+              onChange={(event) => setImportForm((prev) => ({ ...prev, routeId: event.target.value }))}
+              required
+            >
+              <option value="">Pilih rute</option>
+              {(routesQuery.data?.items ?? []).map((route) => (
+                <option key={route.id} value={route.id}>
+                  {route.routeCode} - {route.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Periode">
+            <input
+              className={inputClass}
+              placeholder="YYYY-MM"
+              value={importForm.period}
+              onChange={(event) => setImportForm((prev) => ({ ...prev, period: event.target.value }))}
+              required
+            />
+          </Field>
+          <Field label="Baris offline" className="lg:col-span-4">
+            <textarea
+              className={`${inputClass} min-h-32 font-mono`}
+              placeholder="connectionId,awal,akhir,waktu,readerId,catatan"
+              value={importForm.rowsText}
+              onChange={(event) => setImportForm((prev) => ({ ...prev, rowsText: event.target.value }))}
+              required
+            />
+          </Field>
+          <Field label="Alasan audit" className="lg:col-span-3">
+            <input
+              className={inputClass}
+              value={importForm.reason}
+              onChange={(event) => setImportForm((prev) => ({ ...prev, reason: event.target.value }))}
+              required
+            />
+          </Field>
+          <div className="flex items-end">
+            <button type="submit" className={primaryButtonClass} disabled={!authenticated || importMutation.isPending}>
+              Import Offline
+            </button>
+          </div>
+          <div className="lg:col-span-4">
+            {importParseError ? <ErrorState message={importParseError} /> : null}
+            <MutationError error={importMutation.error} fallback="Import offline gagal." />
+          </div>
+        </form>
+        {importMutation.data ? (
+          <div className="mt-5 grid gap-3 md:grid-cols-4">
+            <SummaryCard label="Rows" value={String(importMutation.data.totalRows)} helper={importMutation.data.sourceBatchReference} />
+            <SummaryCard label="Imported" value={String(importMutation.data.importedRows)} helper={importMutation.data.period} tone="success" />
+            <SummaryCard label="Skipped" value={String(importMutation.data.skippedRows)} helper="Duplikat atau dilewati." tone="warning" />
+            <SummaryCard label="Invalid" value={String(importMutation.data.invalidRows)} helper="Perlu koreksi perangkat." tone="danger" />
+          </div>
+        ) : null}
       </Section>
     </main>
   );

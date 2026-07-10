@@ -8,7 +8,7 @@ const nullableDecimalSchema = z.coerce.number().nullable();
 
 export const customerStatusValues = ["ACTIVE", "INACTIVE", "BLACKLISTED"] as const;
 export const connectionStatusValues = ["DRAFT", "ACTIVE", "SUSPENDED", "TERMINATED"] as const;
-export const meterReadingStatusValues = ["DRAFT", "SUBMITTED", "VERIFIED", "REJECTED"] as const;
+export const meterReadingStatusValues = ["DRAFT", "SUBMITTED", "VERIFIED", "REJECTED", "LOCKED"] as const;
 export const tariffVersionStatusValues = ["DRAFT", "ACTIVE", "ARCHIVED"] as const;
 export const accountTypeValues = ["ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"] as const;
 export const normalBalanceValues = ["DEBIT", "CREDIT"] as const;
@@ -88,9 +88,41 @@ export const meterReadingSchema = z.object({
   readerId: uuidSchema.nullable(),
   anomalyFlag: z.boolean(),
   anomalyReason: optionalTextSchema,
+  importBatchId: uuidSchema.nullable(),
+  sourceDeviceId: optionalTextSchema,
+  sourceRowNumber: z.number().int().positive().nullable(),
+  lockedAt: z.string().nullable(),
+  lockedBy: optionalTextSchema,
   availableActions: z.array(z.string().min(1)),
   createdAt: instantSchema,
   updatedAt: instantSchema
+});
+
+export const meterReadingImportItemStatusValues = ["IMPORTED", "SKIPPED", "INVALID"] as const;
+export const meterReadingImportItemStatusSchema = z.enum(meterReadingImportItemStatusValues);
+
+export const meterReadingImportItemSchema = z.object({
+  rowNumber: z.number().int().positive(),
+  connectionId: uuidSchema.nullable(),
+  readingId: uuidSchema.nullable(),
+  status: meterReadingImportItemStatusSchema,
+  code: z.string().min(1),
+  message: z.string().min(1)
+});
+
+export const meterReadingImportSchema = z.object({
+  batchId: uuidSchema,
+  sourceDeviceId: z.string().min(1),
+  sourceBatchReference: z.string().min(1),
+  routeId: uuidSchema,
+  period: z.string().regex(/^\d{4}-\d{2}$/),
+  totalRows: z.number().int().positive(),
+  importedRows: z.number().int().nonnegative(),
+  skippedRows: z.number().int().nonnegative(),
+  invalidRows: z.number().int().nonnegative(),
+  importedBy: z.string().min(1),
+  importedAt: instantSchema,
+  items: z.array(meterReadingImportItemSchema)
 });
 
 export const tariffVersionSchema = z.object({
@@ -197,6 +229,7 @@ export type TariffGroup = z.infer<typeof tariffGroupSchema>;
 export type Connection = z.infer<typeof connectionSchema>;
 export type MeterRoute = z.infer<typeof meterRouteSchema>;
 export type MeterReading = z.infer<typeof meterReadingSchema>;
+export type MeterReadingImport = z.infer<typeof meterReadingImportSchema>;
 export type TariffVersion = z.infer<typeof tariffVersionSchema>;
 export type TariffBlock = z.infer<typeof tariffBlockSchema>;
 export type TariffCalculation = z.infer<typeof tariffCalculationSchema>;
@@ -285,7 +318,25 @@ export type CreateMeterReadingPayload = WorkflowReasonPayload & {
   anomalyReason: string | null;
 };
 
-export type MeterReadingWorkflow = "submit" | "verify" | "reject";
+export type ImportMeterReadingRowPayload = {
+  connectionId: string;
+  previousReading: number;
+  currentReading: number;
+  readAt: string;
+  readerId: string | null;
+  anomalyFlag: boolean;
+  anomalyReason: string | null;
+};
+
+export type ImportMeterReadingsPayload = WorkflowReasonPayload & {
+  sourceDeviceId: string;
+  sourceBatchReference: string;
+  routeId: string;
+  period: string;
+  rows: ImportMeterReadingRowPayload[];
+};
+
+export type MeterReadingWorkflow = "submit" | "verify" | "reject" | "lock";
 
 export type CreateTariffVersionPayload = WorkflowReasonPayload & {
   tariffGroupId: string;

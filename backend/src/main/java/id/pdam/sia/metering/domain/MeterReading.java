@@ -48,6 +48,18 @@ public class MeterReading extends BaseEntity {
     @Column(columnDefinition = "TEXT")
     private String anomalyReason;
 
+    private UUID importBatchId;
+
+    @Column(length = 128)
+    private String sourceDeviceId;
+
+    private Integer sourceRowNumber;
+
+    private Instant lockedAt;
+
+    @Column(length = 128)
+    private String lockedBy;
+
     protected MeterReading() {
     }
 
@@ -105,6 +117,30 @@ public class MeterReading extends BaseEntity {
         status = MeterReadingStatus.REJECTED;
     }
 
+    public void lock(String actor) {
+        if (status != MeterReadingStatus.VERIFIED) {
+            throw new BusinessException("METER_READING_LOCK_INVALID", "Only verified meter reading can be locked.");
+        }
+        if (actor == null || actor.isBlank()) {
+            throw new BusinessException("METER_READING_LOCK_ACTOR_REQUIRED", "Meter reading lock actor is required.");
+        }
+        status = MeterReadingStatus.LOCKED;
+        lockedAt = Instant.now();
+        lockedBy = actor.trim();
+    }
+
+    public void markImported(UUID importBatchId, String sourceDeviceId, int sourceRowNumber) {
+        if (importBatchId == null) {
+            throw new BusinessException("METER_READING_IMPORT_BATCH_REQUIRED", "Meter reading import batch is required.");
+        }
+        if (sourceRowNumber < 1) {
+            throw new BusinessException("METER_READING_IMPORT_ROW_INVALID", "Meter reading import row number must be greater than zero.");
+        }
+        this.importBatchId = importBatchId;
+        this.sourceDeviceId = normalizeOptional(sourceDeviceId);
+        this.sourceRowNumber = sourceRowNumber;
+    }
+
     private static String require(String value, String code, String message) {
         if (value == null || value.isBlank()) {
             throw new BusinessException(code, message);
@@ -138,6 +174,13 @@ public class MeterReading extends BaseEntity {
             throw new BusinessException("METER_READING_ANOMALY_REASON_REQUIRED", "Anomaly reason is required when anomaly flag is true.");
         }
         return anomalyReason.trim();
+    }
+
+    private static String normalizeOptional(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
     }
 
     public UUID getConnectionId() {
@@ -182,5 +225,25 @@ public class MeterReading extends BaseEntity {
 
     public String getAnomalyReason() {
         return anomalyReason;
+    }
+
+    public UUID getImportBatchId() {
+        return importBatchId;
+    }
+
+    public String getSourceDeviceId() {
+        return sourceDeviceId;
+    }
+
+    public Integer getSourceRowNumber() {
+        return sourceRowNumber;
+    }
+
+    public Instant getLockedAt() {
+        return lockedAt;
+    }
+
+    public String getLockedBy() {
+        return lockedBy;
     }
 }

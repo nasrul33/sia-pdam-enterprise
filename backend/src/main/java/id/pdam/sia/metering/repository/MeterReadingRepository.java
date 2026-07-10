@@ -40,6 +40,23 @@ public interface MeterReadingRepository extends JpaRepository<MeterReading, UUID
             select reading
             from MeterReading reading
             where reading.period = :period
+              and reading.status = id.pdam.sia.metering.domain.MeterReadingStatus.LOCKED
+              and reading.routeId in (
+                  select route.id
+                  from MeterRoute route
+                  where route.areaCode = :areaCode
+              )
+            order by reading.connectionId
+            """)
+    List<MeterReading> findLockedByAreaCodeAndPeriod(
+            @Param("areaCode") String areaCode,
+            @Param("period") String period
+    );
+
+    @Query("""
+            select reading
+            from MeterReading reading
+            where reading.period = :period
               and reading.status = id.pdam.sia.metering.domain.MeterReadingStatus.VERIFIED
               and reading.routeId in (
                   select route.id

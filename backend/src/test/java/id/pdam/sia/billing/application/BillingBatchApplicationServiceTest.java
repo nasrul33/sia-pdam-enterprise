@@ -72,7 +72,7 @@ class BillingBatchApplicationServiceTest {
     );
 
     @Test
-    void generatesDraftInvoicesFromVerifiedReadingsWithIdempotencyAndAuditTrail() {
+    void generatesDraftInvoicesFromLockedReadingsWithIdempotencyAndAuditTrail() {
         UUID tariffGroupId = UUID.randomUUID();
         Connection connection = activeConnection(tariffGroupId, "SR-0001");
         MeterReading reading = verifiedReading(connection.getId(), new BigDecimal("18.500"));
@@ -86,7 +86,7 @@ class BillingBatchApplicationServiceTest {
         when(idempotencyService.reserve(eq("bill-202607-area01"), eq("BILLING_BATCH"), any(String.class), any(Instant.class)))
                 .thenReturn(idempotencyRecord);
         when(billingBatchRepository.findByPeriodAndAreaCode("2026-07", "AREA-01")).thenReturn(Optional.empty());
-        when(meterReadingRepository.findVerifiedByAreaCodeAndPeriod("AREA-01", "2026-07")).thenReturn(List.of(reading));
+        when(meterReadingRepository.findLockedByAreaCodeAndPeriod("AREA-01", "2026-07")).thenReturn(List.of(reading));
         when(connectionRepository.findById(connection.getId())).thenReturn(Optional.of(connection));
         when(invoiceRepository.existsByConnectionIdAndPeriod(connection.getId(), "2026-07")).thenReturn(false);
         when(tariffEngineApplicationService.calculate(any())).thenReturn(tariffResult(tariffGroupId, reading.getUsageM3()));
@@ -146,7 +146,7 @@ class BillingBatchApplicationServiceTest {
         );
 
         assertThat(result.batch()).isSameAs(existingBatch);
-        verify(meterReadingRepository, never()).findVerifiedByAreaCodeAndPeriod(any(), any());
+        verify(meterReadingRepository, never()).findLockedByAreaCodeAndPeriod(any(), any());
         verify(invoiceRepository, never()).save(any());
     }
 
@@ -174,7 +174,7 @@ class BillingBatchApplicationServiceTest {
     }
 
     @Test
-    void rejectsWhenNoVerifiedReadingsExistForAreaPeriod() {
+    void rejectsWhenNoLockedReadingsExistForAreaPeriod() {
         IdempotencyRecord idempotencyRecord = IdempotencyRecord.reserve(
                 "bill-202607-area01",
                 "BILLING_BATCH",
@@ -184,7 +184,7 @@ class BillingBatchApplicationServiceTest {
         when(idempotencyService.reserve(eq("bill-202607-area01"), eq("BILLING_BATCH"), any(String.class), any(Instant.class)))
                 .thenReturn(idempotencyRecord);
         when(billingBatchRepository.findByPeriodAndAreaCode("2026-07", "AREA-01")).thenReturn(Optional.empty());
-        when(meterReadingRepository.findVerifiedByAreaCodeAndPeriod("AREA-01", "2026-07")).thenReturn(List.of());
+        when(meterReadingRepository.findLockedByAreaCodeAndPeriod("AREA-01", "2026-07")).thenReturn(List.of());
 
         assertThatThrownBy(() -> service.generateBatch(
                 new GenerateBillingBatchRequest("2026-07", "AREA-01", BILLING_DATE, DUE_DATE, "kosong"),
@@ -192,7 +192,7 @@ class BillingBatchApplicationServiceTest {
                 "billing.admin"
         ))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("No verified meter readings");
+                .hasMessageContaining("No locked meter readings");
     }
 
     @Test
@@ -209,7 +209,7 @@ class BillingBatchApplicationServiceTest {
         when(idempotencyService.reserve(eq("bill-202607-area01"), eq("BILLING_BATCH"), any(String.class), any(Instant.class)))
                 .thenReturn(idempotencyRecord);
         when(billingBatchRepository.findByPeriodAndAreaCode("2026-07", "AREA-01")).thenReturn(Optional.empty());
-        when(meterReadingRepository.findVerifiedByAreaCodeAndPeriod("AREA-01", "2026-07")).thenReturn(List.of(reading));
+        when(meterReadingRepository.findLockedByAreaCodeAndPeriod("AREA-01", "2026-07")).thenReturn(List.of(reading));
         when(connectionRepository.findById(connection.getId())).thenReturn(Optional.of(connection));
         when(invoiceRepository.existsByConnectionIdAndPeriod(connection.getId(), "2026-07")).thenReturn(true);
 
@@ -462,6 +462,7 @@ class BillingBatchApplicationServiceTest {
         );
         reading.submit();
         reading.verify();
+        reading.lock("meter.spv");
         return reading;
     }
 

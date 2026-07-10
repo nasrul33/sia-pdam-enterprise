@@ -3,12 +3,17 @@ package id.pdam.sia.metering.application;
 import id.pdam.sia.connection.domain.Connection;
 import id.pdam.sia.connection.repository.ConnectionRepository;
 import id.pdam.sia.metering.domain.MeterReading;
+import id.pdam.sia.metering.domain.MeterReadingImportItemStatus;
 import id.pdam.sia.metering.domain.MeterReadingStatus;
 import id.pdam.sia.metering.domain.MeterRoute;
+import id.pdam.sia.metering.repository.MeterReadingImportBatchRepository;
+import id.pdam.sia.metering.repository.MeterReadingImportItemRepository;
 import id.pdam.sia.metering.repository.MeterReadingRepository;
 import id.pdam.sia.metering.repository.MeterRouteRepository;
 import id.pdam.sia.metering.web.CreateMeterReadingRequest;
 import id.pdam.sia.metering.web.CreateMeterRouteRequest;
+import id.pdam.sia.metering.web.ImportMeterReadingRowRequest;
+import id.pdam.sia.metering.web.ImportMeterReadingsRequest;
 import id.pdam.sia.shared.audit.AuditTrailService;
 import id.pdam.sia.shared.exception.BusinessException;
 import org.junit.jupiter.api.Test;
@@ -16,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -31,12 +37,16 @@ class MeteringApplicationServiceTest {
 
     private final MeterRouteRepository meterRouteRepository = mock(MeterRouteRepository.class);
     private final MeterReadingRepository meterReadingRepository = mock(MeterReadingRepository.class);
+    private final MeterReadingImportBatchRepository meterReadingImportBatchRepository = mock(MeterReadingImportBatchRepository.class);
+    private final MeterReadingImportItemRepository meterReadingImportItemRepository = mock(MeterReadingImportItemRepository.class);
     private final ConnectionRepository connectionRepository = mock(ConnectionRepository.class);
     private final AuditTrailService auditTrailService = mock(AuditTrailService.class);
 
     private final MeteringApplicationService service = new MeteringApplicationService(
             meterRouteRepository,
             meterReadingRepository,
+            meterReadingImportBatchRepository,
+            meterReadingImportItemRepository,
             connectionRepository,
             auditTrailService
     );
@@ -193,8 +203,11 @@ class MeteringApplicationServiceTest {
         service.rejectReading(reading.getId(), "foto buram", "meter.spv");
         service.submitReading(reading.getId(), "kirim ulang", "meter.reader");
         service.verifyReading(reading.getId(), "valid", "meter.spv");
+        service.lockReading(reading.getId(), "kunci untuk billing", "meter.spv");
 
-        assertThat(reading.getStatus()).isEqualTo(MeterReadingStatus.VERIFIED);
+        assertThat(reading.getStatus()).isEqualTo(MeterReadingStatus.LOCKED);
+        assertThat(reading.getLockedAt()).isNotNull();
+        assertThat(reading.getLockedBy()).isEqualTo("meter.spv");
         verify(auditTrailService).record(
                 "meter.reader",
                 "METERING",
@@ -223,6 +236,13 @@ class MeteringApplicationServiceTest {
                 reading.getId().toString(),
                 "valid"
         );
+        verify(auditTrailService).record(
+                "meter.spv",
+                "METERING",
+                "LOCK_METER_READING",
+                reading.getId().toString(),
+                "kunci untuk billing"
+        );
     }
 
     @Test
@@ -235,12 +255,126 @@ class MeteringApplicationServiceTest {
                 .hasMessageContaining("Only submitted");
     }
 
+    @Test
+    void rejectsLockForUnverifiedReading() {
+        MeterReading reading = reading();
+        when(meterReadingRepository.findById(reading.getId())).thenReturn(Optional.of(reading));
+
+        assertThatThrownBy(() -> service.lockReading(reading.getId(), "lock draft", "meter.spv"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("Only verified");
+    }
+
+    @Test
+    void importsOfflineRowsWithImportedSkippedAndInvalidResultItems() {
+        Connection importedConnection = activeConnection("SR-0001");
+        UUID duplicateConnectionId = UUID.randomUUID();
+        UUID invalidConnectionId = UUID.randomUUID();
+        UUID unknownConnectionId = UUID.randomUUID();
+        UUID routeId = UUID.randomUUID();
+
+        when(meterRouteRepository.existsById(routeId)).thenReturn(true);
+        when(meterReadingImportBatchRepository.findBySourceBatchReference("DEVICE-01-202607"))
+                .thenReturn(Optional.empty());
+        when(meterReadingImportBatchRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(meterReadingImportItemRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(meterReadingImportItemRepository.findByBatchIdOrderByRowNumberAsc(any()))
+                .thenAnswer(invocation -> List.of());
+        when(meterReadingRepository.existsByConnectionIdAndPeriod(importedConnection.getId(), "2026-07")).thenReturn(false);
+        when(meterReadingRepository.existsByConnectionIdAndPeriod(duplicateConnectionId, "2026-07")).thenReturn(true);
+        when(meterReadingRepository.existsByConnectionIdAndPeriod(invalidConnectionId, "2026-07")).thenReturn(false);
+        when(meterReadingRepository.existsByConnectionIdAndPeriod(unknownConnectionId, "2026-07")).thenReturn(false);
+        when(connectionRepository.findById(importedConnection.getId())).thenReturn(Optional.of(importedConnection));
+        when(connectionRepository.findById(invalidConnectionId)).thenReturn(Optional.of(activeConnection("SR-0003")));
+        when(connectionRepository.findById(unknownConnectionId)).thenReturn(Optional.empty());
+        when(meterReadingRepository.save(any(MeterReading.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MeteringApplicationService.MeterReadingImportResult result = service.importOfflineReadings(
+                new ImportMeterReadingsRequest(
+                        "DEVICE-01",
+                        "DEVICE-01-202607",
+                        routeId,
+                        "2026-07",
+                        List.of(
+                                new ImportMeterReadingRowRequest(
+                                        importedConnection.getId(),
+                                        new BigDecimal("10.000"),
+                                        new BigDecimal("15.500"),
+                                        READ_AT,
+                                        null,
+                                        false,
+                                        null
+                                ),
+                                new ImportMeterReadingRowRequest(
+                                        duplicateConnectionId,
+                                        BigDecimal.ZERO,
+                                        BigDecimal.TEN,
+                                        READ_AT,
+                                        null,
+                                        false,
+                                        null
+                                ),
+                                new ImportMeterReadingRowRequest(
+                                        invalidConnectionId,
+                                        new BigDecimal("20.000"),
+                                        new BigDecimal("10.000"),
+                                        READ_AT,
+                                        null,
+                                        false,
+                                        null
+                                ),
+                                new ImportMeterReadingRowRequest(
+                                        unknownConnectionId,
+                                        BigDecimal.ZERO,
+                                        BigDecimal.TEN,
+                                        READ_AT,
+                                        null,
+                                        false,
+                                        null
+                                )
+                        ),
+                        "sync offline device"
+                ),
+                "meter.reader"
+        );
+
+        assertThat(result.batch().getTotalRows()).isEqualTo(4);
+        assertThat(result.batch().getImportedRows()).isEqualTo(1);
+        assertThat(result.batch().getSkippedRows()).isEqualTo(1);
+        assertThat(result.batch().getInvalidRows()).isEqualTo(2);
+        verify(meterReadingImportItemRepository).save(org.mockito.ArgumentMatchers.argThat(item ->
+                item.getStatus() == MeterReadingImportItemStatus.IMPORTED && item.getRowNumber() == 1
+        ));
+        verify(meterReadingImportItemRepository).save(org.mockito.ArgumentMatchers.argThat(item ->
+                item.getStatus() == MeterReadingImportItemStatus.SKIPPED && item.getRowNumber() == 2
+        ));
+        verify(meterReadingImportItemRepository).save(org.mockito.ArgumentMatchers.argThat(item ->
+                item.getStatus() == MeterReadingImportItemStatus.INVALID && item.getRowNumber() == 3
+        ));
+        verify(meterReadingImportItemRepository).save(org.mockito.ArgumentMatchers.argThat(item ->
+                item.getStatus() == MeterReadingImportItemStatus.INVALID
+                        && item.getRowNumber() == 4
+                        && "CONNECTION_NOT_FOUND".equals(item.getCode())
+        ));
+        verify(auditTrailService).record(
+                org.mockito.ArgumentMatchers.eq("meter.reader"),
+                org.mockito.ArgumentMatchers.eq("METERING"),
+                org.mockito.ArgumentMatchers.eq("IMPORT_OFFLINE_METER_READINGS"),
+                org.mockito.ArgumentMatchers.eq(result.batch().getId().toString()),
+                org.mockito.ArgumentMatchers.contains("imported=1;skipped=1;invalid=2")
+        );
+    }
+
     private static Connection activeConnection() {
+        return activeConnection("SR-0001");
+    }
+
+    private static Connection activeConnection(String connectionNumber) {
         Connection connection = new Connection(
                 UUID.randomUUID(),
                 UUID.randomUUID(),
-                "SR-0001",
-                "MTR-0001",
+                connectionNumber,
+                "MTR-" + connectionNumber,
                 LocalDate.of(2026, 7, 5)
         );
         connection.activate();

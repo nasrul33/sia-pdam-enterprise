@@ -14,6 +14,7 @@ import {
   getCustomer,
   getMeterReading,
   getMeterRoute,
+  importMeterReadings,
   getReceivableAgingSnapshot,
   getReceivableAgingSnapshotByPeriod,
   getTariffVersion,
@@ -37,6 +38,7 @@ import type {
   CreateCustomerPayload,
   CreateMeterReadingPayload,
   CreateMeterRoutePayload,
+  ImportMeterReadingsPayload,
   CreateTariffBlockPayload,
   CreateTariffGroupPayload,
   CreateTariffVersionPayload,
@@ -181,6 +183,16 @@ export function useCreateMeterReading() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (payload: CreateMeterReadingPayload) => createMeterReading(payload),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.meterReadings });
+    }
+  });
+}
+
+export function useImportMeterReadings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: ImportMeterReadingsPayload) => importMeterReadings(payload),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.meterReadings });
     }

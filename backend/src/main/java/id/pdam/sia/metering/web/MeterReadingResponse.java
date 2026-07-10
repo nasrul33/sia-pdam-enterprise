@@ -21,6 +21,11 @@ public record MeterReadingResponse(
         UUID readerId,
         boolean anomalyFlag,
         String anomalyReason,
+        UUID importBatchId,
+        String sourceDeviceId,
+        Integer sourceRowNumber,
+        Instant lockedAt,
+        String lockedBy,
         List<String> availableActions,
         Instant createdAt,
         Instant updatedAt
@@ -39,6 +44,11 @@ public record MeterReadingResponse(
                 reading.getReaderId(),
                 reading.isAnomalyFlag(),
                 reading.getAnomalyReason(),
+                reading.getImportBatchId(),
+                reading.getSourceDeviceId(),
+                reading.getSourceRowNumber(),
+                reading.getLockedAt(),
+                reading.getLockedBy(),
                 availableActions(reading),
                 reading.getCreatedAt(),
                 reading.getUpdatedAt()
@@ -49,7 +59,8 @@ public record MeterReadingResponse(
         return switch (reading.getStatus()) {
             case DRAFT, REJECTED -> List.of("submit");
             case SUBMITTED -> List.of("verify", "reject");
-            case VERIFIED -> List.of();
+            case VERIFIED -> List.of("lock");
+            case LOCKED -> List.of();
         };
     }
 }

@@ -78,6 +78,16 @@ public class MeteringController {
         return MeterReadingResponse.from(meteringApplicationService.createReading(request, actor(principal)));
     }
 
+    @PostMapping("/meter-readings/offline-import")
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("isAuthenticated()")
+    public MeterReadingImportResponse importOfflineReadings(
+            @Valid @RequestBody ImportMeterReadingsRequest request,
+            Principal principal
+    ) {
+        return MeterReadingImportResponse.from(meteringApplicationService.importOfflineReadings(request, actor(principal)));
+    }
+
     @PostMapping("/meter-readings/{readingId}/submit")
     @PreAuthorize("isAuthenticated()")
     public MeterReadingResponse submitReading(
@@ -111,6 +121,18 @@ public class MeteringController {
     ) {
         return MeterReadingResponse.from(
                 meteringApplicationService.rejectReading(readingId, request.reason(), actor(principal))
+        );
+    }
+
+    @PostMapping("/meter-readings/{readingId}/lock")
+    @PreAuthorize("isAuthenticated()")
+    public MeterReadingResponse lockReading(
+            @PathVariable UUID readingId,
+            @Valid @RequestBody MeteringWorkflowRequest request,
+            Principal principal
+    ) {
+        return MeterReadingResponse.from(
+                meteringApplicationService.lockReading(readingId, request.reason(), actor(principal))
         );
     }
 

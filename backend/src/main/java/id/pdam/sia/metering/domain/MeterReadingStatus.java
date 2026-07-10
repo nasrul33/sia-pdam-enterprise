@@ -4,5 +4,6 @@ public enum MeterReadingStatus {
     DRAFT,
     SUBMITTED,
     VERIFIED,
-    REJECTED
+    REJECTED,
+    LOCKED
 }
