@@ -56,6 +56,7 @@ Baseline parity sudah ditambahkan untuk gap besar blueprint:
 - `BP-OPS-001`: app settings backend dan frontend.
 - `BP-MTR-001`: offline meter reading import batch, row-level imported/skipped/invalid result, source device trace, explicit `LOCKED` reading workflow, dan billing generation dari locked readings only.
 - Customer/Connection blueprint gap: connection request workflow dan customer history read surface.
+- DevOps CI parity: GitHub Actions now runs frontend permission/workspace model tests and Docker Compose route smoke for backend health, anonymous auth state, Flyway no-failure history, and all baseline frontend routes.
 - Focused backend regression tests sudah ditambahkan untuk AP posting/settlement, asset depreciation, journal reversal, closing entry, opening balance duplicate guard, bank mutation import/reconcile, installment plan, dunning, allowance delegation, dan audit-chain verification.
 
 Frontend parity route yang ditambahkan:
@@ -79,6 +80,6 @@ Frontend parity route yang ditambahkan:
 
 ## Immediate Next Adoption Targets
 
-1. DevOpsAgent: add CI coverage for blueprint baseline routes and Docker Compose smoke targets.
-2. TestingAgent: add DB-backed migration/constraint tests for V22/V23 tables when a dedicated integration-test database gate is introduced.
-3. DatabaseAgent: review blueprint performance indexes against current PostgreSQL schema after the V23 metering import/lock migration.
+1. TestingAgent: add DB-backed migration/constraint tests for V22/V23 tables when a dedicated integration-test database gate is introduced.
+2. DatabaseAgent: review blueprint performance indexes against current PostgreSQL schema after the V23 metering import/lock migration.
+3. DevOpsAgent: add deployment backup/rollback and observability runbook for production release hardening.
