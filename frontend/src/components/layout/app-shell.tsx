@@ -66,7 +66,13 @@ const navSections: NavSection[] = [
       { label: "AP Payables", href: "/accounting/payables", icon: Banknote, description: "Utang usaha" },
       { label: "Aset Tetap", href: "/accounting/assets", icon: BookOpenCheck, description: "Depresiasi" },
       { label: "Neraca Saldo", href: "/reports/trial-balance", icon: ClipboardList, description: "Laporan posted" },
-      { label: "Laporan Keuangan", href: "/reports/financial-statements", icon: ClipboardList, description: "FS & tax recap" },
+      { label: "Laporan Keuangan", href: "/reports/financial-statements", icon: ClipboardList, description: "FS & tax recap" }
+    ]
+  },
+  {
+    title: "Administrasi",
+    items: [
+      { label: "Pengguna", href: "/admin/users", icon: UsersRound, description: "User dan role" },
       { label: "Settings", href: "/admin/settings", icon: Settings, description: "Parameter sistem" }
     ]
   }

@@ -16,5 +16,7 @@ export const queryKeys = {
   payments: ["payments"] as const,
   collectionActions: ["collection-actions"] as const,
   receivableAgingSnapshots: ["receivable-aging-snapshots"] as const,
-  reports: ["reports"] as const
+  reports: ["reports"] as const,
+  adminUsers: ["admin-users"] as const,
+  adminRoles: ["admin-roles"] as const
 };

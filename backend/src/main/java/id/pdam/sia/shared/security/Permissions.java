@@ -62,6 +62,9 @@ public final class Permissions {
     public static final String TARIFF_CALCULATE = "hasAuthority('tariff.calculate')";
     public static final String RECEIVABLE_AGING_READ = "hasAuthority('receivable-aging.read')";
     public static final String RECEIVABLE_AGING_GENERATE = "hasAuthority('receivable-aging.generate')";
+    public static final String USER_READ = "hasAuthority('user.read')";
+    public static final String USER_MANAGE = "hasAuthority('user.manage')";
+    public static final String ROLE_MANAGE = "hasAuthority('role.manage')";
 
     private Permissions() {
     }

@@ -107,6 +107,20 @@ export async function apiPost<TRequest, TResponse>(path: string, body: TRequest,
   });
 }
 
+export async function apiPatch<TRequest, TResponse>(path: string, body: TRequest): Promise<TResponse> {
+  return apiRequest<TResponse>(path, {
+    method: "PATCH",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function apiPut<TRequest, TResponse>(path: string, body: TRequest): Promise<TResponse> {
+  return apiRequest<TResponse>(path, {
+    method: "PUT",
+    body: JSON.stringify(body)
+  });
+}
+
 export function apiErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof ApiClientError) {
     return error.message;

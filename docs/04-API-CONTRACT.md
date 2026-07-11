@@ -32,6 +32,17 @@
 
 This endpoint is for UI visibility only. Backend permission checks remain authoritative on command endpoints.
 
+## User and Role Administration
+
+| Method | Endpoint | Purpose | Permission |
+|---|---|---|---|
+| GET | /api/admin/users | search and page users with roles, authorities, and identity status | user.read |
+| GET | /api/admin/roles | list role catalog and permission codes | user.read |
+| PATCH | /api/admin/users/{userId}/status | enable or disable a user | user.manage |
+| PUT | /api/admin/users/{userId}/roles | atomically replace user role assignments | role.manage |
+
+Status and role mutations require a non-empty `reason`. A user cannot disable their own account. Any status change to an account holding `super-admin`, or any addition/removal of that role, also requires the actor to be an enabled super-admin. Row locking prevents concurrent requests from removing or disabling the final enabled super-admin. Local mode reports `identityProviderStatus=LOCAL_ONLY`; production IdP synchronization uses the same application port and must complete inside the transaction boundary or fail the mutation.
+
 ## Accounting
 
 | Method | Endpoint | Purpose | Permission |
