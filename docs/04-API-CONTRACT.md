@@ -103,6 +103,8 @@ Meter reading creation requires active connection, existing route, valid `yyyy-M
 
 Tariff activation requires sequential contiguous blocks starting at `0.000` m3 and ending with one unbounded final block. Calculation uses the latest `ACTIVE` tariff version with `effectiveDate <= billingDate`.
 
+Tariff versions snapshot non-air components through `fixedCharge`, `levyCharge`, `adminCharge`, `wasteCharge`, and `penaltyRate` (decimal `0..1`). `POST /api/tariff-calculations` accepts `outstandingAmount`; the response separates `usageCharge`, every non-air component, `penaltyCharge`, `subtotal` (before penalty), and `total` (including penalty). Billing batch generation applies the penalty rate to prior issued or partially paid outstanding for the same connection.
+
 ## Billing Batch
 
 | Method | Endpoint | Purpose | Permission |
@@ -122,11 +124,13 @@ Tariff activation requires sequential contiguous blocks starting at `0.000` m3 a
 {
   "receivableAccountId": "00000000-0000-0000-0000-000000000000",
   "revenueAccountId": "00000000-0000-0000-0000-000000000000",
+  "nonAirRevenueAccountId": "00000000-0000-0000-0000-000000000000",
+  "penaltyRevenueAccountId": "00000000-0000-0000-0000-000000000000",
   "reason": "issue invoice"
 }
 ```
 
-Invoice issue is allowed only from `DRAFT`, and `reason` is mandatory for audit trail. The accounting period matching invoice `period` must exist and allow posting. Accounting validates receivable account type `ASSET`, revenue account type `REVENUE`, creates a source-traceable journal (`sourceModule=BILLING`, `sourceRecordId=invoiceId`, `sourceDocumentNumber=invoiceNumber`), blocks duplicate source journals, posts through `PostingService`, materializes ledger entries, then links `invoices.issue_journal_entry_id` and changes invoice status to `ISSUED`.
+Invoice issue is allowed only from `DRAFT`, and `reason` is mandatory for audit trail. The accounting period matching invoice `period` must exist and allow posting. Accounting validates the receivable account as `ASSET` and every positive revenue component account as `REVENUE`. The posted journal debits receivables for invoice total and credits water, non-air, and penalty revenue separately; component credits must exactly equal the debit. The source-traceable journal (`sourceModule=BILLING`, `sourceRecordId=invoiceId`, `sourceDocumentNumber=invoiceNumber`) is protected against duplicate source posting, materialized to ledger, linked through `invoices.issue_journal_entry_id`, and the invoice moves to `ISSUED`.
 
 ## Payment Webhook
 

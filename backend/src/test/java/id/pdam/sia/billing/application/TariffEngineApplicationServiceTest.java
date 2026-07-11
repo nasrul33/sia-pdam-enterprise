@@ -208,6 +208,47 @@ class TariffEngineApplicationServiceTest {
     }
 
     @Test
+    void calculationIncludesNonAirComponentsAndPenaltyOnPriorOutstanding() {
+        UUID tariffGroupId = UUID.randomUUID();
+        TariffVersion version = new TariffVersion(
+                tariffGroupId,
+                LocalDate.of(2026, 7, 1),
+                new BigDecimal("5000.00"),
+                new BigDecimal("2000.00"),
+                new BigDecimal("2500.00"),
+                new BigDecimal("3000.00"),
+                new BigDecimal("0.050000")
+        );
+        version.activate();
+
+        when(tariffVersionRepository.findFirstByTariffGroupIdAndStatusAndEffectiveDateLessThanEqualOrderByEffectiveDateDesc(
+                tariffGroupId,
+                TariffVersionStatus.ACTIVE,
+                LocalDate.of(2026, 7, 31)
+        )).thenReturn(Optional.of(version));
+        when(tariffBlockRepository.findByTariffVersionIdOrderByBlockOrderAsc(version.getId())).thenReturn(List.of(
+                block(version.getId(), 1, "0.000", "10.000", "1000.00"),
+                block(version.getId(), 2, "10.000", null, "2000.00")
+        ));
+
+        TariffCalculationResult result = service.calculate(new CalculateTariffRequest(
+                tariffGroupId,
+                LocalDate.of(2026, 7, 31),
+                new BigDecimal("15.000"),
+                new BigDecimal("30000.00")
+        ));
+
+        assertThat(result.usageCharge()).isEqualTo(Money.of("20000.00"));
+        assertThat(result.fixedCharge()).isEqualTo(Money.of("5000.00"));
+        assertThat(result.levyCharge()).isEqualTo(Money.of("2000.00"));
+        assertThat(result.adminCharge()).isEqualTo(Money.of("2500.00"));
+        assertThat(result.wasteCharge()).isEqualTo(Money.of("3000.00"));
+        assertThat(result.penaltyCharge()).isEqualTo(Money.of("1500.00"));
+        assertThat(result.subtotal()).isEqualTo(Money.of("32500.00"));
+        assertThat(result.total()).isEqualTo(Money.of("34000.00"));
+    }
+
+    @Test
     void rejectsCalculationWhenNoActiveTariffVersionExists() {
         UUID tariffGroupId = UUID.randomUUID();
         LocalDate billingDate = LocalDate.of(2026, 7, 31);

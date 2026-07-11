@@ -30,6 +30,8 @@ export type GenerateBillingBatchDraft = {
 export type IssueInvoiceDraft = {
   receivableAccountId: string;
   revenueAccountId: string;
+  nonAirRevenueAccountId: string;
+  penaltyRevenueAccountId: string;
   reason: string;
 };
 
@@ -153,10 +155,14 @@ export function generateBillingBatchErrors(input: GenerateBillingBatchDraft): st
 export function issueInvoiceErrors(input: {
   draft: IssueInvoiceDraft;
   accounts: readonly Account[];
+  invoice: Pick<Invoice, "fixedCharge" | "levyCharge" | "adminCharge" | "wasteCharge" | "penaltyAmount">;
 }): string[] {
   const errors: string[] = [];
   const receivableAccount = input.accounts.find((account) => account.id === input.draft.receivableAccountId);
   const revenueAccount = input.accounts.find((account) => account.id === input.draft.revenueAccountId);
+  const nonAirRevenueAccount = input.accounts.find((account) => account.id === input.draft.nonAirRevenueAccountId);
+  const penaltyRevenueAccount = input.accounts.find((account) => account.id === input.draft.penaltyRevenueAccountId);
+  const nonAirAmount = input.invoice.fixedCharge + input.invoice.levyCharge + input.invoice.adminCharge + input.invoice.wasteCharge;
 
   if (!receivableAccount) {
     errors.push("Akun piutang wajib dipilih.");
@@ -165,9 +171,21 @@ export function issueInvoiceErrors(input: {
   }
 
   if (!revenueAccount) {
-    errors.push("Akun pendapatan wajib dipilih.");
+    errors.push("Akun pendapatan air wajib dipilih.");
   } else if (revenueAccount.type !== "REVENUE") {
-    errors.push("Akun pendapatan wajib bertipe pendapatan.");
+    errors.push("Akun pendapatan air wajib bertipe pendapatan.");
+  }
+
+  if (nonAirAmount > 0 && !nonAirRevenueAccount) {
+    errors.push("Akun pendapatan non-air wajib dipilih.");
+  } else if (nonAirAmount > 0 && nonAirRevenueAccount?.type !== "REVENUE") {
+    errors.push("Akun pendapatan non-air wajib bertipe pendapatan.");
+  }
+
+  if (input.invoice.penaltyAmount > 0 && !penaltyRevenueAccount) {
+    errors.push("Akun pendapatan denda wajib dipilih.");
+  } else if (input.invoice.penaltyAmount > 0 && penaltyRevenueAccount?.type !== "REVENUE") {
+    errors.push("Akun pendapatan denda wajib bertipe pendapatan.");
   }
 
   if (!input.draft.reason.trim()) {

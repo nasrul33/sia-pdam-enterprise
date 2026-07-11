@@ -83,7 +83,10 @@ public class TariffEngineApplicationService {
             throw new BusinessException("TARIFF_VERSION_EFFECTIVE_DATE_DUPLICATE", "Tariff version effective date already exists.");
         }
 
-        TariffVersion version = tariffVersionRepository.save(new TariffVersion(request.tariffGroupId(), request.effectiveDate()));
+        TariffVersion version = tariffVersionRepository.save(new TariffVersion(
+                request.tariffGroupId(), request.effectiveDate(), request.fixedCharge(), request.levyCharge(),
+                request.adminCharge(), request.wasteCharge(), request.penaltyRate()
+        ));
         auditTrailService.record(actor, "BILLING", "CREATE_TARIFF_VERSION", version.getId().toString(), request.reason());
         return version;
     }
@@ -141,9 +144,21 @@ public class TariffEngineApplicationService {
         List<TariffBlock> blocks = tariffBlockRepository.findByTariffVersionIdOrderByBlockOrderAsc(version.getId());
         validateBlocks(blocks);
         List<TariffCalculationLine> lines = calculateLines(usageM3, blocks);
-        Money subtotal = lines.stream()
+        Money usageCharge = lines.stream()
                 .map(TariffCalculationLine::amount)
                 .reduce(Money.zero(), Money::add);
+        Money fixedCharge = Money.of(version.getFixedCharge(), CurrencyCode.IDR);
+        Money levyCharge = Money.of(version.getLevyCharge(), CurrencyCode.IDR);
+        Money adminCharge = Money.of(version.getAdminCharge(), CurrencyCode.IDR);
+        Money wasteCharge = Money.of(version.getWasteCharge(), CurrencyCode.IDR);
+        BigDecimal outstanding = requireNonNegative(
+                request.outstandingAmount() == null ? BigDecimal.ZERO : request.outstandingAmount(),
+                "TARIFF_OUTSTANDING_REQUIRED",
+                "Outstanding amount is required."
+        );
+        Money penaltyCharge = Money.of(outstanding, CurrencyCode.IDR).multiply(version.getPenaltyRate());
+        Money subtotal = usageCharge.add(fixedCharge).add(levyCharge).add(adminCharge).add(wasteCharge);
+        Money total = subtotal.add(penaltyCharge);
 
         return new TariffCalculationResult(
                 version.getId(),
@@ -152,7 +167,14 @@ public class TariffEngineApplicationService {
                 request.billingDate(),
                 usageM3.stripTrailingZeros(),
                 List.copyOf(lines),
-                subtotal
+                usageCharge,
+                fixedCharge,
+                levyCharge,
+                adminCharge,
+                wasteCharge,
+                penaltyCharge,
+                subtotal,
+                total
         );
     }
 

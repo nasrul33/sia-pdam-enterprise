@@ -5,6 +5,7 @@ import id.pdam.sia.billing.domain.TariffVersionStatus;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
@@ -12,6 +13,11 @@ public record TariffVersionResponse(
         UUID id,
         UUID tariffGroupId,
         LocalDate effectiveDate,
+        BigDecimal fixedCharge,
+        BigDecimal levyCharge,
+        BigDecimal adminCharge,
+        BigDecimal wasteCharge,
+        BigDecimal penaltyRate,
         TariffVersionStatus status,
         List<String> availableActions,
         Instant createdAt,
@@ -22,6 +28,11 @@ public record TariffVersionResponse(
                 version.getId(),
                 version.getTariffGroupId(),
                 version.getEffectiveDate(),
+                version.getFixedCharge(),
+                version.getLevyCharge(),
+                version.getAdminCharge(),
+                version.getWasteCharge(),
+                version.getPenaltyRate(),
                 version.getStatus(),
                 availableActions(version),
                 version.getCreatedAt(),

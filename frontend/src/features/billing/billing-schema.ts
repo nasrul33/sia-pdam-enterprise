@@ -23,6 +23,11 @@ export const invoiceSchema = z.object({
   invoiceNumber: z.string().min(1),
   period: z.string().regex(/^\d{4}-\d{2}$/),
   status: invoiceStatusSchema,
+  usageCharge: z.coerce.number().nonnegative(),
+  fixedCharge: z.coerce.number().nonnegative(),
+  levyCharge: z.coerce.number().nonnegative(),
+  adminCharge: z.coerce.number().nonnegative(),
+  wasteCharge: z.coerce.number().nonnegative(),
   subtotal: z.coerce.number().nonnegative(),
   penaltyAmount: z.coerce.number().nonnegative(),
   paidAmount: z.coerce.number().nonnegative(),
@@ -63,6 +68,11 @@ export const invoiceDocumentSchema = z.object({
     meterNumber: z.string().min(1)
   }),
   lines: z.array(invoiceDocumentLineSchema),
+  usageCharge: z.coerce.number().nonnegative(),
+  fixedCharge: z.coerce.number().nonnegative(),
+  levyCharge: z.coerce.number().nonnegative(),
+  adminCharge: z.coerce.number().nonnegative(),
+  wasteCharge: z.coerce.number().nonnegative(),
   subtotal: z.coerce.number().nonnegative(),
   penaltyAmount: z.coerce.number().nonnegative(),
   paidAmount: z.coerce.number().nonnegative(),
@@ -146,6 +156,8 @@ export type GenerateBillingBatchPayload = {
 export type IssueInvoicePayload = {
   receivableAccountId: string;
   revenueAccountId: string;
+  nonAirRevenueAccountId?: string;
+  penaltyRevenueAccountId?: string;
   reason: string;
 };
 

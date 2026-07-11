@@ -169,7 +169,16 @@ test("issueInvoiceErrors requires asset receivable and revenue accounts", () => 
       draft: {
         receivableAccountId: "asset-account",
         revenueAccountId: "liability-account",
+        nonAirRevenueAccountId: "",
+        penaltyRevenueAccountId: "",
         reason: ""
+      },
+      invoice: {
+        fixedCharge: 0,
+        levyCharge: 0,
+        adminCharge: 0,
+        wasteCharge: 0,
+        penaltyAmount: 0
       },
       accounts: [
         {
@@ -192,7 +201,50 @@ test("issueInvoiceErrors requires asset receivable and revenue accounts", () => 
         }
       ]
     }),
-    ["Akun pendapatan wajib bertipe pendapatan.", "Alasan audit wajib diisi."]
+    ["Akun pendapatan air wajib bertipe pendapatan.", "Alasan audit wajib diisi."]
+  );
+});
+
+test("issueInvoiceErrors requires component revenue accounts when invoice components are positive", () => {
+  const revenueAccount = {
+    id: "revenue-account",
+    code: "4-1100",
+    name: "Pendapatan Air",
+    type: "REVENUE" as const,
+    normalBalance: "CREDIT" as const,
+    createdAt: "2026-07-06T00:00:00Z",
+    updatedAt: "2026-07-06T00:00:00Z"
+  };
+
+  assert.deepEqual(
+    issueInvoiceErrors({
+      draft: {
+        receivableAccountId: "asset-account",
+        revenueAccountId: revenueAccount.id,
+        nonAirRevenueAccountId: "",
+        penaltyRevenueAccountId: "",
+        reason: "issue invoice"
+      },
+      invoice: {
+        fixedCharge: 5000,
+        levyCharge: 2000,
+        adminCharge: 2500,
+        wasteCharge: 3000,
+        penaltyAmount: 1500
+      },
+      accounts: [
+        {
+          ...revenueAccount,
+          id: "asset-account",
+          code: "1-1200",
+          name: "Piutang Air",
+          type: "ASSET",
+          normalBalance: "DEBIT"
+        },
+        revenueAccount
+      ]
+    }),
+    ["Akun pendapatan non-air wajib dipilih.", "Akun pendapatan denda wajib dipilih."]
   );
 });
 

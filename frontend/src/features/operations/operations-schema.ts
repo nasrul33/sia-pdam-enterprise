@@ -129,6 +129,11 @@ export const tariffVersionSchema = z.object({
   id: uuidSchema,
   tariffGroupId: uuidSchema,
   effectiveDate: z.string().min(1),
+  fixedCharge: decimalSchema,
+  levyCharge: decimalSchema,
+  adminCharge: decimalSchema,
+  wasteCharge: decimalSchema,
+  penaltyRate: decimalSchema,
   status: tariffVersionStatusSchema,
   availableActions: z.array(z.string().min(1)),
   createdAt: instantSchema,
@@ -162,7 +167,14 @@ export const tariffCalculationSchema = z.object({
   billingDate: z.string().min(1),
   usageM3: decimalSchema,
   lines: z.array(tariffCalculationLineSchema),
-  subtotal: decimalSchema
+  usageCharge: decimalSchema,
+  fixedCharge: decimalSchema,
+  levyCharge: decimalSchema,
+  adminCharge: decimalSchema,
+  wasteCharge: decimalSchema,
+  penaltyCharge: decimalSchema,
+  subtotal: decimalSchema,
+  total: decimalSchema
 });
 
 export const receivableAgingSnapshotSchema = z.object({
@@ -341,6 +353,11 @@ export type MeterReadingWorkflow = "submit" | "verify" | "reject" | "lock";
 export type CreateTariffVersionPayload = WorkflowReasonPayload & {
   tariffGroupId: string;
   effectiveDate: string;
+  fixedCharge: number;
+  levyCharge: number;
+  adminCharge: number;
+  wasteCharge: number;
+  penaltyRate: number;
 };
 
 export type CreateTariffBlockPayload = WorkflowReasonPayload & {
@@ -356,6 +373,7 @@ export type TariffCalculationPayload = {
   tariffGroupId: string;
   billingDate: string;
   usageM3: number;
+  outstandingAmount: number;
 };
 
 export type GenerateReceivableAgingSnapshotPayload = WorkflowReasonPayload & {

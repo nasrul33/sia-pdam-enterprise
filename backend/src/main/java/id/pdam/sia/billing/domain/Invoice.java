@@ -35,6 +35,21 @@ public class Invoice extends BaseEntity {
     private BigDecimal subtotal;
 
     @Column(nullable = false, precision = 19, scale = 2)
+    private BigDecimal usageCharge;
+
+    @Column(nullable = false, precision = 19, scale = 2)
+    private BigDecimal fixedCharge;
+
+    @Column(nullable = false, precision = 19, scale = 2)
+    private BigDecimal levyCharge;
+
+    @Column(nullable = false, precision = 19, scale = 2)
+    private BigDecimal adminCharge;
+
+    @Column(nullable = false, precision = 19, scale = 2)
+    private BigDecimal wasteCharge;
+
+    @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal penaltyAmount;
 
     @Column(nullable = false, precision = 19, scale = 2)
@@ -65,6 +80,23 @@ public class Invoice extends BaseEntity {
             BigDecimal subtotal,
             LocalDate dueDate
     ) {
+        this(billingBatchId, connectionId, invoiceNumber, period, subtotal, BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, dueDate);
+    }
+
+    public Invoice(
+            UUID billingBatchId,
+            UUID connectionId,
+            String invoiceNumber,
+            String period,
+            BigDecimal usageCharge,
+            BigDecimal fixedCharge,
+            BigDecimal levyCharge,
+            BigDecimal adminCharge,
+            BigDecimal wasteCharge,
+            BigDecimal penaltyAmount,
+            LocalDate dueDate
+    ) {
         if (billingBatchId == null) {
             throw new BusinessException("INVOICE_BATCH_REQUIRED", "Invoice billing batch is required.");
         }
@@ -78,10 +110,15 @@ public class Invoice extends BaseEntity {
         this.connectionId = connectionId;
         this.invoiceNumber = require(invoiceNumber, "INVOICE_NUMBER_REQUIRED", "Invoice number is required.");
         this.period = require(period, "INVOICE_PERIOD_REQUIRED", "Invoice period is required.");
-        this.subtotal = requireNonNegative(subtotal, "INVOICE_SUBTOTAL_REQUIRED", "Invoice subtotal is required.");
-        this.penaltyAmount = BigDecimal.ZERO.setScale(2);
+        this.usageCharge = requireNonNegative(usageCharge, "INVOICE_USAGE_CHARGE_REQUIRED", "Invoice usage charge is required.");
+        this.fixedCharge = requireNonNegative(fixedCharge, "INVOICE_FIXED_CHARGE_REQUIRED", "Invoice fixed charge is required.");
+        this.levyCharge = requireNonNegative(levyCharge, "INVOICE_LEVY_CHARGE_REQUIRED", "Invoice levy charge is required.");
+        this.adminCharge = requireNonNegative(adminCharge, "INVOICE_ADMIN_CHARGE_REQUIRED", "Invoice admin charge is required.");
+        this.wasteCharge = requireNonNegative(wasteCharge, "INVOICE_WASTE_CHARGE_REQUIRED", "Invoice waste charge is required.");
+        this.subtotal = this.usageCharge.add(this.fixedCharge).add(this.levyCharge).add(this.adminCharge).add(this.wasteCharge).setScale(2);
+        this.penaltyAmount = requireNonNegative(penaltyAmount, "INVOICE_PENALTY_REQUIRED", "Invoice penalty is required.");
         this.paidAmount = BigDecimal.ZERO.setScale(2);
-        this.outstandingAmount = this.subtotal;
+        this.outstandingAmount = this.subtotal.add(this.penaltyAmount).setScale(2);
         this.dueDate = dueDate;
         this.status = InvoiceStatus.DRAFT;
     }
@@ -209,6 +246,16 @@ public class Invoice extends BaseEntity {
     public BigDecimal getPenaltyAmount() {
         return penaltyAmount;
     }
+
+    public BigDecimal getUsageCharge() { return usageCharge; }
+
+    public BigDecimal getFixedCharge() { return fixedCharge; }
+
+    public BigDecimal getLevyCharge() { return levyCharge; }
+
+    public BigDecimal getAdminCharge() { return adminCharge; }
+
+    public BigDecimal getWasteCharge() { return wasteCharge; }
 
     public BigDecimal getPaidAmount() {
         return paidAmount;

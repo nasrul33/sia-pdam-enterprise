@@ -186,6 +186,30 @@ public class AccountingApplicationService {
         }
         String periodValue = normalizeAccountingPeriod(command.period());
         BigDecimal amount = requirePositiveAmount(command.amount());
+        BigDecimal waterRevenueAmount = requireNonNegativeAmount(
+                command.waterRevenueAmount(),
+                "BILLING_WATER_REVENUE_AMOUNT_REQUIRED",
+                "Billing water revenue amount is required."
+        );
+        BigDecimal nonAirRevenueAmount = requireNonNegativeAmount(
+                command.nonAirRevenueAmount(),
+                "BILLING_NON_AIR_REVENUE_AMOUNT_REQUIRED",
+                "Billing non-air revenue amount is required."
+        );
+        BigDecimal penaltyRevenueAmount = requireNonNegativeAmount(
+                command.penaltyRevenueAmount(),
+                "BILLING_PENALTY_REVENUE_AMOUNT_REQUIRED",
+                "Billing penalty revenue amount is required."
+        );
+        BigDecimal componentTotal = waterRevenueAmount
+                .add(nonAirRevenueAmount)
+                .add(penaltyRevenueAmount);
+        if (componentTotal.compareTo(amount) != 0) {
+            throw new BusinessException(
+                    "BILLING_POSTING_COMPONENT_TOTAL_MISMATCH",
+                    "Billing revenue components must equal the invoice posting amount."
+            );
+        }
         if (journalEntryRepository.existsBySourceModuleAndSourceRecordId("BILLING", command.invoiceId())) {
             throw new BusinessException(
                     "BILLING_INVOICE_JOURNAL_DUPLICATE",
@@ -195,9 +219,31 @@ public class AccountingApplicationService {
         AccountingPeriod period = accountingPeriodRepository.findByPeriod(periodValue)
                 .orElseThrow(() -> new BusinessException("ACCOUNTING_PERIOD_NOT_FOUND", "Accounting period was not found."));
         Account receivableAccount = findAccount(command.receivableAccountId());
-        Account revenueAccount = findAccount(command.revenueAccountId());
         requireAccountType(receivableAccount, AccountType.ASSET, "BILLING_RECEIVABLE_ACCOUNT_INVALID", "Billing receivable account must be an asset account.");
-        requireAccountType(revenueAccount, AccountType.REVENUE, "BILLING_REVENUE_ACCOUNT_INVALID", "Billing revenue account must be a revenue account.");
+        Account waterRevenueAccount = findRevenueAccountWhenRequired(
+                command.revenueAccountId(),
+                waterRevenueAmount,
+                "BILLING_REVENUE_ACCOUNT_REQUIRED",
+                "Billing water revenue account is required.",
+                "BILLING_REVENUE_ACCOUNT_INVALID",
+                "Billing water revenue account must be a revenue account."
+        );
+        Account nonAirRevenueAccount = findRevenueAccountWhenRequired(
+                command.nonAirRevenueAccountId(),
+                nonAirRevenueAmount,
+                "BILLING_NON_AIR_REVENUE_ACCOUNT_REQUIRED",
+                "Billing non-air revenue account is required.",
+                "BILLING_NON_AIR_REVENUE_ACCOUNT_INVALID",
+                "Billing non-air revenue account must be a revenue account."
+        );
+        Account penaltyRevenueAccount = findRevenueAccountWhenRequired(
+                command.penaltyRevenueAccountId(),
+                penaltyRevenueAmount,
+                "BILLING_PENALTY_REVENUE_ACCOUNT_REQUIRED",
+                "Billing penalty revenue account is required.",
+                "BILLING_PENALTY_REVENUE_ACCOUNT_INVALID",
+                "Billing penalty revenue account must be a revenue account."
+        );
 
         String journalNumber = billingJournalNumber(invoiceNumber);
         journalEntryRepository.findByJournalNumber(journalNumber).ifPresent(existing -> {
@@ -218,12 +264,9 @@ public class AccountingApplicationService {
                 BigDecimal.ZERO,
                 "Piutang tagihan " + invoiceNumber
         );
-        journal.addLine(
-                revenueAccount.getId(),
-                BigDecimal.ZERO,
-                amount,
-                "Pendapatan air " + invoiceNumber
-        );
+        addRevenueLine(journal, waterRevenueAccount, waterRevenueAmount, "Pendapatan air " + invoiceNumber);
+        addRevenueLine(journal, nonAirRevenueAccount, nonAirRevenueAmount, "Pendapatan non-air " + invoiceNumber);
+        addRevenueLine(journal, penaltyRevenueAccount, penaltyRevenueAmount, "Pendapatan denda " + invoiceNumber);
 
         JournalEntry saved = journalEntryRepository.save(journal);
         postingService.post(saved, period, actor, command.reason());
@@ -598,6 +641,47 @@ public class AccountingApplicationService {
             throw new BusinessException("POSTING_AMOUNT_INVALID", "Posting amount must be greater than zero.");
         }
         return normalized;
+    }
+
+    private static BigDecimal requireNonNegativeAmount(BigDecimal amount, String code, String message) {
+        if (amount == null) {
+            throw new BusinessException(code, message);
+        }
+        BigDecimal normalized = amount.setScale(2, RoundingMode.HALF_UP);
+        if (normalized.signum() < 0) {
+            throw new BusinessException("POSTING_AMOUNT_INVALID", "Posting amount must not be negative.");
+        }
+        return normalized;
+    }
+
+    private Account findRevenueAccountWhenRequired(
+            UUID accountId,
+            BigDecimal amount,
+            String requiredCode,
+            String requiredMessage,
+            String invalidCode,
+            String invalidMessage
+    ) {
+        if (amount.signum() == 0) {
+            return null;
+        }
+        if (accountId == null) {
+            throw new BusinessException(requiredCode, requiredMessage);
+        }
+        Account account = findAccount(accountId);
+        requireAccountType(account, AccountType.REVENUE, invalidCode, invalidMessage);
+        return account;
+    }
+
+    private static void addRevenueLine(
+            JournalEntry journal,
+            Account account,
+            BigDecimal amount,
+            String description
+    ) {
+        if (amount.signum() > 0) {
+            journal.addLine(account.getId(), BigDecimal.ZERO, amount, description);
+        }
     }
 
     private static String billingJournalNumber(String invoiceNumber) {

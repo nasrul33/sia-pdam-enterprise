@@ -78,6 +78,8 @@ type IssueInvoiceDraft = {
   invoice: Invoice;
   receivableAccountId: string;
   revenueAccountId: string;
+  nonAirRevenueAccountId: string;
+  penaltyRevenueAccountId: string;
   reason: string;
 };
 
@@ -635,9 +637,14 @@ function InvoiceDocumentPanel({
               <DocumentField label="Void At" value={formatDateTime(document.voidedAt)} />
             </div>
             <div className="mt-4 grid grid-cols-2 gap-3">
+              <DocumentMetric label="Pemakaian Air" value={<MoneyText value={document.usageCharge} />} />
+              <DocumentMetric label="Beban Tetap" value={<MoneyText value={document.fixedCharge} />} />
+              <DocumentMetric label="Retribusi" value={<MoneyText value={document.levyCharge} />} />
+              <DocumentMetric label="Administrasi" value={<MoneyText value={document.adminCharge} />} />
+              <DocumentMetric label="Sampah" value={<MoneyText value={document.wasteCharge} />} />
+              <DocumentMetric label="Denda" value={<MoneyText value={document.penaltyAmount} />} />
               <DocumentMetric label="Subtotal" value={<MoneyText value={document.subtotal} />} />
               <DocumentMetric label="Outstanding" value={<MoneyText value={document.outstandingAmount} />} />
-              <DocumentMetric label="Denda" value={<MoneyText value={document.penaltyAmount} />} />
               <DocumentMetric label="Dibayar" value={<MoneyText value={document.paidAmount} />} />
             </div>
           </div>
@@ -767,6 +774,8 @@ function InvoiceTable({
       invoice,
       receivableAccountId: "",
       revenueAccountId: "",
+      nonAirRevenueAccountId: "",
+      penaltyRevenueAccountId: "",
       reason: ""
     });
   }
@@ -797,9 +806,19 @@ function InvoiceTable({
     const payload: IssueInvoicePayload = {
       receivableAccountId: draft.receivableAccountId,
       revenueAccountId: draft.revenueAccountId,
+      nonAirRevenueAccountId: draft.nonAirRevenueAccountId || undefined,
+      penaltyRevenueAccountId: draft.penaltyRevenueAccountId || undefined,
       reason: normalizeInput(draft.reason)
     };
-    const errors = issueInvoiceErrors({ draft: payload, accounts });
+    const errors = issueInvoiceErrors({
+      draft: {
+        ...payload,
+        nonAirRevenueAccountId: payload.nonAirRevenueAccountId ?? "",
+        penaltyRevenueAccountId: payload.penaltyRevenueAccountId ?? ""
+      },
+      accounts,
+      invoice: draft.invoice
+    });
     if (errors.length > 0) {
       setLocalError(errors[0]);
       return;
@@ -975,14 +994,50 @@ function InvoiceTable({
               </select>
             </label>
             <label className="block">
-              <span className="text-xs font-bold uppercase text-red-800">Akun Pendapatan</span>
+              <span className="text-xs font-bold uppercase text-red-800">Pendapatan Air</span>
               <select
                 className={inputClass}
                 value={draft.revenueAccountId}
                 disabled={issueMutation.isPending}
                 onChange={(event) => setDraft((current) => (current ? { ...current, revenueAccountId: event.target.value } : current))}
               >
-                <option value="">Pilih akun pendapatan</option>
+                <option value="">Pilih akun pendapatan air</option>
+                {revenueAccounts.map((account) => (
+                  <option key={account.id} value={account.id}>
+                    {account.code} - {account.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-xs font-bold uppercase text-red-800">
+                Pendapatan Non-Air {draft.invoice.fixedCharge + draft.invoice.levyCharge + draft.invoice.adminCharge + draft.invoice.wasteCharge > 0 ? "*" : ""}
+              </span>
+              <select
+                className={inputClass}
+                value={draft.nonAirRevenueAccountId}
+                disabled={issueMutation.isPending}
+                onChange={(event) => setDraft((current) => (current ? { ...current, nonAirRevenueAccountId: event.target.value } : current))}
+              >
+                <option value="">Pilih akun pendapatan non-air</option>
+                {revenueAccounts.map((account) => (
+                  <option key={account.id} value={account.id}>
+                    {account.code} - {account.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-xs font-bold uppercase text-red-800">
+                Pendapatan Denda {draft.invoice.penaltyAmount > 0 ? "*" : ""}
+              </span>
+              <select
+                className={inputClass}
+                value={draft.penaltyRevenueAccountId}
+                disabled={issueMutation.isPending}
+                onChange={(event) => setDraft((current) => (current ? { ...current, penaltyRevenueAccountId: event.target.value } : current))}
+              >
+                <option value="">Pilih akun pendapatan denda</option>
                 {revenueAccounts.map((account) => (
                   <option key={account.id} value={account.id}>
                     {account.code} - {account.name}
@@ -1151,12 +1206,12 @@ export function BillingWorkspace() {
 
   return (
     <main className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
         <PageHeader
           title="Billing"
           description="Workspace kontrol untuk generate billing batch, invoice draft, dan issue invoice ke jurnal piutang."
         />
-        <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm">
+        <div className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm lg:w-auto">
           <div className="flex items-center gap-2 font-bold text-slate-950">
             <ShieldCheck className="size-4 text-slate-600" aria-hidden="true" />
             Billing Control

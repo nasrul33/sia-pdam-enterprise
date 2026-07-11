@@ -118,11 +118,15 @@ class AccountingApplicationServiceTest {
         AccountingPeriod period = new AccountingPeriod("2026-07");
         Account receivableAccount = new Account("1-130", "Piutang Air", AccountType.ASSET);
         Account revenueAccount = new Account("4-110", "Pendapatan Air", AccountType.REVENUE);
+        Account nonAirRevenueAccount = new Account("4-120", "Pendapatan Non-Air", AccountType.REVENUE);
+        Account penaltyRevenueAccount = new Account("4-130", "Pendapatan Denda", AccountType.REVENUE);
         UUID invoiceId = UUID.randomUUID();
 
         when(accountingPeriodRepository.findByPeriod("2026-07")).thenReturn(Optional.of(period));
         when(accountRepository.findById(receivableAccount.getId())).thenReturn(Optional.of(receivableAccount));
         when(accountRepository.findById(revenueAccount.getId())).thenReturn(Optional.of(revenueAccount));
+        when(accountRepository.findById(nonAirRevenueAccount.getId())).thenReturn(Optional.of(nonAirRevenueAccount));
+        when(accountRepository.findById(penaltyRevenueAccount.getId())).thenReturn(Optional.of(penaltyRevenueAccount));
         when(journalEntryRepository.findByJournalNumber("BIL-INV-202607-SR-0001")).thenReturn(Optional.empty());
         when(journalEntryRepository.save(any(JournalEntry.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -131,9 +135,14 @@ class AccountingApplicationServiceTest {
                         "INV-202607-SR-0001",
                         invoiceId,
                         "2026-07",
+                        new BigDecimal("60250.00"),
                         new BigDecimal("46250.00"),
+                        new BigDecimal("12500.00"),
+                        new BigDecimal("1500.00"),
                         receivableAccount.getId(),
                         revenueAccount.getId(),
+                        nonAirRevenueAccount.getId(),
+                        penaltyRevenueAccount.getId(),
                         "issue invoice"
                 ),
                 "billing.admin"
@@ -143,11 +152,16 @@ class AccountingApplicationServiceTest {
         assertThat(journal.getSourceModule()).isEqualTo("BILLING");
         assertThat(journal.getSourceRecordId()).isEqualTo(invoiceId);
         assertThat(journal.getSourceDocumentNumber()).isEqualTo("INV-202607-SR-0001");
-        assertThat(journal.getLines()).hasSize(2);
+        assertThat(journal.getLines()).hasSize(4);
         assertThat(journal.getLines().get(0).getAccountId()).isEqualTo(receivableAccount.getId());
-        assertThat(journal.getLines().get(0).getDebit()).isEqualByComparingTo("46250.00");
+        assertThat(journal.getLines().get(0).getDebit()).isEqualByComparingTo("60250.00");
         assertThat(journal.getLines().get(1).getAccountId()).isEqualTo(revenueAccount.getId());
         assertThat(journal.getLines().get(1).getCredit()).isEqualByComparingTo("46250.00");
+        assertThat(journal.getLines().get(2).getAccountId()).isEqualTo(nonAirRevenueAccount.getId());
+        assertThat(journal.getLines().get(2).getCredit()).isEqualByComparingTo("12500.00");
+        assertThat(journal.getLines().get(3).getAccountId()).isEqualTo(penaltyRevenueAccount.getId());
+        assertThat(journal.getLines().get(3).getCredit()).isEqualByComparingTo("1500.00");
+        assertThat(journal.isBalanced()).isTrue();
         verify(ledgerEntryMaterializationService).materializePostedJournal(journal);
         verify(auditTrailService).record(
                 "billing.admin",
@@ -156,6 +170,64 @@ class AccountingApplicationServiceTest {
                 journal.getId().toString(),
                 "issue invoice"
         );
+    }
+
+    @Test
+    void rejectsBillingPostingWhenRevenueComponentsDoNotMatchInvoiceAmount() {
+        assertThatThrownBy(() -> service.postBillingInvoice(
+                new BillingInvoicePostingCommand(
+                        "INV-202607-SR-0002",
+                        UUID.randomUUID(),
+                        "2026-07",
+                        new BigDecimal("60000.00"),
+                        new BigDecimal("46250.00"),
+                        new BigDecimal("12500.00"),
+                        new BigDecimal("1500.00"),
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        "issue invoice"
+                ),
+                "billing.admin"
+        ))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("components must equal");
+
+        verify(journalEntryRepository, never()).save(any(JournalEntry.class));
+    }
+
+    @Test
+    void rejectsBillingPostingWhenPositiveNonAirComponentHasNoRevenueAccount() {
+        AccountingPeriod period = new AccountingPeriod("2026-07");
+        Account receivableAccount = new Account("1-131", "Piutang Rekening", AccountType.ASSET);
+        Account waterRevenueAccount = new Account("4-111", "Pendapatan Air", AccountType.REVENUE);
+
+        when(accountingPeriodRepository.findByPeriod("2026-07")).thenReturn(Optional.of(period));
+        when(accountRepository.findById(receivableAccount.getId())).thenReturn(Optional.of(receivableAccount));
+        when(accountRepository.findById(waterRevenueAccount.getId())).thenReturn(Optional.of(waterRevenueAccount));
+
+        assertThatThrownBy(() -> service.postBillingInvoice(
+                new BillingInvoicePostingCommand(
+                        "INV-202607-SR-0003",
+                        UUID.randomUUID(),
+                        "2026-07",
+                        new BigDecimal("50000.00"),
+                        new BigDecimal("45000.00"),
+                        new BigDecimal("5000.00"),
+                        BigDecimal.ZERO,
+                        receivableAccount.getId(),
+                        waterRevenueAccount.getId(),
+                        null,
+                        null,
+                        "issue invoice"
+                ),
+                "billing.admin"
+        ))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("non-air revenue account is required");
+
+        verify(journalEntryRepository, never()).save(any(JournalEntry.class));
     }
 
     @Test

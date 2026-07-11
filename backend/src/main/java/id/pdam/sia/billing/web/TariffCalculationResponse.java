@@ -14,7 +14,14 @@ public record TariffCalculationResponse(
         LocalDate billingDate,
         BigDecimal usageM3,
         List<TariffCalculationLineResponse> lines,
-        BigDecimal subtotal
+        BigDecimal usageCharge,
+        BigDecimal fixedCharge,
+        BigDecimal levyCharge,
+        BigDecimal adminCharge,
+        BigDecimal wasteCharge,
+        BigDecimal penaltyCharge,
+        BigDecimal subtotal,
+        BigDecimal total
 ) {
     public static TariffCalculationResponse from(TariffCalculationResult result) {
         return new TariffCalculationResponse(
@@ -24,7 +31,14 @@ public record TariffCalculationResponse(
                 result.billingDate(),
                 result.usageM3(),
                 result.lines().stream().map(TariffCalculationLineResponse::from).toList(),
-                result.subtotal().amount()
+                result.usageCharge().amount(),
+                result.fixedCharge().amount(),
+                result.levyCharge().amount(),
+                result.adminCharge().amount(),
+                result.wasteCharge().amount(),
+                result.penaltyCharge().amount(),
+                result.subtotal().amount(),
+                result.total().amount()
         );
     }
 }

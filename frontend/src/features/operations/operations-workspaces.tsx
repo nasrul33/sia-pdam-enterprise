@@ -1404,14 +1404,28 @@ export function TariffWorkspace() {
   const authenticated = currentUserQuery.data?.authenticated ?? false;
   const [filters, setFilters] = useState({ page: 0, size: 10, tariffGroupId: "", status: "" });
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
-  const [versionForm, setVersionForm] = useState({ tariffGroupId: "", effectiveDate: "", reason: "" });
+  const [versionForm, setVersionForm] = useState({
+    tariffGroupId: "",
+    effectiveDate: "",
+    fixedCharge: "0",
+    levyCharge: "0",
+    adminCharge: "0",
+    wasteCharge: "0",
+    penaltyRate: "0",
+    reason: ""
+  });
   const [blockForm, setBlockForm] = useState({ blockOrder: "1", minM3: "0", maxM3: "", pricePerM3: "", reason: "" });
   const [workflowForm, setWorkflowForm] = useState<{ tariffVersionId: string; workflow: TariffVersionWorkflow; reason: string }>({
     tariffVersionId: "",
     workflow: "activate",
     reason: ""
   });
-  const [calculationForm, setCalculationForm] = useState({ tariffGroupId: "", billingDate: "", usageM3: "" });
+  const [calculationForm, setCalculationForm] = useState({
+    tariffGroupId: "",
+    billingDate: "",
+    usageM3: "",
+    outstandingAmount: "0"
+  });
 
   const tariffGroupsQuery = useTariffGroups({ page: 0, size: 100 });
   const versionsQuery = useTariffVersions({
@@ -1429,7 +1443,16 @@ export function TariffWorkspace() {
 
   function submitVersion(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    createVersionMutation.mutate(versionForm);
+    createVersionMutation.mutate({
+      tariffGroupId: versionForm.tariffGroupId,
+      effectiveDate: versionForm.effectiveDate,
+      fixedCharge: requiredNumber(versionForm.fixedCharge),
+      levyCharge: requiredNumber(versionForm.levyCharge),
+      adminCharge: requiredNumber(versionForm.adminCharge),
+      wasteCharge: requiredNumber(versionForm.wasteCharge),
+      penaltyRate: requiredNumber(versionForm.penaltyRate),
+      reason: versionForm.reason
+    });
   }
 
   function submitBlock(event: FormEvent<HTMLFormElement>) {
@@ -1463,7 +1486,8 @@ export function TariffWorkspace() {
     calculationMutation.mutate({
       tariffGroupId: calculationForm.tariffGroupId,
       billingDate: calculationForm.billingDate,
-      usageM3: requiredNumber(calculationForm.usageM3)
+      usageM3: requiredNumber(calculationForm.usageM3),
+      outstandingAmount: requiredNumber(calculationForm.outstandingAmount)
     });
   }
 
@@ -1488,9 +1512,9 @@ export function TariffWorkspace() {
           tone="success"
         />
         <SummaryCard
-          label="Subtotal Simulasi"
-          value={calculationMutation.data ? formatMoney(calculationMutation.data.subtotal) : "-"}
-          helper="Hasil kalkulasi tarif aktif."
+          label="Total Simulasi"
+          value={calculationMutation.data ? formatMoney(calculationMutation.data.total) : "-"}
+          helper="Pemakaian, biaya non-air, dan denda."
           tone="warning"
         />
       </section>
@@ -1555,6 +1579,9 @@ export function TariffWorkspace() {
                   <div>
                     <p className="font-bold text-slate-950">{formatDate(versionQuery.data.effectiveDate)}</p>
                     <p className="text-sm text-slate-600">Aksi: {versionQuery.data.availableActions.join(", ") || "-"}</p>
+                    <p className="mt-1 text-xs font-semibold text-slate-600">
+                      Tetap {formatMoney(versionQuery.data.fixedCharge)}; retribusi {formatMoney(versionQuery.data.levyCharge)}; admin {formatMoney(versionQuery.data.adminCharge)}; sampah {formatMoney(versionQuery.data.wasteCharge)}; denda {(versionQuery.data.penaltyRate * 100).toLocaleString("id-ID")}%.
+                    </p>
                   </div>
                   <StatusBadge label={versionQuery.data.status} tone={statusTone(versionQuery.data.status)} />
                 </div>
@@ -1605,6 +1632,23 @@ export function TariffWorkspace() {
                 onChange={(event) => setVersionForm((prev) => ({ ...prev, effectiveDate: event.target.value }))}
                 required
               />
+            </Field>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Beban tetap">
+                <input className={inputClass} type="number" min="0" step="0.01" value={versionForm.fixedCharge} onChange={(event) => setVersionForm((prev) => ({ ...prev, fixedCharge: event.target.value }))} required />
+              </Field>
+              <Field label="Retribusi">
+                <input className={inputClass} type="number" min="0" step="0.01" value={versionForm.levyCharge} onChange={(event) => setVersionForm((prev) => ({ ...prev, levyCharge: event.target.value }))} required />
+              </Field>
+              <Field label="Administrasi">
+                <input className={inputClass} type="number" min="0" step="0.01" value={versionForm.adminCharge} onChange={(event) => setVersionForm((prev) => ({ ...prev, adminCharge: event.target.value }))} required />
+              </Field>
+              <Field label="Sampah">
+                <input className={inputClass} type="number" min="0" step="0.01" value={versionForm.wasteCharge} onChange={(event) => setVersionForm((prev) => ({ ...prev, wasteCharge: event.target.value }))} required />
+              </Field>
+            </div>
+            <Field label="Tarif denda (desimal)">
+              <input className={inputClass} type="number" min="0" max="1" step="0.000001" value={versionForm.penaltyRate} onChange={(event) => setVersionForm((prev) => ({ ...prev, penaltyRate: event.target.value }))} required />
             </Field>
             <Field label="Alasan audit">
               <textarea
@@ -1755,10 +1799,32 @@ export function TariffWorkspace() {
                 required
               />
             </Field>
+            <Field label="Tunggakan sebelumnya">
+              <input
+                className={inputClass}
+                type="number"
+                min="0"
+                step="0.01"
+                value={calculationForm.outstandingAmount}
+                onChange={(event) => setCalculationForm((prev) => ({ ...prev, outstandingAmount: event.target.value }))}
+                required
+              />
+            </Field>
             <MutationError error={calculationMutation.error} fallback="Kalkulasi tarif gagal." />
             <button type="submit" className={secondaryButtonClass} disabled={calculationMutation.isPending}>
               Hitung Tarif
             </button>
+            {calculationMutation.data ? (
+              <div className="grid grid-cols-2 gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs font-semibold text-slate-700">
+                <span>Air</span><span className="text-right">{formatMoney(calculationMutation.data.usageCharge)}</span>
+                <span>Beban tetap</span><span className="text-right">{formatMoney(calculationMutation.data.fixedCharge)}</span>
+                <span>Retribusi</span><span className="text-right">{formatMoney(calculationMutation.data.levyCharge)}</span>
+                <span>Administrasi</span><span className="text-right">{formatMoney(calculationMutation.data.adminCharge)}</span>
+                <span>Sampah</span><span className="text-right">{formatMoney(calculationMutation.data.wasteCharge)}</span>
+                <span>Denda</span><span className="text-right">{formatMoney(calculationMutation.data.penaltyCharge)}</span>
+                <span className="font-black text-slate-950">Total</span><span className="text-right font-black text-slate-950">{formatMoney(calculationMutation.data.total)}</span>
+              </div>
+            ) : null}
           </form>
         </Section>
       </section>

@@ -8,6 +8,7 @@ import id.pdam.sia.billing.domain.BillingBatch;
 import id.pdam.sia.billing.domain.BillingBatchStatus;
 import id.pdam.sia.billing.domain.Invoice;
 import id.pdam.sia.billing.domain.InvoiceLine;
+import id.pdam.sia.billing.domain.InvoiceLineType;
 import id.pdam.sia.billing.domain.InvoiceStatus;
 import id.pdam.sia.billing.repository.BillingBatchRepository;
 import id.pdam.sia.billing.repository.InvoiceLineRepository;
@@ -105,14 +106,31 @@ class BillingBatchApplicationServiceTest {
         assertThat(result.generatedInvoices()).hasSize(1);
         assertThat(result.generatedInvoices().getFirst().getStatus()).isEqualTo(InvoiceStatus.DRAFT);
         assertThat(result.generatedInvoices().getFirst().getInvoiceNumber()).isEqualTo("INV-202607-SR-0001");
-        assertThat(result.generatedInvoices().getFirst().getSubtotal()).isEqualByComparingTo("46250.00");
-        assertThat(result.totalAmount()).isEqualTo(Money.of("46250.00"));
+        assertThat(result.generatedInvoices().getFirst().getSubtotal()).isEqualByComparingTo("58750.00");
+        assertThat(result.generatedInvoices().getFirst().getPenaltyAmount()).isEqualByComparingTo("1500.00");
+        assertThat(result.generatedInvoices().getFirst().getOutstandingAmount()).isEqualByComparingTo("60250.00");
+        assertThat(result.totalAmount()).isEqualTo(Money.of("60250.00"));
         assertThat(idempotencyRecord.isCompleted()).isTrue();
 
         ArgumentCaptor<InvoiceLine> lineCaptor = ArgumentCaptor.forClass(InvoiceLine.class);
-        verify(invoiceLineRepository).save(lineCaptor.capture());
-        assertThat(lineCaptor.getValue().getQuantity()).isEqualByComparingTo("18.500");
-        assertThat(lineCaptor.getValue().getAmount()).isEqualByComparingTo("46250.00");
+        verify(invoiceLineRepository, org.mockito.Mockito.times(6)).save(lineCaptor.capture());
+        assertThat(lineCaptor.getAllValues()).extracting(InvoiceLine::getLineType).containsExactly(
+                InvoiceLineType.WATER_USAGE,
+                InvoiceLineType.FIXED,
+                InvoiceLineType.LEVY,
+                InvoiceLineType.ADMIN,
+                InvoiceLineType.WASTE,
+                InvoiceLineType.PENALTY
+        );
+        assertThat(lineCaptor.getAllValues()).extracting(InvoiceLine::getAmount)
+                .containsExactly(
+                        new BigDecimal("46250.00"),
+                        new BigDecimal("5000.00"),
+                        new BigDecimal("2000.00"),
+                        new BigDecimal("2500.00"),
+                        new BigDecimal("3000.00"),
+                        new BigDecimal("1500.00")
+                );
         verify(auditTrailService).record(
                 "billing.admin",
                 "BILLING",
@@ -467,6 +485,13 @@ class BillingBatchApplicationServiceTest {
     }
 
     private static TariffCalculationResult tariffResult(UUID tariffGroupId, BigDecimal usageM3) {
+        Money usageCharge = Money.of(usageM3.multiply(new BigDecimal("2500.00")), CurrencyCode.IDR);
+        Money fixedCharge = Money.of("5000.00");
+        Money levyCharge = Money.of("2000.00");
+        Money adminCharge = Money.of("2500.00");
+        Money wasteCharge = Money.of("3000.00");
+        Money penaltyCharge = Money.of("1500.00");
+        Money subtotal = usageCharge.add(fixedCharge).add(levyCharge).add(adminCharge).add(wasteCharge);
         return new TariffCalculationResult(
                 UUID.randomUUID(),
                 tariffGroupId,
@@ -479,9 +504,16 @@ class BillingBatchApplicationServiceTest {
                         null,
                         usageM3,
                         new BigDecimal("2500.00"),
-                        Money.of(usageM3.multiply(new BigDecimal("2500.00")), CurrencyCode.IDR)
+                        usageCharge
                 )),
-                Money.of(usageM3.multiply(new BigDecimal("2500.00")), CurrencyCode.IDR)
+                usageCharge,
+                fixedCharge,
+                levyCharge,
+                adminCharge,
+                wasteCharge,
+                penaltyCharge,
+                subtotal,
+                subtotal.add(penaltyCharge)
         );
     }
 }

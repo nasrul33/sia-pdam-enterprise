@@ -54,6 +54,11 @@ class InvoiceDocumentApplicationServiceTest {
                 "INV-202607-SR-0001",
                 "2026-07",
                 new BigDecimal("46250.00"),
+                new BigDecimal("5000.00"),
+                new BigDecimal("2000.00"),
+                new BigDecimal("2500.00"),
+                new BigDecimal("3000.00"),
+                new BigDecimal("1500.00"),
                 LocalDate.of(2026, 8, 20)
         );
         UUID issueJournalId = UUID.randomUUID();
@@ -80,7 +85,14 @@ class InvoiceDocumentApplicationServiceTest {
         assertThat(document.connection().connectionNumber()).isEqualTo("SR-0001");
         assertThat(document.lines()).hasSize(1);
         assertThat(document.lines().getFirst().amount()).isEqualByComparingTo("46250.00");
-        assertThat(document.outstandingAmount()).isEqualByComparingTo("46250.00");
+        assertThat(document.usageCharge()).isEqualByComparingTo("46250.00");
+        assertThat(document.fixedCharge()).isEqualByComparingTo("5000.00");
+        assertThat(document.levyCharge()).isEqualByComparingTo("2000.00");
+        assertThat(document.adminCharge()).isEqualByComparingTo("2500.00");
+        assertThat(document.wasteCharge()).isEqualByComparingTo("3000.00");
+        assertThat(document.subtotal()).isEqualByComparingTo("58750.00");
+        assertThat(document.penaltyAmount()).isEqualByComparingTo("1500.00");
+        assertThat(document.outstandingAmount()).isEqualByComparingTo("60250.00");
         assertThat(document.issueJournalEntryId()).isEqualTo(issueJournalId);
     }
 

@@ -14,6 +14,25 @@ public record TariffCalculationResult(
         LocalDate billingDate,
         BigDecimal usageM3,
         List<TariffCalculationLine> lines,
-        Money subtotal
+        Money usageCharge,
+        Money fixedCharge,
+        Money levyCharge,
+        Money adminCharge,
+        Money wasteCharge,
+        Money penaltyCharge,
+        Money subtotal,
+        Money total
 ) {
+    public TariffCalculationResult(
+            UUID tariffVersionId,
+            UUID tariffGroupId,
+            LocalDate effectiveDate,
+            LocalDate billingDate,
+            BigDecimal usageM3,
+            List<TariffCalculationLine> lines,
+            Money subtotal
+    ) {
+        this(tariffVersionId, tariffGroupId, effectiveDate, billingDate, usageM3, lines,
+                subtotal, Money.zero(), Money.zero(), Money.zero(), Money.zero(), Money.zero(), subtotal, subtotal);
+    }
 }

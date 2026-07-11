@@ -191,8 +191,13 @@ public class BillingBatchApplicationService {
                         invoice.getId(),
                         invoice.getPeriod(),
                         invoice.getOutstandingAmount(),
+                        invoice.getUsageCharge(),
+                        invoice.getFixedCharge().add(invoice.getLevyCharge()).add(invoice.getAdminCharge()).add(invoice.getWasteCharge()),
+                        invoice.getPenaltyAmount(),
                         request.receivableAccountId(),
                         request.revenueAccountId(),
+                        request.nonAirRevenueAccountId(),
+                        request.penaltyRevenueAccountId(),
                         request.reason()
                 ),
                 actor
@@ -325,7 +330,11 @@ public class BillingBatchApplicationService {
         TariffCalculationResult calculation = tariffEngineApplicationService.calculate(new CalculateTariffRequest(
                 connection.getTariffGroupId(),
                 billingDate,
-                reading.getUsageM3()
+                reading.getUsageM3(),
+                invoiceRepository.sumOutstandingByConnectionIdAndStatuses(
+                        connection.getId(),
+                        List.of(InvoiceStatus.ISSUED, InvoiceStatus.PARTIAL_PAID)
+                )
         ));
 
         return new InvoiceDraft(
@@ -342,7 +351,12 @@ public class BillingBatchApplicationService {
                 draft.connectionId(),
                 draft.invoiceNumber(),
                 batch.getPeriod(),
-                draft.calculation().subtotal().amount(),
+                draft.calculation().usageCharge().amount(),
+                draft.calculation().fixedCharge().amount(),
+                draft.calculation().levyCharge().amount(),
+                draft.calculation().adminCharge().amount(),
+                draft.calculation().wasteCharge().amount(),
+                draft.calculation().penaltyCharge().amount(),
                 draft.dueDate()
         ));
 
@@ -356,7 +370,21 @@ public class BillingBatchApplicationService {
                     line.amount().amount()
             ));
         }
+        saveComponentLine(invoice, InvoiceLineType.FIXED, "Beban tetap", draft.calculation().fixedCharge().amount());
+        saveComponentLine(invoice, InvoiceLineType.LEVY, "Retribusi", draft.calculation().levyCharge().amount());
+        saveComponentLine(invoice, InvoiceLineType.ADMIN, "Biaya administrasi", draft.calculation().adminCharge().amount());
+        saveComponentLine(invoice, InvoiceLineType.WASTE, "Retribusi sampah", draft.calculation().wasteCharge().amount());
+        saveComponentLine(invoice, InvoiceLineType.PENALTY, "Denda tunggakan", draft.calculation().penaltyCharge().amount());
         return invoice;
+    }
+
+    private void saveComponentLine(Invoice invoice, InvoiceLineType lineType, String description, BigDecimal amount) {
+        if (amount.signum() == 0) {
+            return;
+        }
+        invoiceLineRepository.save(new InvoiceLine(
+                invoice.getId(), lineType, description, BigDecimal.ONE, amount, amount
+        ));
     }
 
     private static void ensureUniqueInvoiceNumbers(List<InvoiceDraft> drafts) {
@@ -370,7 +398,7 @@ public class BillingBatchApplicationService {
 
     private static Money total(List<Invoice> invoices) {
         return invoices.stream()
-                .map(invoice -> Money.of(invoice.getSubtotal(), CurrencyCode.IDR))
+                .map(invoice -> Money.of(invoice.getOutstandingAmount(), CurrencyCode.IDR))
                 .reduce(Money.zero(), Money::add);
     }
 

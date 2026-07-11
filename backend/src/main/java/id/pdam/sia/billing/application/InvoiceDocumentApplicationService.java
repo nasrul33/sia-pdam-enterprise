@@ -73,6 +73,11 @@ public class InvoiceDocumentApplicationService {
                         connection.getMeterNumber()
                 ),
                 lines,
+                invoice.getUsageCharge(),
+                invoice.getFixedCharge(),
+                invoice.getLevyCharge(),
+                invoice.getAdminCharge(),
+                invoice.getWasteCharge(),
                 invoice.getSubtotal(),
                 invoice.getPenaltyAmount(),
                 invoice.getPaidAmount(),
