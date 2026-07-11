@@ -5,14 +5,15 @@
 - Project name: SIA-PDAM Enterprise
 - Repository: sia-pdam-enterprise
 - Objective: Rebuild sistem PDAM berbasis Java/Spring Boot dan Next.js
-- Current phase: Bootstrap
-- Last updated: 2026-07-11
+- Current phase: Blueprint gap closure and release hardening
+- Last updated: 2026-07-12
 
 ## Immutable Context
 
 - Repo baru, tidak mengubah repo lama.
 - Backend: Java 26 + Spring Boot 4.1.0.
-- Frontend: Next.js 16.2.10 + React 19.2.7 + TypeScript 6.0.3 + Tailwind CSS 4.3.2.
+- Frontend: Next.js 16.2.10 + React 19.2.7 + TypeScript 6.0.3 + Tailwind CSS 4.3.2 + NextAuth 4.24.14.
+- Production authentication: Spring Security OAuth2 Resource Server 7.1.0 with Keycloak JWT; HTTP Basic is restricted to non-production profiles.
 - Database: PostgreSQL + Flyway.
 - Architecture: Modular monolith.
 - Financial rules: no monetary primitive outside BigDecimal/Money, posted journal immutable, period lock mandatory.
@@ -80,6 +81,7 @@
 | BR-SEC-008 | `/api/auth/me` is a public session-state endpoint that returns anonymous state without credentials and full authorities only for authenticated users | Security/Auth | confirmed |
 | BR-SEC-010 | Invoice document read requires `invoice.view`, while invoice void/correction requires `invoice.correct.approve` and is not granted to billing officer or auditor roles | Security/Billing | confirmed |
 | BR-SEC-011 | User administration uses granular read/status/role permissions, forbids self-disable, protects the final enabled super-admin with row locks, and restricts every super-admin access change to an enabled super-admin actor | Security/Admin | confirmed |
+| BR-SEC-012 | Production uses Keycloak OIDC bearer authentication only; local/test retain HTTP Basic, required production secrets fail fast, and the browser reaches the backend through a same-origin Next.js BFF without storing access tokens in browser storage | Security/Auth | confirmed |
 | BR-UI-002 | Collection action frontend visibility follows backend-provided authorities | Frontend/Security | confirmed |
 | BR-UI-003 | Financial command frontend visibility follows backend-provided accounting, billing, and payment authorities | Frontend/Security | confirmed |
 | BR-UI-004 | Accounting workspace must present CoA, period, and journal control states without bypassing backend posting governance | Frontend/Accounting | confirmed |
@@ -158,6 +160,7 @@
 | REQ-SEC-020 | Permission acknowledgement packet handoff stale | Security/Payment/Reporting | Stale packet acknowledgement requires `payment.reconcile` plus `payment.reconciliation.stale-acknowledge`; Flyway V19 grants only `super-admin` and `finance-supervisor`, not auditor or cashier roles | T-115 | ReportingControllerPermissionTest, PaymentReconciliationHandoffAcknowledgementMigrationTest, financial-command-permissions.test.ts |
 | REQ-SEC-019 | Auth-state endpoint aman untuk browser lokal | Security/Auth | `GET /api/auth/me` is permit-all, returns `{authenticated:false, authorities:[]}` for anonymous requests, and returns DB-backed authorities when Basic Auth is supplied; sensitive command endpoints remain permission-enforced | HOTFIX-LOCAL-001 | AuthControllerTest, SecurityConfigTest, browser smoke |
 | REQ-SEC-021 | Permission dokumen dan koreksi invoice | Security/Billing | Invoice document endpoint requires `invoice.view`; invoice void endpoint requires `invoice.correct.approve`; Flyway V21 grants correction only to `super-admin`, `finance-supervisor`, and `billing-supervisor` | T-122 | BillingControllerPermissionTest, BillingInvoiceControlMigrationTest, financial-command-permissions.test.ts |
+| REQ-SEC-022 | Keycloak OIDC produksi dan BFF aman | Security/Auth | Profile `prod` enables OAuth2 Resource Server and converts Keycloak realm/client roles plus permission claims; profile non-prod owns HTTP Basic; production rejects missing/default secrets or non-HTTPS issuer; `/api/backend/*` injects the server-session bearer token, rejects missing/expired tokens, normalizes paths, and forwards only allowlisted headers | Gap Closure T5 | KeycloakAuthorityConverterTest, ProductionSecurityValidatorTest, SecurityConfigTest, OperationalControllerPermissionTest, auth-options.test.ts, backend-proxy-policy.test.ts, full backend/frontend gates 2026-07-12 |
 | REQ-DB-001 | Blueprint performance indexes | Database | Flyway V24 adds additive PostgreSQL indexes for status/period filters, dashboard sort paths, open receivables, ledger date-range reports, metering route-period-status reads, payment channel/status lists, and reconciliation review/workload reports | BP-DB-001 | `scripts/check-migration-constraints.sh`, Docker Compose smoke |
 | REQ-UI-001 | Workspace penagihan piutang siap operasional | Frontend | `/receivables/collection-actions` provides typed API integration, filters, create form, workflow actions, loading/error/empty states, and mutation feedback | T-086 | npm lint, typecheck, build |
 | REQ-UI-002 | Visibility aksi penagihan permission-aware | Frontend/Security | Frontend reads `/api/auth/me`, gates list/create/execute/cancel controls by `collection-action.*` authorities, and keeps backend enforcement authoritative | T-091 | AuthControllerTest, collection-action-permissions.test.ts |
@@ -195,6 +198,7 @@
 | Date | Decision | Reason | Impact |
 |---|---|---|---|
 | 2026-07-09 | Use `nasrul33/SIA-PDAM` as blueprint reference | User selected the legacy Laravel SIA-PDAM repo as the canonical domain/backlog source | New work must inspect blueprint behavior first, translate it into Java/Spring + Next.js contracts, and update traceability without copy-pasting framework code |
+| 2026-07-12 | Split local Basic Auth from production Keycloak OIDC | Production credentials and bearer tokens must not be exposed through browser environment variables or local-only defaults | Spring Security Resource Server 7.1.0 is active only in `prod`; NextAuth 4.24.14 keeps the encrypted JWT session server-side and a same-origin BFF injects bearer tokens; `uuid` is pinned to 11.1.1 and npm audit reports zero vulnerabilities |
 | 2026-07-05 | Use new repo | Avoid disturbing legacy Laravel repo | Clean rewrite |
 | 2026-07-05 | Use modular monolith | Financial consistency and simpler deployment | Modules stay in one backend |
 | 2026-07-05 | Use Java 26 | User requested latest Java | Latest Java SE release baseline |

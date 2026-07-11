@@ -1,0 +1,7 @@
+sia:
+  security:
+    production:
+      enabled: false
+      webhook-secret: ${SIA_PAYMENT_WEBHOOK_SECRET:dev-only-change-me}
+      issuer-uri: ""
+      client-id: sia-pdam

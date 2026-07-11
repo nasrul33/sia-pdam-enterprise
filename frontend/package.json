@@ -2,12 +2,13 @@
   "name": "sia-pdam-frontend",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test:permissions": "node --test --experimental-strip-types src/features/receivables/collection-actions/collection-action-permissions.test.ts src/features/security/financial-command-permissions.test.ts src/features/accounting/accounting-workspace-model.test.ts src/features/billing/billing-workspace-model.test.ts src/features/payments/payment-workspace-model.test.ts src/features/admin-users/admin-user-permissions.test.ts",
+    "test:permissions": "node --test --experimental-strip-types src/features/receivables/collection-actions/collection-action-permissions.test.ts src/features/security/financial-command-permissions.test.ts src/features/accounting/accounting-workspace-model.test.ts src/features/billing/billing-workspace-model.test.ts src/features/payments/payment-workspace-model.test.ts src/features/admin-users/admin-user-permissions.test.ts src/features/auth/backend-proxy-policy.test.ts src/features/auth/auth-options.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -15,6 +16,7 @@
     "clsx": "^2.1.1",
     "lucide-react": "1.23.0",
     "next": "16.2.10",
+    "next-auth": "4.24.14",
     "react": "19.2.7",
     "react-dom": "19.2.7",
     "react-hook-form": "7.81.0",
@@ -33,6 +35,7 @@
     "typescript": "6.0.3"
   },
   "overrides": {
-    "postcss": "8.5.16"
+    "postcss": "8.5.16",
+    "uuid": "11.1.1"
   }
 }

@@ -1,4 +1,7 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:18080";
+const AUTH_MODE = process.env.NEXT_PUBLIC_DEV_AUTH_MODE ?? "basic";
+const API_BASE_URL = AUTH_MODE === "oidc"
+  ? "/api/backend"
+  : process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:18080";
 const DEV_BASIC_AUTH_USERNAME = process.env.NEXT_PUBLIC_DEV_BASIC_AUTH_USERNAME ?? "";
 const DEV_BASIC_AUTH_PASSWORD = process.env.NEXT_PUBLIC_DEV_BASIC_AUTH_PASSWORD ?? "";
 
@@ -41,7 +44,7 @@ function applyDefaultHeaders(headers: Headers): Headers {
 }
 
 function devBasicAuthorization(): string | null {
-  if (!DEV_BASIC_AUTH_USERNAME || !DEV_BASIC_AUTH_PASSWORD) {
+  if (AUTH_MODE !== "basic" || !DEV_BASIC_AUTH_USERNAME || !DEV_BASIC_AUTH_PASSWORD) {
     return null;
   }
   return `Basic ${btoa(`${DEV_BASIC_AUTH_USERNAME}:${DEV_BASIC_AUTH_PASSWORD}`)}`;
@@ -63,6 +66,7 @@ async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
       isErrorPayload(payload) && typeof payload.message === "string"
         ? payload.message
         : `API request failed with status ${response.status}`;
+    redirectToOidcSignIn(response.status);
     throw new ApiClientError(message, response.status, payload);
   }
 
@@ -85,10 +89,19 @@ async function apiRequestText(path: string, init?: RequestInit): Promise<string>
       isErrorPayload(payload) && typeof payload.message === "string"
         ? payload.message
         : `API request failed with status ${response.status}`;
+    redirectToOidcSignIn(response.status);
     throw new ApiClientError(message, response.status, payload);
   }
 
   return response.text();
+}
+
+function redirectToOidcSignIn(status: number): void {
+  if (status !== 401 || AUTH_MODE !== "oidc" || typeof window === "undefined") {
+    return;
+  }
+  const callbackUrl = `${window.location.pathname}${window.location.search}`;
+  window.location.assign(`/api/auth/signin?callbackUrl=${encodeURIComponent(callbackUrl)}`);
 }
 
 export async function apiGet<T>(path: string): Promise<T> {

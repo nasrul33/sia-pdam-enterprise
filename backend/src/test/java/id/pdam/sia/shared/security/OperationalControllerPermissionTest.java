@@ -60,7 +60,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         TariffController.class,
         ReceivableAgingController.class
 })
-@Import(SecurityConfig.class)
+@Import({SecurityConfig.class, LocalSecurityConfiguration.class})
 @ImportAutoConfiguration({
         SecurityAutoConfiguration.class,
         ServletWebSecurityAutoConfiguration.class

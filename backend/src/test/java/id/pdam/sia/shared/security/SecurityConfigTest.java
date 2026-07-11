@@ -28,7 +28,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         AuthController.class,
         PaymentWebhookController.class
 })
-@Import(SecurityConfig.class)
+@Import({SecurityConfig.class, LocalSecurityConfiguration.class})
 @ImportAutoConfiguration({
         SecurityAutoConfiguration.class,
         ServletWebSecurityAutoConfiguration.class
