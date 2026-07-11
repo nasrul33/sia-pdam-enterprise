@@ -79,6 +79,12 @@ public class AccountingController {
         );
     }
 
+    @GetMapping("/accounting-periods/{periodId}/pre-close-checklist")
+    @PreAuthorize(Permissions.PERIOD_MANAGE)
+    public PreCloseChecklistResponse getPreCloseChecklist(@PathVariable UUID periodId) {
+        return PreCloseChecklistResponse.from(accountingApplicationService.getPreCloseChecklist(periodId));
+    }
+
     @PostMapping("/accounting-periods/{periodId}/lock")
     @PreAuthorize(Permissions.PERIOD_CLOSE)
     public AccountingPeriodResponse lockPeriod(

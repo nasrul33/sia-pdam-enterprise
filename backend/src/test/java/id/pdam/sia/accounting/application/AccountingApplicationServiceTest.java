@@ -37,13 +37,15 @@ class AccountingApplicationServiceTest {
     private final AuditTrailService auditTrailService = mock(AuditTrailService.class);
     private final LedgerEntryMaterializationService ledgerEntryMaterializationService = mock(LedgerEntryMaterializationService.class);
     private final PostingService postingService = new PostingService(auditTrailService, ledgerEntryMaterializationService);
+    private final PreCloseChecklistService preCloseChecklistService = mock(PreCloseChecklistService.class);
 
     private final AccountingApplicationService service = new AccountingApplicationService(
             accountRepository,
             accountingPeriodRepository,
             journalEntryRepository,
             postingService,
-            auditTrailService
+            auditTrailService,
+            preCloseChecklistService
     );
 
     @Test
@@ -533,6 +535,48 @@ class AccountingApplicationServiceTest {
                 "CREATE_ACCOUNTING_PERIOD",
                 period.getId().toString(),
                 "open July period"
+        );
+    }
+
+    @Test
+    void startClosingReviewRejectsDraftJournalBlocker() {
+        AccountingPeriod period = new AccountingPeriod("2026-07");
+        when(accountingPeriodRepository.findById(period.getId())).thenReturn(Optional.of(period));
+        org.mockito.Mockito.doThrow(new BusinessException(
+                "PERIOD_PRE_CLOSE_BLOCKED",
+                "Accounting period has pre-close blockers."
+        )).when(preCloseChecklistService).requireClear(period);
+
+        assertThatThrownBy(() -> service.startClosingReview(period.getId(), "Tutup bulan", "admin"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(exception -> assertThat(((BusinessException) exception).code())
+                        .isEqualTo("PERIOD_PRE_CLOSE_BLOCKED"));
+
+        assertThat(period.getStatus().name()).isEqualTo("OPEN");
+        verify(auditTrailService, never()).record(
+                "admin",
+                "ACCOUNTING",
+                "START_PERIOD_CLOSING_REVIEW",
+                period.getId().toString(),
+                "Tutup bulan"
+        );
+    }
+
+    @Test
+    void startClosingReviewRechecksChecklistBeforeTransitionAndAudit() {
+        AccountingPeriod period = new AccountingPeriod("2026-07");
+        when(accountingPeriodRepository.findById(period.getId())).thenReturn(Optional.of(period));
+
+        AccountingPeriod result = service.startClosingReview(period.getId(), "Tutup bulan", "admin");
+
+        assertThat(result.getStatus().name()).isEqualTo("CLOSING_REVIEW");
+        verify(preCloseChecklistService).requireClear(period);
+        verify(auditTrailService).record(
+                "admin",
+                "ACCOUNTING",
+                "START_PERIOD_CLOSING_REVIEW",
+                period.getId().toString(),
+                "Tutup bulan"
         );
     }
 }

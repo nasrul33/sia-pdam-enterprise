@@ -21,6 +21,10 @@ class AccountingControllerPermissionTest {
                 "hasAuthority('period.manage')"
         );
         assertPermission(
+                method("getPreCloseChecklist", UUID.class),
+                "hasAuthority('period.manage')"
+        );
+        assertPermission(
                 method("startClosingReview", UUID.class, WorkflowReasonRequest.class, Principal.class),
                 "hasAuthority('period.close')"
         );

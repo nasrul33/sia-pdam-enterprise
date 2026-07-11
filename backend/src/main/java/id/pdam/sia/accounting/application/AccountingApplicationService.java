@@ -41,19 +41,22 @@ public class AccountingApplicationService {
     private final JournalEntryRepository journalEntryRepository;
     private final PostingService postingService;
     private final AuditTrailService auditTrailService;
+    private final PreCloseChecklistService preCloseChecklistService;
 
     public AccountingApplicationService(
             AccountRepository accountRepository,
             AccountingPeriodRepository accountingPeriodRepository,
             JournalEntryRepository journalEntryRepository,
             PostingService postingService,
-            AuditTrailService auditTrailService
+            AuditTrailService auditTrailService,
+            PreCloseChecklistService preCloseChecklistService
     ) {
         this.accountRepository = accountRepository;
         this.accountingPeriodRepository = accountingPeriodRepository;
         this.journalEntryRepository = journalEntryRepository;
         this.postingService = postingService;
         this.auditTrailService = auditTrailService;
+        this.preCloseChecklistService = preCloseChecklistService;
     }
 
     @Transactional(readOnly = true)
@@ -92,9 +95,15 @@ public class AccountingApplicationService {
     @Transactional
     public AccountingPeriod startClosingReview(UUID periodId, String reason, String actor) {
         AccountingPeriod period = findPeriod(periodId);
+        preCloseChecklistService.requireClear(period);
         period.startClosingReview();
         auditTrailService.record(actor, "ACCOUNTING", "START_PERIOD_CLOSING_REVIEW", period.getId().toString(), reason);
         return period;
+    }
+
+    @Transactional(readOnly = true)
+    public PreCloseChecklist getPreCloseChecklist(UUID periodId) {
+        return preCloseChecklistService.evaluate(findPeriod(periodId));
     }
 
     @Transactional

@@ -25,6 +25,15 @@ public interface JournalEntryRepository extends JpaRepository<JournalEntry, UUID
 
     Page<JournalEntry> findByAccountingPeriodIdAndStatus(UUID accountingPeriodId, JournalStatus status, Pageable pageable);
 
+    long countByAccountingPeriodIdAndStatus(UUID accountingPeriodId, JournalStatus status);
+
+    long countByAccountingPeriodIdAndSourceModuleAndSourceDocumentNumberAndStatus(
+            UUID accountingPeriodId,
+            String sourceModule,
+            String sourceDocumentNumber,
+            JournalStatus status
+    );
+
     @EntityGraph(attributePaths = "lines")
     Optional<JournalEntry> findWithLinesById(UUID id);
 

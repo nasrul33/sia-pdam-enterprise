@@ -36,4 +36,6 @@ public interface InvoiceRepository extends JpaRepository<Invoice, UUID> {
     Page<Invoice> findByStatus(InvoiceStatus status, Pageable pageable);
 
     Page<Invoice> findByPeriodAndStatus(String period, InvoiceStatus status, Pageable pageable);
+
+    long countByPeriodAndStatus(String period, InvoiceStatus status);
 }
