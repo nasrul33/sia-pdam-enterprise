@@ -1,4 +1,5 @@
 export const queryKeys = {
+  entityLookups: ["entity-lookups"] as const,
   status: ["status"] as const,
   currentUser: ["current-user"] as const,
   accounts: ["accounts"] as const,

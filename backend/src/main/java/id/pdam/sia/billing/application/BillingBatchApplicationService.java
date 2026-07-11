@@ -156,9 +156,13 @@ public class BillingBatchApplicationService {
     }
 
     @Transactional(readOnly = true)
-    public Page<Invoice> listInvoices(String period, InvoiceStatus status, int page, int size) {
+    public Page<Invoice> listInvoices(String period, InvoiceStatus status, String search, int page, int size) {
         Pageable pageable = pageable(page, size, Sort.by("createdAt").descending());
         String normalizedPeriod = normalizeOptionalPeriod(period);
+        String normalizedSearch = search == null || search.isBlank() ? null : search.trim();
+        if (normalizedSearch != null) {
+            return invoiceRepository.search(normalizedPeriod, status, normalizedSearch, pageable);
+        }
         if (normalizedPeriod != null && status != null) {
             return invoiceRepository.findByPeriodAndStatus(normalizedPeriod, status, pageable);
         }

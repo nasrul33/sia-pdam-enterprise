@@ -37,10 +37,11 @@ public class MeteringController {
     @PreAuthorize(Permissions.METER_ROUTE_READ)
     public PageResponse<MeterRouteResponse> listRoutes(
             @RequestParam(required = false) String areaCode,
+            @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "25") @Min(1) @Max(100) int size
     ) {
-        return PageResponse.from(meteringApplicationService.listRoutes(areaCode, page, size).map(MeterRouteResponse::from));
+        return PageResponse.from(meteringApplicationService.listRoutes(areaCode, search, page, size).map(MeterRouteResponse::from));
     }
 
     @GetMapping("/meter-routes/{routeId}")

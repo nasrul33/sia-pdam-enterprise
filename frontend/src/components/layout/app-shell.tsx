@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { formatOperationalDate } from "@/lib/date/operational-date";
 import type { ReactNode } from "react";
 import {
   Activity,
@@ -148,11 +149,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
     navItems
       .filter((item) => isActiveRoute(pathname, item.href))
       .sort((left, right) => right.href.length - left.href.length)[0] ?? navItems[0];
-  const today = new Intl.DateTimeFormat("id-ID", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric"
-  }).format(new Date());
+  const today = formatOperationalDate(new Date());
 
   return (
     <div className="min-h-screen bg-[#eef3f8] text-slate-950">
@@ -243,7 +240,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
                 </div>
                 <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 shadow-sm">
                   <CalendarDays className="size-4 text-slate-500" aria-hidden="true" />
-                  {today}
+                  <span suppressHydrationWarning>{today}</span>
                 </div>
               </div>
             </div>

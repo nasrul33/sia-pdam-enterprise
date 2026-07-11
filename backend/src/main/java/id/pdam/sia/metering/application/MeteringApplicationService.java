@@ -60,9 +60,13 @@ public class MeteringApplicationService {
     }
 
     @Transactional(readOnly = true)
-    public Page<MeterRoute> listRoutes(String areaCode, int page, int size) {
+    public Page<MeterRoute> listRoutes(String areaCode, String search, int page, int size) {
         Pageable pageable = pageable(page, size, Sort.by("routeCode").ascending());
         String normalizedAreaCode = normalizeOptional(areaCode);
+        String normalizedSearch = normalizeOptional(search);
+        if (normalizedSearch != null) {
+            return meterRouteRepository.search(normalizedAreaCode, normalizedSearch, pageable);
+        }
         if (normalizedAreaCode != null) {
             return meterRouteRepository.findByAreaCode(normalizedAreaCode, pageable);
         }

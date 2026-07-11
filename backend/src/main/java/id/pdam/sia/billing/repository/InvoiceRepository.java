@@ -39,6 +39,19 @@ public interface InvoiceRepository extends JpaRepository<Invoice, UUID> {
 
     Page<Invoice> findByPeriodAndStatus(String period, InvoiceStatus status, Pageable pageable);
 
+    @Query("""
+            select invoice from Invoice invoice
+            where (:period is null or invoice.period = :period)
+              and (:status is null or invoice.status = :status)
+              and (:search is null or lower(invoice.invoiceNumber) like lower(concat('%', :search, '%')))
+            """)
+    Page<Invoice> search(
+            @Param("period") String period,
+            @Param("status") InvoiceStatus status,
+            @Param("search") String search,
+            Pageable pageable
+    );
+
     long countByPeriodAndStatus(String period, InvoiceStatus status);
 
     @Query("""

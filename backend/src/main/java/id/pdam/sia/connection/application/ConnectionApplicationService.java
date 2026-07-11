@@ -43,8 +43,12 @@ public class ConnectionApplicationService {
     }
 
     @Transactional(readOnly = true)
-    public Page<TariffGroup> listTariffGroups(int page, int size) {
-        return tariffGroupRepository.findAll(pageable(page, size, Sort.by("code").ascending()));
+    public Page<TariffGroup> listTariffGroups(String search, int page, int size) {
+        Pageable pageable = pageable(page, size, Sort.by("code").ascending());
+        String normalizedSearch = normalizeOptional(search);
+        return normalizedSearch == null
+                ? tariffGroupRepository.findAll(pageable)
+                : tariffGroupRepository.search(normalizedSearch, pageable);
     }
 
     @Transactional
@@ -64,8 +68,12 @@ public class ConnectionApplicationService {
     }
 
     @Transactional(readOnly = true)
-    public Page<Connection> listConnections(UUID customerId, ConnectionStatus status, int page, int size) {
+    public Page<Connection> listConnections(UUID customerId, ConnectionStatus status, String search, int page, int size) {
         Pageable pageable = pageable(page, size, Sort.by("connectionNumber").ascending());
+        String normalizedSearch = normalizeOptional(search);
+        if (normalizedSearch != null) {
+            return connectionRepository.search(customerId, status, normalizedSearch, pageable);
+        }
         if (customerId != null && status != null) {
             return connectionRepository.findByCustomerIdAndStatus(customerId, status, pageable);
         }
@@ -165,5 +173,9 @@ public class ConnectionApplicationService {
             throw new BusinessException(code, message);
         }
         return value.trim();
+    }
+
+    private static String normalizeOptional(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 }

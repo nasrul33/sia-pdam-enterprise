@@ -39,10 +39,14 @@ public class PaymentQueryApplicationService {
     }
 
     @Transactional(readOnly = true)
-    public Page<Payment> listPayments(PaymentStatus status, String channel, int page, int size) {
+    public Page<Payment> listPayments(PaymentStatus status, String channel, String search, int page, int size) {
         Pageable pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), MAX_PAGE_SIZE), PAYMENT_LIST_SORT);
         String normalizedChannel = normalizeChannel(channel);
+        String normalizedSearch = search == null || search.isBlank() ? null : search.trim();
 
+        if (normalizedSearch != null) {
+            return paymentRepository.search(status, normalizedChannel, normalizedSearch, pageable);
+        }
         if (status != null && normalizedChannel != null) {
             return paymentRepository.findByStatusAndChannel(status, normalizedChannel, pageable);
         }

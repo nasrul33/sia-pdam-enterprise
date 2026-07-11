@@ -88,11 +88,12 @@ public class BillingBatchController {
     public PageResponse<InvoiceResponse> listInvoices(
             @RequestParam(required = false) @Pattern(regexp = "^\\d{4}-\\d{2}$") String period,
             @RequestParam(required = false) InvoiceStatus status,
+            @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "25") @Min(1) @Max(100) int size
     ) {
         return PageResponse.from(
-                billingBatchApplicationService.listInvoices(period, status, page, size).map(InvoiceResponse::from)
+                billingBatchApplicationService.listInvoices(period, status, search, page, size).map(InvoiceResponse::from)
         );
     }
 

@@ -57,6 +57,7 @@ class PaymentControllerPermissionTest {
                         "listPayments",
                         PaymentStatus.class,
                         String.class,
+                        String.class,
                         int.class,
                         int.class
                 ),

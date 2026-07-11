@@ -60,8 +60,12 @@ public class AccountingApplicationService {
     }
 
     @Transactional(readOnly = true)
-    public Page<Account> listAccounts(int page, int size) {
-        return accountRepository.findAll(pageable(page, size, Sort.by("code").ascending()));
+    public Page<Account> listAccounts(String search, int page, int size) {
+        Pageable pageable = pageable(page, size, Sort.by("code").ascending());
+        String normalizedSearch = normalizeOptional(search);
+        return normalizedSearch == null
+                ? accountRepository.findAll(pageable)
+                : accountRepository.search(normalizedSearch, pageable);
     }
 
     @Transactional
@@ -77,8 +81,12 @@ public class AccountingApplicationService {
     }
 
     @Transactional(readOnly = true)
-    public Page<AccountingPeriod> listAccountingPeriods(int page, int size) {
-        return accountingPeriodRepository.findAll(pageable(page, size, Sort.by("period").descending()));
+    public Page<AccountingPeriod> listAccountingPeriods(String search, int page, int size) {
+        Pageable pageable = pageable(page, size, Sort.by("period").descending());
+        String normalizedSearch = normalizeOptional(search);
+        return normalizedSearch == null
+                ? accountingPeriodRepository.findAll(pageable)
+                : accountingPeriodRepository.findByPeriodContainingIgnoreCase(normalizedSearch, pageable);
     }
 
     @Transactional
@@ -611,6 +619,10 @@ public class AccountingApplicationService {
 
     private static String normalize(String value) {
         return value == null ? null : value.trim();
+    }
+
+    private static String normalizeOptional(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     private static String requireNormalize(String value, String code, String message) {

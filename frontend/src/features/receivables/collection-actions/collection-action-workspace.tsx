@@ -9,17 +9,18 @@ import {
   Play,
   Plus,
   RotateCcw,
-  Search,
   XCircle
 } from "lucide-react";
 import { type FormEvent, useMemo, useState } from "react";
 import { PermissionGate } from "@/components/auth/permission-gate";
 import { PageHeader } from "@/components/common/page-header";
+import { EntitySelector } from "@/components/entity-selector/entity-selector";
 import { EmptyState } from "@/components/state/empty-state";
 import { ErrorState } from "@/components/state/error-state";
 import { LoadingSkeleton } from "@/components/state/loading-skeleton";
 import { StatusBadge } from "@/components/status/status-badge";
 import { useCurrentUser } from "@/features/auth/use-current-user";
+import { entityLookupLoader } from "@/features/lookups/lookup-api";
 import { apiErrorMessage } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 import {
@@ -98,6 +99,8 @@ const workflowLabels: Record<CollectionActionWorkflow, string> = {
 };
 
 const invoiceRequiredTypes = new Set<CollectionActionType>(["REMINDER", "WARNING_LETTER", "DISCONNECTION_NOTICE"]);
+const customerLookupLoader = entityLookupLoader("customer");
+const invoiceLookupLoader = entityLookupLoader("invoice");
 
 function emptyCreateForm(): CreateFormState {
   return {
@@ -242,27 +245,26 @@ function CollectionActionForm() {
       </div>
 
       <div className="mt-5 grid gap-4 md:grid-cols-2">
-        <FormField label="Customer ID">
-          <input
-            className={baseInputClass()}
-            value={form.customerId}
-            onChange={(event) => updateForm("customerId", event.target.value)}
-            placeholder="UUID pelanggan"
-            autoComplete="off"
-          />
-        </FormField>
-        <FormField
-          label="Invoice ID"
-          helper={requiresInvoice ? "Wajib untuk pengingat, surat peringatan, dan pemutusan." : undefined}
-        >
-          <input
-            className={baseInputClass(requiresInvoice && form.invoiceId.trim().length === 0)}
-            value={form.invoiceId}
-            onChange={(event) => updateForm("invoiceId", event.target.value)}
-            placeholder="UUID invoice"
-            autoComplete="off"
-          />
-        </FormField>
+        <EntitySelector
+          value={form.customerId}
+          onChange={(value) => updateForm("customerId", value)}
+          loadOptions={customerLookupLoader}
+          label="Pelanggan"
+          ariaLabel="Pilih pelanggan aksi penagihan"
+          placeholder="Cari nomor atau nama pelanggan"
+          required
+          invalid={form.customerId.length === 0}
+        />
+        <EntitySelector
+          value={form.invoiceId}
+          onChange={(value) => updateForm("invoiceId", value)}
+          loadOptions={invoiceLookupLoader}
+          label="Invoice"
+          ariaLabel="Pilih invoice aksi penagihan"
+          placeholder="Cari nomor invoice"
+          required={requiresInvoice}
+          invalid={requiresInvoice && form.invoiceId.length === 0}
+        />
         <FormField label="Jenis Aksi">
           <select
             className={baseInputClass()}
@@ -353,27 +355,22 @@ function FilterToolbar({
             ))}
           </select>
         </label>
-        <label className="block">
-          <span className="text-xs font-bold uppercase text-slate-600">Customer ID</span>
-          <div className="relative mt-1">
-            <Search className="pointer-events-none absolute left-3 top-3 size-4 text-slate-500" aria-hidden="true" />
-            <input
-              className={cn(baseInputClass(), "pl-9")}
-              value={filters.customerId}
-              onChange={(event) => update("customerId", event.target.value)}
-              placeholder="Filter UUID pelanggan"
-            />
-          </div>
-        </label>
-        <label className="block">
-          <span className="text-xs font-bold uppercase text-slate-600">Invoice ID</span>
-          <input
-            className={cn(baseInputClass(), "mt-1")}
-            value={filters.invoiceId}
-            onChange={(event) => update("invoiceId", event.target.value)}
-            placeholder="Filter UUID invoice"
-          />
-        </label>
+        <EntitySelector
+          value={filters.customerId}
+          onChange={(value) => update("customerId", value)}
+          loadOptions={customerLookupLoader}
+          label="Pelanggan"
+          ariaLabel="Filter pelanggan aksi penagihan"
+          placeholder="Cari pelanggan"
+        />
+        <EntitySelector
+          value={filters.invoiceId}
+          onChange={(value) => update("invoiceId", value)}
+          loadOptions={invoiceLookupLoader}
+          label="Invoice"
+          ariaLabel="Filter invoice aksi penagihan"
+          placeholder="Cari invoice"
+        />
         <label className="block">
           <span className="text-xs font-bold uppercase text-slate-600">Size</span>
           <select

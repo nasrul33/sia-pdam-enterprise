@@ -2,12 +2,15 @@
 
 import { type FormEvent, useMemo, useState } from "react";
 import { PageHeader } from "@/components/common/page-header";
+import { EntitySelector } from "@/components/entity-selector/entity-selector";
+import type { EntityOption } from "@/components/entity-selector/entity-selector-model";
 import { EmptyState } from "@/components/state/empty-state";
 import { ErrorState } from "@/components/state/error-state";
 import { LoadingSkeleton } from "@/components/state/loading-skeleton";
 import { StatusBadge } from "@/components/status/status-badge";
 import { apiErrorMessage } from "@/lib/api/client";
 import { useCurrentUser } from "@/features/auth/use-current-user";
+import { entityLookupLoader } from "@/features/lookups/lookup-api";
 import {
   connectionStatusValues,
   customerStatusValues,
@@ -63,6 +66,21 @@ const secondaryButtonClass =
   "inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-black text-slate-800 shadow-[0_12px_24px_-22px_rgba(15,23,42,0.8)] transition hover:border-teal-300 hover:bg-teal-50 hover:text-teal-900 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500";
 const dangerButtonClass =
   "inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-black text-red-800 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-red-300";
+const connectionLookupLoader = entityLookupLoader("connection");
+const customerLookupLoader = entityLookupLoader("customer");
+const meterReadingLookupLoader = entityLookupLoader("meter-reading");
+const meterRouteLookupLoader = entityLookupLoader("meter-route");
+const tariffGroupLookupLoader = entityLookupLoader("tariff-group");
+const tariffVersionLookupLoader = entityLookupLoader("tariff-version");
+
+function selectedEntityOption<T extends { id: string }>(
+  items: readonly T[],
+  id: string,
+  toOption: (item: T) => EntityOption
+): EntityOption | null {
+  const item = items.find((candidate) => candidate.id === id);
+  return item ? toOption(item) : null;
+}
 
 function formatDate(value: string | null): string {
   if (!value) {
@@ -631,36 +649,8 @@ export function MasterDataWorkspace() {
 
         <Section title="Tambah Sambungan">
           <form className="space-y-3" onSubmit={submitConnection}>
-            <Field label="Pelanggan">
-              <select
-                className={inputClass}
-                value={connectionForm.customerId}
-                onChange={(event) => setConnectionForm((prev) => ({ ...prev, customerId: event.target.value }))}
-                required
-              >
-                <option value="">Pilih pelanggan</option>
-                {(customersQuery.data?.items ?? []).map((customer) => (
-                  <option key={customer.id} value={customer.id}>
-                    {customer.customerNumber} - {customer.fullName}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Golongan tarif">
-              <select
-                className={inputClass}
-                value={connectionForm.tariffGroupId}
-                onChange={(event) => setConnectionForm((prev) => ({ ...prev, tariffGroupId: event.target.value }))}
-                required
-              >
-                <option value="">Pilih golongan</option>
-                {(tariffGroupsQuery.data?.items ?? []).map((group) => (
-                  <option key={group.id} value={group.id}>
-                    {group.code} - {group.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
+            <EntitySelector value={connectionForm.customerId} onChange={(value) => setConnectionForm((prev) => ({ ...prev, customerId: value }))} loadOptions={customerLookupLoader} label="Pelanggan" ariaLabel="Pilih pelanggan sambungan" placeholder="Cari nomor atau nama pelanggan" required invalid={!connectionForm.customerId} />
+            <EntitySelector value={connectionForm.tariffGroupId} onChange={(value) => setConnectionForm((prev) => ({ ...prev, tariffGroupId: value }))} loadOptions={tariffGroupLookupLoader} label="Golongan tarif" ariaLabel="Pilih golongan tarif sambungan" placeholder="Cari kode atau nama golongan" required invalid={!connectionForm.tariffGroupId} />
             <Field label="Nomor sambungan">
               <input
                 className={inputClass}
@@ -708,14 +698,7 @@ export function MasterDataWorkspace() {
           ) : (
             <div className="space-y-4">
               <div className="grid gap-3 md:grid-cols-[1fr_180px_120px]">
-                <input
-                  className={inputClass}
-                  placeholder="Filter customer ID"
-                  value={connectionFilters.customerId}
-                  onChange={(event) =>
-                    setConnectionFilters((prev) => ({ ...prev, page: 0, customerId: event.target.value }))
-                  }
-                />
+                <EntitySelector value={connectionFilters.customerId} onChange={(value) => setConnectionFilters((prev) => ({ ...prev, page: 0, customerId: value }))} loadOptions={customerLookupLoader} label="Pelanggan" ariaLabel="Filter sambungan berdasarkan pelanggan" placeholder="Cari pelanggan" />
                 <select
                   className={inputClass}
                   value={connectionFilters.status}
@@ -746,14 +729,7 @@ export function MasterDataWorkspace() {
 
         <Section title="Workflow Sambungan">
           <form className="space-y-3" onSubmit={submitConnectionWorkflow}>
-            <Field label="ID Sambungan">
-              <input
-                className={inputClass}
-                value={connectionWorkflow.connectionId}
-                onChange={(event) => setConnectionWorkflow((prev) => ({ ...prev, connectionId: event.target.value }))}
-                required
-              />
-            </Field>
+            <EntitySelector value={connectionWorkflow.connectionId} selectedOption={selectedEntityOption(connectionsQuery.data?.items ?? [], connectionWorkflow.connectionId, (connection) => ({ id: connection.id, label: connection.connectionNumber, description: `Meter ${connection.meterNumber}`, status: connection.status }))} onChange={(value) => setConnectionWorkflow((prev) => ({ ...prev, connectionId: value }))} loadOptions={connectionLookupLoader} label="Sambungan" ariaLabel="Pilih sambungan untuk workflow" placeholder="Cari nomor sambungan atau meter" required invalid={!connectionWorkflow.connectionId} />
             <Field label="Aksi">
               <select
                 className={inputClass}
@@ -1075,12 +1051,7 @@ export function MeteringWorkspace() {
           ) : (
             <div className="space-y-4">
               <div className="grid gap-3 md:grid-cols-4">
-                <input
-                  className={inputClass}
-                  placeholder="Route ID"
-                  value={readingFilters.routeId}
-                  onChange={(event) => setReadingFilters((prev) => ({ ...prev, page: 0, routeId: event.target.value }))}
-                />
+                <EntitySelector value={readingFilters.routeId} onChange={(value) => setReadingFilters((prev) => ({ ...prev, page: 0, routeId: value }))} loadOptions={meterRouteLookupLoader} label="Rute" ariaLabel="Filter baca meter berdasarkan rute" placeholder="Cari kode atau nama rute" />
                 <input
                   className={inputClass}
                   placeholder="YYYY-MM"
@@ -1116,14 +1087,7 @@ export function MeteringWorkspace() {
 
         <Section title="Workflow Baca Meter">
           <form className="space-y-3" onSubmit={submitWorkflow}>
-            <Field label="ID Reading">
-              <input
-                className={inputClass}
-                value={workflowForm.readingId}
-                onChange={(event) => setWorkflowForm((prev) => ({ ...prev, readingId: event.target.value }))}
-                required
-              />
-            </Field>
+            <EntitySelector value={workflowForm.readingId} selectedOption={selectedEntityOption(readingsQuery.data?.items ?? [], workflowForm.readingId, (reading) => ({ id: reading.id, label: `${reading.period} · ${formatNumber(reading.usageM3)} m3`, status: reading.status }))} onChange={(value) => setWorkflowForm((prev) => ({ ...prev, readingId: value }))} loadOptions={meterReadingLookupLoader} label="Pembacaan meter" ariaLabel="Pilih pembacaan untuk workflow" placeholder="Cari periode pembacaan" required invalid={!workflowForm.readingId} />
             <Field label="Aksi">
               <select
                 className={inputClass}
@@ -1178,29 +1142,8 @@ export function MeteringWorkspace() {
 
       <Section title="Input Baca Meter">
         <form className="grid gap-3 lg:grid-cols-4" onSubmit={submitReading}>
-          <Field label="Connection ID">
-            <input
-              className={inputClass}
-              value={readingForm.connectionId}
-              onChange={(event) => setReadingForm((prev) => ({ ...prev, connectionId: event.target.value }))}
-              required
-            />
-          </Field>
-          <Field label="Rute">
-            <select
-              className={inputClass}
-              value={readingForm.routeId}
-              onChange={(event) => setReadingForm((prev) => ({ ...prev, routeId: event.target.value }))}
-              required
-            >
-              <option value="">Pilih rute</option>
-              {(routesQuery.data?.items ?? []).map((route) => (
-                <option key={route.id} value={route.id}>
-                  {route.routeCode} - {route.name}
-                </option>
-              ))}
-            </select>
-          </Field>
+          <EntitySelector value={readingForm.connectionId} onChange={(value) => setReadingForm((prev) => ({ ...prev, connectionId: value }))} loadOptions={connectionLookupLoader} label="Sambungan" ariaLabel="Pilih sambungan baca meter" placeholder="Cari nomor sambungan atau meter" required invalid={!readingForm.connectionId} />
+          <EntitySelector value={readingForm.routeId} onChange={(value) => setReadingForm((prev) => ({ ...prev, routeId: value }))} loadOptions={meterRouteLookupLoader} label="Rute" ariaLabel="Pilih rute baca meter" placeholder="Cari kode atau nama rute" required invalid={!readingForm.routeId} />
           <Field label="Periode">
             <input
               className={inputClass}
@@ -1296,21 +1239,7 @@ export function MeteringWorkspace() {
               required
             />
           </Field>
-          <Field label="Rute">
-            <select
-              className={inputClass}
-              value={importForm.routeId}
-              onChange={(event) => setImportForm((prev) => ({ ...prev, routeId: event.target.value }))}
-              required
-            >
-              <option value="">Pilih rute</option>
-              {(routesQuery.data?.items ?? []).map((route) => (
-                <option key={route.id} value={route.id}>
-                  {route.routeCode} - {route.name}
-                </option>
-              ))}
-            </select>
-          </Field>
+          <EntitySelector value={importForm.routeId} onChange={(value) => setImportForm((prev) => ({ ...prev, routeId: value }))} loadOptions={meterRouteLookupLoader} label="Rute" ariaLabel="Pilih rute import offline" placeholder="Cari kode atau nama rute" required invalid={!importForm.routeId} />
           <Field label="Periode">
             <input
               className={inputClass}
@@ -1728,14 +1657,7 @@ export function TariffWorkspace() {
 
         <Section title="Workflow dan Simulasi">
           <form className="space-y-3" onSubmit={submitWorkflow}>
-            <Field label="ID Versi Tarif">
-              <input
-                className={inputClass}
-                value={workflowForm.tariffVersionId}
-                onChange={(event) => setWorkflowForm((prev) => ({ ...prev, tariffVersionId: event.target.value }))}
-                required
-              />
-            </Field>
+            <EntitySelector value={workflowForm.tariffVersionId} selectedOption={selectedEntityOption(versionsQuery.data?.items ?? [], workflowForm.tariffVersionId, (version) => ({ id: version.id, label: `Efektif ${formatDate(version.effectiveDate)}`, status: version.status }))} onChange={(value) => setWorkflowForm((prev) => ({ ...prev, tariffVersionId: value }))} loadOptions={tariffVersionLookupLoader} label="Versi tarif" ariaLabel="Pilih versi tarif untuk workflow" placeholder="Cari tanggal efektif versi tarif" required invalid={!workflowForm.tariffVersionId} />
             <Field label="Aksi">
               <select
                 className={inputClass}

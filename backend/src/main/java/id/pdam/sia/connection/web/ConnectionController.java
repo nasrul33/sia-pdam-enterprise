@@ -35,10 +35,11 @@ public class ConnectionController {
     @GetMapping("/tariff-groups")
     @PreAuthorize(Permissions.TARIFF_READ)
     public PageResponse<TariffGroupResponse> listTariffGroups(
+            @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "25") @Min(1) @Max(100) int size
     ) {
-        return PageResponse.from(connectionApplicationService.listTariffGroups(page, size).map(TariffGroupResponse::from));
+        return PageResponse.from(connectionApplicationService.listTariffGroups(search, page, size).map(TariffGroupResponse::from));
     }
 
     @PostMapping("/tariff-groups")
@@ -56,11 +57,12 @@ public class ConnectionController {
     public PageResponse<ConnectionResponse> listConnections(
             @RequestParam(required = false) UUID customerId,
             @RequestParam(required = false) ConnectionStatus status,
+            @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "25") @Min(1) @Max(100) int size
     ) {
         return PageResponse.from(
-                connectionApplicationService.listConnections(customerId, status, page, size).map(ConnectionResponse::from)
+                connectionApplicationService.listConnections(customerId, status, search, page, size).map(ConnectionResponse::from)
         );
     }
 

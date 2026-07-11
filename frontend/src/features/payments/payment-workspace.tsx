@@ -26,6 +26,7 @@ import { useMemo, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { MoneyText } from "@/components/format/money-text";
 import { PageHeader } from "@/components/common/page-header";
+import { EntitySelector } from "@/components/entity-selector/entity-selector";
 import { EmptyState } from "@/components/state/empty-state";
 import { ErrorState } from "@/components/state/error-state";
 import { LoadingSkeleton } from "@/components/state/loading-skeleton";
@@ -33,6 +34,7 @@ import { StatusBadge } from "@/components/status/status-badge";
 import type { Account } from "@/features/accounting/accounting-schema";
 import { useAccounts } from "@/features/accounting/use-accounting";
 import { useCurrentUser } from "@/features/auth/use-current-user";
+import { entityLookupLoader } from "@/features/lookups/lookup-api";
 import { apiErrorMessage } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 import { resolveFinancialCommandPermissions } from "@/features/security/financial-command-permissions";
@@ -320,6 +322,9 @@ const defaultReversePaymentForm: ReversePaymentDraft = {
   receivableAccountId: "",
   reason: ""
 };
+
+const invoiceLookupLoader = entityLookupLoader("invoice");
+const paymentLookupLoader = entityLookupLoader("payment");
 
 const defaultReconciliationAdjustmentForm: PaymentReconciliationAdjustmentDraft = {
   itemId: "",
@@ -3970,16 +3975,17 @@ function CounterSettlementForm({ allowed, accounts }: Readonly<{ allowed: boolea
           <div className="mt-3 space-y-3">
             {form.allocations.map((allocation, index) => (
               <div key={allocation.clientId} className="grid gap-3 md:grid-cols-[minmax(0,1fr)_160px_auto]">
-                <label className="block">
-                  <span className="text-xs font-bold uppercase text-slate-600">Invoice ID {index + 1}</span>
-                  <input
-                    className={inputClass}
-                    value={allocation.invoiceId}
-                    disabled={disabled}
-                    onChange={(event) => updateAllocation(allocation.clientId, { invoiceId: event.target.value })}
-                    placeholder="UUID invoice"
-                  />
-                </label>
+                <EntitySelector
+                  value={allocation.invoiceId}
+                  onChange={(value) => updateAllocation(allocation.clientId, { invoiceId: value })}
+                  loadOptions={invoiceLookupLoader}
+                  label={`Invoice ${index + 1}`}
+                  ariaLabel={`Pilih invoice alokasi ${index + 1}`}
+                  placeholder="Cari nomor invoice"
+                  disabled={disabled}
+                  required
+                  invalid={!allocation.invoiceId}
+                />
                 <label className="block">
                   <span className="text-xs font-bold uppercase text-slate-600">Nominal</span>
                   <input
@@ -4088,16 +4094,17 @@ function ReversePaymentForm({ allowed, accounts }: Readonly<{ allowed: boolean; 
         </div>
       </div>
       <div className="mt-4 grid gap-3">
-        <label className="block">
-          <span className="text-xs font-bold uppercase text-red-800">Payment ID</span>
-          <input
-            className={inputClass}
-            value={form.paymentId}
-            disabled={disabled}
-            onChange={(event) => setForm((current) => ({ ...current, paymentId: event.target.value }))}
-            placeholder="UUID payment"
-          />
-        </label>
+        <EntitySelector
+          value={form.paymentId}
+          onChange={(value) => setForm((current) => ({ ...current, paymentId: value }))}
+          loadOptions={paymentLookupLoader}
+          label="Pembayaran"
+          ariaLabel="Pilih pembayaran untuk reversal"
+          placeholder="Cari nomor pembayaran"
+          disabled={disabled}
+          required
+          invalid={!form.paymentId}
+        />
         <div className="grid gap-3 sm:grid-cols-2">
           <AccountSelect
             label="Akun Kas/Bank"

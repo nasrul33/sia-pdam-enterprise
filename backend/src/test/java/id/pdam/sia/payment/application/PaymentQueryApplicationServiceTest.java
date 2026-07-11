@@ -45,7 +45,7 @@ class PaymentQueryApplicationServiceTest {
         when(paymentRepository.findByStatusAndChannel(eq(PaymentStatus.SETTLED), eq("COUNTER"), org.mockito.ArgumentMatchers.any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(payment)));
 
-        assertThat(service.listPayments(PaymentStatus.SETTLED, " counter ", 0, 500).getContent())
+        assertThat(service.listPayments(PaymentStatus.SETTLED, " counter ", null, 0, 500).getContent())
                 .containsExactly(payment);
 
         ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
@@ -60,11 +60,32 @@ class PaymentQueryApplicationServiceTest {
     void listPaymentsUsesUnfilteredRepositoryWhenStatusAndChannelAreEmpty() {
         when(paymentRepository.findAll(org.mockito.ArgumentMatchers.any(Pageable.class))).thenReturn(new PageImpl<>(List.of()));
 
-        service.listPayments(null, " ", -1, 0);
+        service.listPayments(null, " ", null, -1, 0);
 
         verify(paymentRepository).findAll(org.mockito.ArgumentMatchers.any(Pageable.class));
         verify(paymentRepository, never()).findByStatus(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
         verify(paymentRepository, never()).findByChannel(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void listPaymentsUsesBoundedSearchWithExistingFilters() {
+        Payment payment = payment("PAY-20260731-0001", PaymentStatus.SETTLED);
+        when(paymentRepository.search(
+                eq(PaymentStatus.SETTLED),
+                eq("COUNTER"),
+                eq("PAY-2026"),
+                org.mockito.ArgumentMatchers.any(Pageable.class)
+        )).thenReturn(new PageImpl<>(List.of(payment)));
+
+        assertThat(service.listPayments(PaymentStatus.SETTLED, " counter ", " PAY-2026 ", 0, 20).getContent())
+                .containsExactly(payment);
+
+        verify(paymentRepository).search(
+                eq(PaymentStatus.SETTLED),
+                eq("COUNTER"),
+                eq("PAY-2026"),
+                org.mockito.ArgumentMatchers.any(Pageable.class)
+        );
     }
 
     @Test

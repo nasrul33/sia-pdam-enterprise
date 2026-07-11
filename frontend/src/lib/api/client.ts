@@ -104,8 +104,8 @@ function redirectToOidcSignIn(status: number): void {
   window.location.assign(`/api/auth/signin?callbackUrl=${encodeURIComponent(callbackUrl)}`);
 }
 
-export async function apiGet<T>(path: string): Promise<T> {
-  return apiRequest<T>(path);
+export async function apiGet<T>(path: string, init?: RequestInit): Promise<T> {
+  return apiRequest<T>(path, init);
 }
 
 export async function apiGetText(path: string): Promise<string> {

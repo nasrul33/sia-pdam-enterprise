@@ -32,14 +32,11 @@ public class CustomerApplicationService {
         Pageable pageable = pageable(page, size, Sort.by("customerNumber").ascending());
         String normalizedSearch = normalize(search);
 
-        if (status != null && normalizedSearch != null) {
-            return customerRepository.findByStatusAndFullNameContainingIgnoreCase(status, normalizedSearch, pageable);
+        if (normalizedSearch != null) {
+            return customerRepository.search(status, normalizedSearch, pageable);
         }
         if (status != null) {
             return customerRepository.findByStatus(status, pageable);
-        }
-        if (normalizedSearch != null) {
-            return customerRepository.findByFullNameContainingIgnoreCase(normalizedSearch, pageable);
         }
         return customerRepository.findAll(pageable);
     }

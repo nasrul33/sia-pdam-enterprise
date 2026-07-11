@@ -34,10 +34,11 @@ public class AccountingController {
 
     @GetMapping("/accounts")
     public PageResponse<AccountResponse> listAccounts(
+            @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "25") @Min(1) @Max(100) int size
     ) {
-        return PageResponse.from(accountingApplicationService.listAccounts(page, size).map(AccountResponse::from));
+        return PageResponse.from(accountingApplicationService.listAccounts(search, page, size).map(AccountResponse::from));
     }
 
     @PostMapping("/accounts")
@@ -49,11 +50,12 @@ public class AccountingController {
 
     @GetMapping("/accounting-periods")
     public PageResponse<AccountingPeriodResponse> listAccountingPeriods(
+            @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "25") @Min(1) @Max(100) int size
     ) {
         return PageResponse.from(
-                accountingApplicationService.listAccountingPeriods(page, size).map(AccountingPeriodResponse::from)
+                accountingApplicationService.listAccountingPeriods(search, page, size).map(AccountingPeriodResponse::from)
         );
     }
 

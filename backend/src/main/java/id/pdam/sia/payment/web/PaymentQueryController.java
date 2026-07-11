@@ -31,10 +31,11 @@ public class PaymentQueryController {
     public PageResponse<PaymentSummaryResponse> listPayments(
             @RequestParam(required = false) PaymentStatus status,
             @RequestParam(required = false) String channel,
+            @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "25") @Min(1) @Max(100) int size
     ) {
-        return PageResponse.from(paymentQueryApplicationService.listPayments(status, channel, page, size)
+        return PageResponse.from(paymentQueryApplicationService.listPayments(status, channel, search, page, size)
                 .map(PaymentSummaryResponse::from));
     }
 
