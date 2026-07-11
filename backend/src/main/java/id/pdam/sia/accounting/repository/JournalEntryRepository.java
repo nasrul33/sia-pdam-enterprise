@@ -11,6 +11,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -27,11 +28,12 @@ public interface JournalEntryRepository extends JpaRepository<JournalEntry, UUID
 
     long countByAccountingPeriodIdAndStatus(UUID accountingPeriodId, JournalStatus status);
 
-    long countByAccountingPeriodIdAndSourceModuleAndSourceDocumentNumberAndStatus(
+    long countByAccountingPeriodIdAndSourceModuleAndSourceDocumentNumberAndStatusAndPostedAtGreaterThanEqual(
             UUID accountingPeriodId,
             String sourceModule,
             String sourceDocumentNumber,
-            JournalStatus status
+            JournalStatus status,
+            Instant postedAt
     );
 
     @EntityGraph(attributePaths = "lines")

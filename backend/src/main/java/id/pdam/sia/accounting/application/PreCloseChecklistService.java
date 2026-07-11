@@ -3,7 +3,6 @@ package id.pdam.sia.accounting.application;
 import id.pdam.sia.accounting.domain.AccountingPeriod;
 import id.pdam.sia.accounting.domain.FixedAssetStatus;
 import id.pdam.sia.accounting.domain.JournalStatus;
-import id.pdam.sia.accounting.repository.FixedAssetDepreciationRepository;
 import id.pdam.sia.accounting.repository.FixedAssetRepository;
 import id.pdam.sia.accounting.repository.JournalEntryRepository;
 import id.pdam.sia.billing.domain.BillingBatchStatus;
@@ -18,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.Instant;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -32,7 +32,6 @@ public class PreCloseChecklistService {
 
     private final JournalEntryRepository journalEntryRepository;
     private final FixedAssetRepository fixedAssetRepository;
-    private final FixedAssetDepreciationRepository fixedAssetDepreciationRepository;
     private final PaymentReconciliationSessionRepository reconciliationSessionRepository;
     private final BillingBatchRepository billingBatchRepository;
     private final InvoiceRepository invoiceRepository;
@@ -41,7 +40,6 @@ public class PreCloseChecklistService {
     public PreCloseChecklistService(
             JournalEntryRepository journalEntryRepository,
             FixedAssetRepository fixedAssetRepository,
-            FixedAssetDepreciationRepository fixedAssetDepreciationRepository,
             PaymentReconciliationSessionRepository reconciliationSessionRepository,
             BillingBatchRepository billingBatchRepository,
             InvoiceRepository invoiceRepository,
@@ -49,7 +47,6 @@ public class PreCloseChecklistService {
     ) {
         this.journalEntryRepository = journalEntryRepository;
         this.fixedAssetRepository = fixedAssetRepository;
-        this.fixedAssetDepreciationRepository = fixedAssetDepreciationRepository;
         this.reconciliationSessionRepository = reconciliationSessionRepository;
         this.billingBatchRepository = billingBatchRepository;
         this.invoiceRepository = invoiceRepository;
@@ -60,6 +57,7 @@ public class PreCloseChecklistService {
     public PreCloseChecklist evaluate(AccountingPeriod period) {
         YearMonth yearMonth = YearMonth.parse(period.getPeriod());
         LocalDate periodEnd = yearMonth.atEndOfMonth();
+        Instant periodEndExclusive = yearMonth.plusMonths(1).atDay(1).atStartOfDay(BUSINESS_ZONE).toInstant();
         List<PreCloseBlocker> blockers = new ArrayList<>();
 
         addBlocker(
@@ -70,20 +68,18 @@ public class PreCloseChecklistService {
                 "/accounting?status=DRAFT&accountingPeriodId=" + period.getId()
         );
 
-        long activeAssets = fixedAssetRepository.countByStatusAndAcquisitionDateLessThanEqual(
-                FixedAssetStatus.ACTIVE,
-                periodEnd
-        );
-        long depreciatedAssets = fixedAssetDepreciationRepository.countForActiveAssetsByPeriod(
+        long missingDepreciation = fixedAssetRepository.countMissingDepreciationForPeriod(
                 period.getPeriod(),
+                periodEnd,
+                periodEndExclusive,
                 FixedAssetStatus.ACTIVE,
-                periodEnd
+                FixedAssetStatus.DISPOSED
         );
         addBlocker(
                 blockers,
                 "MISSING_ASSET_DEPRECIATION",
                 "Active assets must have depreciation posted for the accounting period.",
-                Math.max(0L, activeAssets - depreciatedAssets),
+                missingDepreciation,
                 "/accounting/assets?status=ACTIVE&period=" + period.getPeriod()
         );
 
@@ -119,13 +115,14 @@ public class PreCloseChecklistService {
                 "/billing?period=" + period.getPeriod() + "&invoiceStatus=DRAFT"
         );
 
-        if (agingSnapshotRepository.findByPeriod(period.getPeriod()).isPresent()) {
+        agingSnapshotRepository.findByPeriod(period.getPeriod()).ifPresent(snapshot -> {
             long allowanceJournals = journalEntryRepository
-                    .countByAccountingPeriodIdAndSourceModuleAndSourceDocumentNumberAndStatus(
+                    .countByAccountingPeriodIdAndSourceModuleAndSourceDocumentNumberAndStatusAndPostedAtGreaterThanEqual(
                             period.getId(),
                             ALLOWANCE_SOURCE_MODULE,
                             period.getPeriod(),
-                            JournalStatus.POSTED
+                            JournalStatus.POSTED,
+                            snapshot.getGeneratedAt()
                     );
             addBlocker(
                     blockers,
@@ -134,7 +131,7 @@ public class PreCloseChecklistService {
                     allowanceJournals == 0L ? 1L : 0L,
                     "/receivables/aging?period=" + period.getPeriod()
             );
-        }
+        });
 
         return new PreCloseChecklist(period.getId(), period.getPeriod(), blockers.isEmpty(), blockers);
     }
