@@ -6,7 +6,7 @@
 - Repository: sia-pdam-enterprise
 - Objective: Rebuild sistem PDAM berbasis Java/Spring Boot dan Next.js
 - Current phase: Blueprint gap closure and release hardening
-- Last updated: 2026-07-12
+- Last updated: 2026-07-13
 
 ## Immutable Context
 
@@ -314,7 +314,7 @@
 | Final backend `gradle clean test integrationTest bootJar` after external-IdP fail-closed hardening | passed on 2026-07-12 in 5m47s; unit suite, seeded API integration, profile configuration, and bootJar green |
 | Final frontend `npm ci`, `test:permissions`, `typecheck`, `lint`, `build` | passed on 2026-07-12; 0 vulnerabilities, 64/64 tests, 21 routes |
 | Dark theme frontend `test:permissions`, `typecheck`, `lint`, `build`, Docker rebuild, HTTP and browser audit | passed on 2026-07-12; 67/67 tests, 21 routes, desktop/mobile persistence, no page-level horizontal overflow, no browser console warnings/errors |
-| Operations workspace cleanup `test:permissions`, `typecheck`, `lint`, `build`, Docker frontend rebuild, and HTTP route smoke | passed on 2026-07-13; 70/70 tests, 21 static routes, Docker Compose frontend rebuild, and `/customers`, `/connections`, `/tariffs`, `/metering`, `/billing`, `/payments`, `/accounting`, and `/admin/users` returned HTTP 200; desktop/mobile browser audit remains required before visual claims |
+| Controller browser audit for operations workspace, representative routes, and theme toggle | passed on 2026-07-13; desktop `/customers` has H1 `Master Pelanggan`, only H2 `Daftar`, `Detail`, `Tambah Pelanggan`, empty forbidden sambungan/golongan tarif sections, `mainCount=1`, `nestedMain=false`, `overflowX=false`, dark theme, and clean console; desktop `/connections` has H1 `Master Sambungan`, H2 `Daftar Sambungan`, `Detail dan Workflow Sambungan`, `Tambah Sambungan`, empty forbidden customer/golongan management sections, 4 accessible `EntitySelector` controls, `mainCount=1`, `overflowX=false`, and clean console; desktop `/tariffs` has H1 `Tarif Air`, H2 covering `Daftar`, `Detail`, `Tambah Golongan`, `Tambah Versi`, `Tambah Blok`, `Workflow`, and `Simulasi`, `mainCount=1`, `overflowX=false`, dark theme, and clean console; representative `/metering`, `/billing`, `/payments`, `/accounting`, and `/admin/users` each have exactly one H1 and one main, no nested main, no page overflow, dark theme, and no console warnings/errors; mobile 390x844 `/customers`, `/connections`, and `/tariffs` each have one H1 and one main, `headerBottom=mainTop=189`, `overflowX=false`, dark theme, and visible toggle; toggle passed dark->light with `colorScheme=light`, label `Gunakan mode gelap`, no overflow, then light->dark with label `Gunakan mode terang` |
 | Final isolated `scripts/smoke-compose.sh` | passed on 2026-07-12; fresh volumes, health, anonymous auth, server-side Basic BFF principal, 20 routes, Flyway, V22/V23 constraints, and V24 indexes; project removed after run |
 | Final isolated `scripts/smoke-oidc.sh` | passed on 2026-07-12; Keycloak 26.7.0 discovery/token, NextAuth provider, anonymous 401, realm/client roles, permission claim, and protected API; project removed after run |
 | Frontend `npm ci`, `test:permissions`, `typecheck`, `lint`, `build` | passed on 2026-07-12 before final BFF hardening; 0 vulnerabilities, 63/63 tests, 21 routes |
