@@ -1352,6 +1352,7 @@ export function TariffWorkspace() {
   const authenticated = currentUserQuery.data?.authenticated ?? false;
   const [filters, setFilters] = useState({ page: 0, size: 10, tariffGroupId: "", status: "" });
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
+  const [tariffGroupForm, setTariffGroupForm] = useState({ code: "", name: "", reason: "" });
   const [versionForm, setVersionForm] = useState({
     tariffGroupId: "",
     effectiveDate: "",
@@ -1384,10 +1385,18 @@ export function TariffWorkspace() {
   });
   const versionQuery = useTariffVersion(selectedVersionId);
   const blocksQuery = useTariffBlocks(selectedVersionId);
+  const createTariffGroupMutation = useCreateTariffGroup();
   const createVersionMutation = useCreateTariffVersion();
   const addBlockMutation = useAddTariffBlock();
   const workflowMutation = useTariffVersionWorkflow();
   const calculationMutation = useTariffCalculation();
+
+  function submitTariffGroup(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    createTariffGroupMutation.mutate(tariffGroupForm, {
+      onSuccess: () => setTariffGroupForm({ code: "", name: "", reason: "" })
+    });
+  }
 
   function submitVersion(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1451,7 +1460,13 @@ export function TariffWorkspace() {
       />
       <AuthNotice authenticated={authenticated} />
 
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-4 md:grid-cols-4">
+        <SummaryCard
+          label="Golongan Tarif"
+          value={String(tariffGroupsQuery.data?.totalItems ?? 0)}
+          helper="Master golongan untuk sambungan dan versi tarif."
+          tone="info"
+        />
         <SummaryCard label="Versi Tarif" value={String(versionsQuery.data?.totalItems ?? 0)} helper="Versi sesuai filter." />
         <SummaryCard
           label="Blok Dipilih"
@@ -1553,6 +1568,48 @@ export function TariffWorkspace() {
           )}
         </Section>
       </section>
+
+      <Section
+        title="Tambah Golongan Tarif"
+        description="Golongan menjadi referensi sambungan dan induk versi tarif."
+      >
+        <form className="grid gap-3 md:grid-cols-2" onSubmit={submitTariffGroup}>
+          <Field label="Kode">
+            <input
+              className={inputClass}
+              value={tariffGroupForm.code}
+              onChange={(event) => setTariffGroupForm((current) => ({ ...current, code: event.target.value }))}
+              required
+            />
+          </Field>
+          <Field label="Nama">
+            <input
+              className={inputClass}
+              value={tariffGroupForm.name}
+              onChange={(event) => setTariffGroupForm((current) => ({ ...current, name: event.target.value }))}
+              required
+            />
+          </Field>
+          <Field label="Alasan audit" className="md:col-span-2">
+            <textarea
+              className={inputClass}
+              value={tariffGroupForm.reason}
+              onChange={(event) => setTariffGroupForm((current) => ({ ...current, reason: event.target.value }))}
+              required
+            />
+          </Field>
+          <div className="md:col-span-2">
+            <MutationError error={createTariffGroupMutation.error} fallback="Gagal membuat golongan tarif." />
+            <button
+              type="submit"
+              className={primaryButtonClass}
+              disabled={!authenticated || createTariffGroupMutation.isPending}
+            >
+              {createTariffGroupMutation.isPending ? "Menyimpan..." : "Simpan Golongan"}
+            </button>
+          </div>
+        </form>
+      </Section>
 
       <section className="grid gap-4 xl:grid-cols-3">
         <Section title="Tambah Versi Tarif">
