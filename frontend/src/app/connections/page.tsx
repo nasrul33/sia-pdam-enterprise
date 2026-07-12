@@ -1,5 +1,5 @@
-import { MasterDataWorkspace } from "@/features/operations/operations-workspaces";
+import { ConnectionWorkspace } from "@/features/operations/operations-workspaces";
 
 export default function ConnectionsPage() {
-  return <MasterDataWorkspace />;
+  return <ConnectionWorkspace />;
 }

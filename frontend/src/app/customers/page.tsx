@@ -1,5 +1,5 @@
-import { MasterDataWorkspace } from "@/features/operations/operations-workspaces";
+import { CustomerWorkspace } from "@/features/operations/operations-workspaces";
 
 export default function CustomersPage() {
-  return <MasterDataWorkspace />;
+  return <CustomerWorkspace />;
 }

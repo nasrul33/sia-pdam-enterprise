@@ -328,14 +328,12 @@ function ConnectionTable({
   );
 }
 
-export function MasterDataWorkspace() {
+export function CustomerWorkspace() {
   const currentUserQuery = useCurrentUser();
   const authenticated = currentUserQuery.data?.authenticated ?? false;
-  const [customerFilters, setCustomerFilters] = useState({ page: 0, size: 10, search: "", status: "" });
-  const [connectionFilters, setConnectionFilters] = useState({ page: 0, size: 10, customerId: "", status: "" });
+  const [filters, setFilters] = useState({ page: 0, size: 10, search: "", status: "" });
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
-  const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
-  const [customerForm, setCustomerForm] = useState({
+  const [form, setForm] = useState({
     customerNumber: "",
     fullName: "",
     identityNumber: "",
@@ -346,91 +344,40 @@ export function MasterDataWorkspace() {
     longitude: "",
     reason: ""
   });
-  const [tariffGroupForm, setTariffGroupForm] = useState({ code: "", name: "", reason: "" });
-  const [connectionForm, setConnectionForm] = useState({
-    customerId: "",
-    tariffGroupId: "",
-    connectionNumber: "",
-    meterNumber: "",
-    installedAt: "",
-    reason: ""
-  });
-  const [connectionWorkflow, setConnectionWorkflow] = useState<{
-    connectionId: string;
-    workflow: ConnectionWorkflow;
-    reason: string;
-  }>({ connectionId: "", workflow: "activate", reason: "" });
 
   const customersQuery = useCustomers({
-    page: customerFilters.page,
-    size: customerFilters.size,
-    search: customerFilters.search || undefined,
-    status: customerFilters.status ? (customerFilters.status as "ACTIVE" | "INACTIVE" | "BLACKLISTED") : undefined
+    page: filters.page,
+    size: filters.size,
+    search: filters.search || undefined,
+    status: filters.status ? (filters.status as "ACTIVE" | "INACTIVE" | "BLACKLISTED") : undefined
   });
   const customerQuery = useCustomer(selectedCustomerId);
-  const tariffGroupsQuery = useTariffGroups({ page: 0, size: 100 });
-  const connectionsQuery = useConnections({
-    page: connectionFilters.page,
-    size: connectionFilters.size,
-    customerId: connectionFilters.customerId || undefined,
-    status: connectionFilters.status ? (connectionFilters.status as "DRAFT" | "ACTIVE" | "SUSPENDED" | "TERMINATED") : undefined
-  });
-  const connectionQuery = useConnection(selectedConnectionId);
   const createCustomerMutation = useCreateCustomer();
-  const createTariffGroupMutation = useCreateTariffGroup();
-  const createConnectionMutation = useCreateConnection();
-  const connectionWorkflowMutation = useConnectionWorkflow();
 
   function submitCustomer(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     createCustomerMutation.mutate({
-      customerNumber: customerForm.customerNumber,
-      fullName: customerForm.fullName,
-      identityNumber: nullIfBlank(customerForm.identityNumber),
-      phoneNumber: nullIfBlank(customerForm.phoneNumber),
-      addressLine: customerForm.addressLine,
-      areaCode: customerForm.areaCode,
-      latitude: numberOrNull(customerForm.latitude),
-      longitude: numberOrNull(customerForm.longitude),
-      reason: customerForm.reason
+      customerNumber: form.customerNumber,
+      fullName: form.fullName,
+      identityNumber: nullIfBlank(form.identityNumber),
+      phoneNumber: nullIfBlank(form.phoneNumber),
+      addressLine: form.addressLine,
+      areaCode: form.areaCode,
+      latitude: numberOrNull(form.latitude),
+      longitude: numberOrNull(form.longitude),
+      reason: form.reason
     });
   }
 
-  function submitTariffGroup(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    createTariffGroupMutation.mutate(tariffGroupForm);
-  }
-
-  function submitConnection(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    createConnectionMutation.mutate({
-      customerId: connectionForm.customerId,
-      tariffGroupId: connectionForm.tariffGroupId,
-      connectionNumber: connectionForm.connectionNumber,
-      meterNumber: connectionForm.meterNumber,
-      installedAt: nullIfBlank(connectionForm.installedAt),
-      reason: connectionForm.reason
-    });
-  }
-
-  function submitConnectionWorkflow(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    connectionWorkflowMutation.mutate({
-      connectionId: connectionWorkflow.connectionId,
-      workflow: connectionWorkflow.workflow,
-      payload: { reason: connectionWorkflow.reason }
-    });
-  }
-
-  if (customersQuery.isLoading || tariffGroupsQuery.isLoading || connectionsQuery.isLoading) {
+  if (customersQuery.isLoading) {
     return <LoadingSkeleton />;
   }
 
   return (
     <main className="space-y-6">
       <PageHeader
-        title="Master Pelanggan dan Sambungan"
-        description="Frontend untuk customer, tariff group, connection list/detail, pembuatan data, dan workflow aktivasi/suspend/terminasi."
+        title="Master Pelanggan"
+        description="Kelola identitas, alamat, status, dan data kontak pelanggan dalam satu workspace."
       />
       <AuthNotice authenticated={authenticated} />
 
@@ -440,18 +387,6 @@ export function MasterDataWorkspace() {
           value={String(customersQuery.data?.totalItems ?? 0)}
           helper="Total pelanggan sesuai filter aktif."
           tone="info"
-        />
-        <SummaryCard
-          label="Sambungan"
-          value={String(connectionsQuery.data?.totalItems ?? 0)}
-          helper="Total sambungan sesuai filter aktif."
-          tone="success"
-        />
-        <SummaryCard
-          label="Golongan Tarif"
-          value={String(tariffGroupsQuery.data?.totalItems ?? 0)}
-          helper="Master tariff group untuk sambungan dan tarif."
-          tone="warning"
         />
       </section>
 
@@ -465,13 +400,13 @@ export function MasterDataWorkspace() {
                 <input
                   className={inputClass}
                   placeholder="Cari nomor atau nama"
-                  value={customerFilters.search}
-                  onChange={(event) => setCustomerFilters((prev) => ({ ...prev, page: 0, search: event.target.value }))}
+                  value={filters.search}
+                  onChange={(event) => setFilters((prev) => ({ ...prev, page: 0, search: event.target.value }))}
                 />
                 <select
                   className={inputClass}
-                  value={customerFilters.status}
-                  onChange={(event) => setCustomerFilters((prev) => ({ ...prev, page: 0, status: event.target.value }))}
+                  value={filters.status}
+                  onChange={(event) => setFilters((prev) => ({ ...prev, page: 0, status: event.target.value }))}
                 >
                   <option value="">Semua status</option>
                   {customerStatusValues.map((status) => (
@@ -532,38 +467,38 @@ export function MasterDataWorkspace() {
             <Field label="Nomor pelanggan">
               <input
                 className={inputClass}
-                value={customerForm.customerNumber}
-                onChange={(event) => setCustomerForm((prev) => ({ ...prev, customerNumber: event.target.value }))}
+                value={form.customerNumber}
+                onChange={(event) => setForm((prev) => ({ ...prev, customerNumber: event.target.value }))}
                 required
               />
             </Field>
             <Field label="Nama lengkap">
               <input
                 className={inputClass}
-                value={customerForm.fullName}
-                onChange={(event) => setCustomerForm((prev) => ({ ...prev, fullName: event.target.value }))}
+                value={form.fullName}
+                onChange={(event) => setForm((prev) => ({ ...prev, fullName: event.target.value }))}
                 required
               />
             </Field>
             <Field label="Nomor identitas">
               <input
                 className={inputClass}
-                value={customerForm.identityNumber}
-                onChange={(event) => setCustomerForm((prev) => ({ ...prev, identityNumber: event.target.value }))}
+                value={form.identityNumber}
+                onChange={(event) => setForm((prev) => ({ ...prev, identityNumber: event.target.value }))}
               />
             </Field>
             <Field label="Telepon">
               <input
                 className={inputClass}
-                value={customerForm.phoneNumber}
-                onChange={(event) => setCustomerForm((prev) => ({ ...prev, phoneNumber: event.target.value }))}
+                value={form.phoneNumber}
+                onChange={(event) => setForm((prev) => ({ ...prev, phoneNumber: event.target.value }))}
               />
             </Field>
             <Field label="Alamat">
               <textarea
                 className={inputClass}
-                value={customerForm.addressLine}
-                onChange={(event) => setCustomerForm((prev) => ({ ...prev, addressLine: event.target.value }))}
+                value={form.addressLine}
+                onChange={(event) => setForm((prev) => ({ ...prev, addressLine: event.target.value }))}
                 required
               />
             </Field>
@@ -571,8 +506,8 @@ export function MasterDataWorkspace() {
               <Field label="Area">
                 <input
                   className={inputClass}
-                  value={customerForm.areaCode}
-                  onChange={(event) => setCustomerForm((prev) => ({ ...prev, areaCode: event.target.value }))}
+                  value={form.areaCode}
+                  onChange={(event) => setForm((prev) => ({ ...prev, areaCode: event.target.value }))}
                   required
                 />
               </Field>
@@ -581,8 +516,8 @@ export function MasterDataWorkspace() {
                   className={inputClass}
                   type="number"
                   step="0.0000001"
-                  value={customerForm.latitude}
-                  onChange={(event) => setCustomerForm((prev) => ({ ...prev, latitude: event.target.value }))}
+                  value={form.latitude}
+                  onChange={(event) => setForm((prev) => ({ ...prev, latitude: event.target.value }))}
                 />
               </Field>
               <Field label="Longitude">
@@ -590,16 +525,16 @@ export function MasterDataWorkspace() {
                   className={inputClass}
                   type="number"
                   step="0.0000001"
-                  value={customerForm.longitude}
-                  onChange={(event) => setCustomerForm((prev) => ({ ...prev, longitude: event.target.value }))}
+                  value={form.longitude}
+                  onChange={(event) => setForm((prev) => ({ ...prev, longitude: event.target.value }))}
                 />
               </Field>
             </div>
             <Field label="Alasan audit">
               <textarea
                 className={inputClass}
-                value={customerForm.reason}
-                onChange={(event) => setCustomerForm((prev) => ({ ...prev, reason: event.target.value }))}
+                value={form.reason}
+                onChange={(event) => setForm((prev) => ({ ...prev, reason: event.target.value }))}
                 required
               />
             </Field>
@@ -609,86 +544,80 @@ export function MasterDataWorkspace() {
             </button>
           </form>
         </Section>
+      </section>
+    </main>
+  );
+}
 
-        <Section title="Tambah Golongan Tarif">
-          <form className="space-y-3" onSubmit={submitTariffGroup}>
-            <Field label="Kode">
-              <input
-                className={inputClass}
-                value={tariffGroupForm.code}
-                onChange={(event) => setTariffGroupForm((prev) => ({ ...prev, code: event.target.value }))}
-                required
-              />
-            </Field>
-            <Field label="Nama">
-              <input
-                className={inputClass}
-                value={tariffGroupForm.name}
-                onChange={(event) => setTariffGroupForm((prev) => ({ ...prev, name: event.target.value }))}
-                required
-              />
-            </Field>
-            <Field label="Alasan audit">
-              <textarea
-                className={inputClass}
-                value={tariffGroupForm.reason}
-                onChange={(event) => setTariffGroupForm((prev) => ({ ...prev, reason: event.target.value }))}
-                required
-              />
-            </Field>
-            <MutationError error={createTariffGroupMutation.error} fallback="Gagal membuat golongan tarif." />
-            <button
-              type="submit"
-              className={primaryButtonClass}
-              disabled={!authenticated || createTariffGroupMutation.isPending}
-            >
-              Simpan Golongan
-            </button>
-          </form>
-        </Section>
+export function ConnectionWorkspace() {
+  const currentUserQuery = useCurrentUser();
+  const authenticated = currentUserQuery.data?.authenticated ?? false;
+  const [filters, setFilters] = useState({ page: 0, size: 10, customerId: "", status: "" });
+  const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
+  const [form, setForm] = useState({
+    customerId: "",
+    tariffGroupId: "",
+    connectionNumber: "",
+    meterNumber: "",
+    installedAt: "",
+    reason: ""
+  });
+  const [workflow, setWorkflow] = useState<{
+    connectionId: string;
+    workflow: ConnectionWorkflow;
+    reason: string;
+  }>({ connectionId: "", workflow: "activate", reason: "" });
 
-        <Section title="Tambah Sambungan">
-          <form className="space-y-3" onSubmit={submitConnection}>
-            <EntitySelector value={connectionForm.customerId} onChange={(value) => setConnectionForm((prev) => ({ ...prev, customerId: value }))} loadOptions={customerLookupLoader} label="Pelanggan" ariaLabel="Pilih pelanggan sambungan" placeholder="Cari nomor atau nama pelanggan" required invalid={!connectionForm.customerId} />
-            <EntitySelector value={connectionForm.tariffGroupId} onChange={(value) => setConnectionForm((prev) => ({ ...prev, tariffGroupId: value }))} loadOptions={tariffGroupLookupLoader} label="Golongan tarif" ariaLabel="Pilih golongan tarif sambungan" placeholder="Cari kode atau nama golongan" required invalid={!connectionForm.tariffGroupId} />
-            <Field label="Nomor sambungan">
-              <input
-                className={inputClass}
-                value={connectionForm.connectionNumber}
-                onChange={(event) => setConnectionForm((prev) => ({ ...prev, connectionNumber: event.target.value }))}
-                required
-              />
-            </Field>
-            <Field label="Nomor meter">
-              <input
-                className={inputClass}
-                value={connectionForm.meterNumber}
-                onChange={(event) => setConnectionForm((prev) => ({ ...prev, meterNumber: event.target.value }))}
-                required
-              />
-            </Field>
-            <Field label="Tanggal pasang">
-              <input
-                className={inputClass}
-                type="date"
-                value={connectionForm.installedAt}
-                onChange={(event) => setConnectionForm((prev) => ({ ...prev, installedAt: event.target.value }))}
-              />
-            </Field>
-            <Field label="Alasan audit">
-              <textarea
-                className={inputClass}
-                value={connectionForm.reason}
-                onChange={(event) => setConnectionForm((prev) => ({ ...prev, reason: event.target.value }))}
-                required
-              />
-            </Field>
-            <MutationError error={createConnectionMutation.error} fallback="Gagal membuat sambungan." />
-            <button type="submit" className={primaryButtonClass} disabled={!authenticated || createConnectionMutation.isPending}>
-              Simpan Sambungan
-            </button>
-          </form>
-        </Section>
+  const connectionsQuery = useConnections({
+    page: filters.page,
+    size: filters.size,
+    customerId: filters.customerId || undefined,
+    status: filters.status ? (filters.status as "DRAFT" | "ACTIVE" | "SUSPENDED" | "TERMINATED") : undefined
+  });
+  const connectionQuery = useConnection(selectedConnectionId);
+  const createConnectionMutation = useCreateConnection();
+  const connectionWorkflowMutation = useConnectionWorkflow();
+
+  function submitConnection(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    createConnectionMutation.mutate({
+      customerId: form.customerId,
+      tariffGroupId: form.tariffGroupId,
+      connectionNumber: form.connectionNumber,
+      meterNumber: form.meterNumber,
+      installedAt: nullIfBlank(form.installedAt),
+      reason: form.reason
+    });
+  }
+
+  function submitConnectionWorkflow(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    connectionWorkflowMutation.mutate({
+      connectionId: workflow.connectionId,
+      workflow: workflow.workflow,
+      payload: { reason: workflow.reason }
+    });
+  }
+
+  if (connectionsQuery.isLoading) {
+    return <LoadingSkeleton />;
+  }
+
+  return (
+    <main className="space-y-6">
+      <PageHeader
+        title="Master Sambungan"
+        description="Kelola pemasangan meter, golongan tarif, status layanan, dan workflow sambungan pelanggan."
+      />
+      <AuthNotice authenticated={authenticated} />
+
+      <section className="grid gap-4 md:grid-cols-3">
+        <SummaryCard
+          label="Sambungan"
+          value={String(connectionsQuery.data?.totalItems ?? 0)}
+          helper="Total sambungan sesuai filter aktif."
+          tone="success"
+        />
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[1.4fr_.8fr]">
@@ -698,11 +627,18 @@ export function MasterDataWorkspace() {
           ) : (
             <div className="space-y-4">
               <div className="grid gap-3 md:grid-cols-[1fr_180px_120px]">
-                <EntitySelector value={connectionFilters.customerId} onChange={(value) => setConnectionFilters((prev) => ({ ...prev, page: 0, customerId: value }))} loadOptions={customerLookupLoader} label="Pelanggan" ariaLabel="Filter sambungan berdasarkan pelanggan" placeholder="Cari pelanggan" />
+                <EntitySelector
+                  value={filters.customerId}
+                  onChange={(value) => setFilters((prev) => ({ ...prev, page: 0, customerId: value }))}
+                  loadOptions={customerLookupLoader}
+                  label="Pelanggan"
+                  ariaLabel="Filter sambungan berdasarkan pelanggan"
+                  placeholder="Cari pelanggan"
+                />
                 <select
                   className={inputClass}
-                  value={connectionFilters.status}
-                  onChange={(event) => setConnectionFilters((prev) => ({ ...prev, page: 0, status: event.target.value }))}
+                  value={filters.status}
+                  onChange={(event) => setFilters((prev) => ({ ...prev, page: 0, status: event.target.value }))}
                 >
                   <option value="">Semua status</option>
                   {connectionStatusValues.map((status) => (
@@ -719,7 +655,7 @@ export function MasterDataWorkspace() {
                 connections={connectionsQuery.data?.items ?? []}
                 onSelect={(connectionId) => {
                   setSelectedConnectionId(connectionId);
-                  setConnectionWorkflow((prev) => ({ ...prev, connectionId }));
+                  setWorkflow((previousWorkflow) => ({ ...previousWorkflow, connectionId }));
                 }}
               />
               <PageCount page={connectionsQuery.data?.page ?? 0} totalPages={connectionsQuery.data?.totalPages ?? 0} />
@@ -727,15 +663,37 @@ export function MasterDataWorkspace() {
           )}
         </Section>
 
-        <Section title="Workflow Sambungan">
+        <Section title="Detail dan Workflow Sambungan">
           <form className="space-y-3" onSubmit={submitConnectionWorkflow}>
-            <EntitySelector value={connectionWorkflow.connectionId} selectedOption={selectedEntityOption(connectionsQuery.data?.items ?? [], connectionWorkflow.connectionId, (connection) => ({ id: connection.id, label: connection.connectionNumber, description: `Meter ${connection.meterNumber}`, status: connection.status }))} onChange={(value) => setConnectionWorkflow((prev) => ({ ...prev, connectionId: value }))} loadOptions={connectionLookupLoader} label="Sambungan" ariaLabel="Pilih sambungan untuk workflow" placeholder="Cari nomor sambungan atau meter" required invalid={!connectionWorkflow.connectionId} />
+            <EntitySelector
+              value={workflow.connectionId}
+              selectedOption={selectedEntityOption(
+                connectionsQuery.data?.items ?? [],
+                workflow.connectionId,
+                (connection) => ({
+                  id: connection.id,
+                  label: connection.connectionNumber,
+                  description: `Meter ${connection.meterNumber}`,
+                  status: connection.status
+                })
+              )}
+              onChange={(value) => setWorkflow((previousWorkflow) => ({ ...previousWorkflow, connectionId: value }))}
+              loadOptions={connectionLookupLoader}
+              label="Sambungan"
+              ariaLabel="Pilih sambungan untuk workflow"
+              placeholder="Cari nomor sambungan atau meter"
+              required
+              invalid={!workflow.connectionId}
+            />
             <Field label="Aksi">
               <select
                 className={inputClass}
-                value={connectionWorkflow.workflow}
+                value={workflow.workflow}
                 onChange={(event) =>
-                  setConnectionWorkflow((prev) => ({ ...prev, workflow: event.target.value as ConnectionWorkflow }))
+                  setWorkflow((previousWorkflow) => ({
+                    ...previousWorkflow,
+                    workflow: event.target.value as ConnectionWorkflow
+                  }))
                 }
               >
                 <option value="activate">Aktifkan</option>
@@ -746,15 +704,15 @@ export function MasterDataWorkspace() {
             <Field label="Alasan audit">
               <textarea
                 className={inputClass}
-                value={connectionWorkflow.reason}
-                onChange={(event) => setConnectionWorkflow((prev) => ({ ...prev, reason: event.target.value }))}
+                value={workflow.reason}
+                onChange={(event) => setWorkflow((previousWorkflow) => ({ ...previousWorkflow, reason: event.target.value }))}
                 required
               />
             </Field>
             <MutationError error={connectionWorkflowMutation.error} fallback="Workflow sambungan gagal." />
             <button
               type="submit"
-              className={connectionWorkflow.workflow === "terminate" ? dangerButtonClass : primaryButtonClass}
+              className={workflow.workflow === "terminate" ? dangerButtonClass : primaryButtonClass}
               disabled={!authenticated || connectionWorkflowMutation.isPending}
             >
               Jalankan Workflow
@@ -778,6 +736,67 @@ export function MasterDataWorkspace() {
           </div>
         </Section>
       </section>
+
+      <Section title="Tambah Sambungan">
+        <form className="space-y-3" onSubmit={submitConnection}>
+          <EntitySelector
+            value={form.customerId}
+            onChange={(value) => setForm((previousForm) => ({ ...previousForm, customerId: value }))}
+            loadOptions={customerLookupLoader}
+            label="Pelanggan"
+            ariaLabel="Pilih pelanggan sambungan"
+            placeholder="Cari nomor atau nama pelanggan"
+            required
+            invalid={!form.customerId}
+          />
+          <EntitySelector
+            value={form.tariffGroupId}
+            onChange={(value) => setForm((previousForm) => ({ ...previousForm, tariffGroupId: value }))}
+            loadOptions={tariffGroupLookupLoader}
+            label="Golongan tarif"
+            ariaLabel="Pilih golongan tarif sambungan"
+            placeholder="Cari kode atau nama golongan"
+            required
+            invalid={!form.tariffGroupId}
+          />
+          <Field label="Nomor sambungan">
+            <input
+              className={inputClass}
+              value={form.connectionNumber}
+              onChange={(event) => setForm((previousForm) => ({ ...previousForm, connectionNumber: event.target.value }))}
+              required
+            />
+          </Field>
+          <Field label="Nomor meter">
+            <input
+              className={inputClass}
+              value={form.meterNumber}
+              onChange={(event) => setForm((previousForm) => ({ ...previousForm, meterNumber: event.target.value }))}
+              required
+            />
+          </Field>
+          <Field label="Tanggal pasang">
+            <input
+              className={inputClass}
+              type="date"
+              value={form.installedAt}
+              onChange={(event) => setForm((previousForm) => ({ ...previousForm, installedAt: event.target.value }))}
+            />
+          </Field>
+          <Field label="Alasan audit">
+            <textarea
+              className={inputClass}
+              value={form.reason}
+              onChange={(event) => setForm((previousForm) => ({ ...previousForm, reason: event.target.value }))}
+              required
+            />
+          </Field>
+          <MutationError error={createConnectionMutation.error} fallback="Gagal membuat sambungan." />
+          <button type="submit" className={primaryButtonClass} disabled={!authenticated || createConnectionMutation.isPending}>
+            Simpan Sambungan
+          </button>
+        </form>
+      </Section>
     </main>
   );
 }
