@@ -24,6 +24,7 @@ import {
   type LucideIcon
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 
 type NavItem = {
   label: string;
@@ -152,7 +153,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
   const today = formatOperationalDate(new Date());
 
   return (
-    <div className="min-h-screen bg-[#eef3f8] text-slate-950">
+    <div className="min-h-screen bg-[var(--surface-page)] text-slate-950">
       <aside className="app-scrollbar fixed inset-y-0 left-0 z-40 hidden w-[19rem] overflow-y-auto border-r border-slate-950 bg-[#111827] text-white shadow-[18px_0_44px_-34px_rgba(15,23,42,0.92)] lg:block">
         <div className="sticky top-0 z-10 h-1 bg-[linear-gradient(90deg,#14b8a6,#2563eb,#f59e0b)]" />
         <div className="px-4 py-5">
@@ -218,7 +219,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
       </aside>
 
       <div className="lg:pl-[19rem]">
-        <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl">
+        <header className="app-header sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl">
           <div className="px-4 py-3 sm:px-6 lg:px-8">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">
@@ -234,6 +235,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
+                <ThemeToggle />
                 <div className="hidden items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800 sm:flex">
                   <Activity className="size-4" aria-hidden="true" />
                   Online
