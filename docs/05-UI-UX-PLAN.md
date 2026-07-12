@@ -53,3 +53,11 @@ Every page must include:
 ## Implemented Enterprise Workspaces
 
 The 21 built routes cover dashboard, accounting/period/journal/AP/assets, billing/tariff, customer/connection/request, metering/offline import/lock, payment/bank mutation/reconciliation, receivable aging/collection/installment, financial reporting, settings, and guarded user/role administration. Each operational workspace uses typed API schemas, loading/error/empty states, permission gates, audit reason validation, and stable responsive layouts.
+
+## Theme Standard
+
+- The shell exposes one icon-only light/dark toggle with an accessible Indonesian label and pressed state.
+- An explicit selection is stored under `sia-pdam-theme`; first-time visits follow `prefers-color-scheme`.
+- The root layout applies the resolved theme before hydration to prevent a light-theme flash.
+- Semantic surface, ink, border, status, form, table, hover, focus, loading, error, and empty-state colors must remain legible in both themes.
+- Theme behavior is global across all 21 routes and must not change financial permissions or command behavior.
