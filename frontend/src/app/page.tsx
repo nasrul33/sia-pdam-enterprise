@@ -201,7 +201,7 @@ export default function HomePage() {
   }
 
   return (
-    <main className="space-y-6">
+    <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <PageHeader
           title="SIA-PDAM Enterprise"
@@ -253,6 +253,6 @@ export default function HomePage() {
         <QualityGateList gates={data.qualityGates} />
         <RiskQueue risks={data.risks} />
       </section>
-    </main>
+    </div>
   );
 }

@@ -757,7 +757,7 @@ export function CollectionActionWorkspace() {
   }
 
   return (
-    <main className="space-y-6">
+    <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <PageHeader
           title="Penagihan Piutang"
@@ -878,6 +878,6 @@ export function CollectionActionWorkspace() {
           ) : null}
         </>
       ) : null}
-    </main>
+    </div>
   );
 }

@@ -4247,7 +4247,7 @@ export function PaymentWorkspace() {
   const error = paymentsQuery.error ?? webhookEventsQuery.error ?? accountsQuery.error;
 
   return (
-    <main className="space-y-6">
+    <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <PageHeader
           title="Pembayaran"
@@ -4408,6 +4408,6 @@ export function PaymentWorkspace() {
           </section>
         </>
       ) : null}
-    </main>
+    </div>
   );
 }

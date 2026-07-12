@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test:permissions": "node --test --experimental-strip-types src/features/receivables/collection-actions/collection-action-permissions.test.ts src/features/security/financial-command-permissions.test.ts src/features/accounting/accounting-workspace-model.test.ts src/features/billing/billing-workspace-model.test.ts src/features/payments/payment-workspace-model.test.ts src/features/admin-users/admin-user-permissions.test.ts src/features/auth/backend-proxy-policy.test.ts src/features/auth/auth-options.test.ts src/features/auth/auth-mode.test.ts src/features/theme/theme.test.ts src/components/entity-selector/entity-selector-model.test.ts src/features/operations/operations-route-boundaries.test.ts src/lib/date/operational-date.test.ts",
+    "test:permissions": "node --test --experimental-strip-types src/features/receivables/collection-actions/collection-action-permissions.test.ts src/features/security/financial-command-permissions.test.ts src/features/accounting/accounting-workspace-model.test.ts src/features/billing/billing-workspace-model.test.ts src/features/payments/payment-workspace-model.test.ts src/features/admin-users/admin-user-permissions.test.ts src/features/auth/backend-proxy-policy.test.ts src/features/auth/auth-options.test.ts src/features/auth/auth-mode.test.ts src/features/theme/theme.test.ts src/components/entity-selector/entity-selector-model.test.ts src/components/layout/app-shell-semantics.test.ts src/features/operations/operations-route-boundaries.test.ts src/lib/date/operational-date.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

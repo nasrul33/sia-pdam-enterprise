@@ -167,7 +167,7 @@ export function BlueprintListWorkspace({ config }: Readonly<{ config: BlueprintW
   }
 
   return (
-    <main className="space-y-5">
+    <div className="space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <PageHeader title={config.title} description={config.description} eyebrow={config.eyebrow} />
         <button
@@ -232,7 +232,7 @@ export function BlueprintListWorkspace({ config }: Readonly<{ config: BlueprintW
         </div>
         <CommandPanel command={config.command} queryKey={queryKey} />
       </section>
-    </main>
+    </div>
   );
 }
 
@@ -403,7 +403,7 @@ export function FinancialStatementsWorkspace() {
   }
 
   return (
-    <main className="space-y-5">
+    <div className="space-y-5">
       <PageHeader
         title="Financial Statements"
         eyebrow="ReportingAgent"
@@ -451,6 +451,6 @@ export function FinancialStatementsWorkspace() {
           </div>
         </div>
       </section>
-    </main>
+    </div>
   );
 }

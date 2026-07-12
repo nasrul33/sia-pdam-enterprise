@@ -1205,7 +1205,7 @@ export function BillingWorkspace() {
   const hasError = batchesQuery.isError || invoiceQuery.isError || accountsQuery.isError;
 
   return (
-    <main className="space-y-6">
+    <div className="space-y-6">
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
         <PageHeader
           title="Billing"
@@ -1310,6 +1310,6 @@ export function BillingWorkspace() {
           </section>
         </>
       ) : null}
-    </main>
+    </div>
   );
 }

@@ -1400,7 +1400,7 @@ export function AccountingWorkspace() {
   const hasError = accountsQuery.isError || periodsQuery.isError || journalsQuery.isError;
 
   return (
-    <main className="space-y-6">
+    <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <PageHeader
           title="Akuntansi"
@@ -1478,6 +1478,6 @@ export function AccountingWorkspace() {
           />
         </>
       ) : null}
-    </main>
+    </div>
   );
 }

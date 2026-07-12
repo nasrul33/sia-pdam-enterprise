@@ -228,7 +228,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
                   Enterprise Operations
                 </div>
                 <div className="mt-1 flex flex-wrap items-center gap-2">
-                  <h1 className="text-xl font-black text-slate-950 sm:text-2xl">{activeItem.label}</h1>
+                  <div className="text-xl font-black text-slate-950 sm:text-2xl">{activeItem.label}</div>
                   <span className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-bold text-slate-600">
                     {activeItem.description}
                   </span>

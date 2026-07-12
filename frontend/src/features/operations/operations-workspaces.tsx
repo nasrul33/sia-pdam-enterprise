@@ -373,14 +373,14 @@ export function CustomerWorkspace() {
   }
 
   return (
-    <main className="space-y-6">
+    <div className="space-y-6">
       <PageHeader
         title="Master Pelanggan"
         description="Kelola identitas, alamat, status, dan data kontak pelanggan dalam satu workspace."
       />
       <AuthNotice authenticated={authenticated} />
 
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="max-w-md">
         <SummaryCard
           label="Pelanggan"
           value={String(customersQuery.data?.totalItems ?? 0)}
@@ -544,7 +544,7 @@ export function CustomerWorkspace() {
           </form>
         </Section>
       </section>
-    </main>
+    </div>
   );
 }
 
@@ -603,14 +603,14 @@ export function ConnectionWorkspace() {
   }
 
   return (
-    <main className="space-y-6">
+    <div className="space-y-6">
       <PageHeader
         title="Master Sambungan"
         description="Kelola pemasangan meter, golongan tarif, status layanan, dan workflow sambungan pelanggan."
       />
       <AuthNotice authenticated={authenticated} />
 
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="max-w-md">
         <SummaryCard
           label="Sambungan"
           value={String(connectionsQuery.data?.totalItems ?? 0)}
@@ -796,7 +796,7 @@ export function ConnectionWorkspace() {
           </button>
         </form>
       </Section>
-    </main>
+    </div>
   );
 }
 
@@ -953,7 +953,7 @@ export function MeteringWorkspace() {
   }
 
   return (
-    <main className="space-y-6">
+    <div className="space-y-6">
       <PageHeader
         title="Baca Meter"
         description="Frontend untuk meter route, input meter reading, detail reading, dan workflow submit/verify/reject."
@@ -1303,7 +1303,7 @@ export function MeteringWorkspace() {
           </div>
         ) : null}
       </Section>
-    </main>
+    </div>
   );
 }
 
@@ -1452,7 +1452,7 @@ export function TariffWorkspace() {
   }
 
   return (
-    <main className="space-y-6">
+    <div className="space-y-6">
       <PageHeader
         title="Tarif Air"
         description="Frontend untuk tariff group, versi tarif, blok progresif, aktivasi/arsip, dan simulasi kalkulasi."
@@ -1825,7 +1825,7 @@ export function TariffWorkspace() {
           </form>
         </Section>
       </section>
-    </main>
+    </div>
   );
 }
 
@@ -1859,7 +1859,7 @@ export function ReceivableAgingWorkspace() {
   const selectedSnapshot = snapshotQuery.data ?? byPeriodQuery.data ?? null;
 
   return (
-    <main className="space-y-6">
+    <div className="space-y-6">
       <PageHeader
         title="Aging Piutang"
         description="Frontend untuk generate snapshot, daftar snapshot, detail snapshot, dan lookup by-period."
@@ -2011,7 +2011,7 @@ export function ReceivableAgingWorkspace() {
           <EmptyState title="Belum ada snapshot dipilih" description="Pilih snapshot dari daftar atau cari berdasarkan periode." />
         )}
       </Section>
-    </main>
+    </div>
   );
 }
 
@@ -2031,7 +2031,7 @@ export function TrialBalanceWorkspace() {
   }, [reportQuery.data]);
 
   return (
-    <main className="space-y-6">
+    <div className="space-y-6">
       <PageHeader
         title="Laporan Neraca Saldo"
         description="Frontend untuk `/api/reports/trial-balance`, berbasis ledger posted dan menampilkan status balance."
@@ -2119,6 +2119,6 @@ export function TrialBalanceWorkspace() {
           </div>
         )}
       </Section>
-    </main>
+    </div>
   );
 }
