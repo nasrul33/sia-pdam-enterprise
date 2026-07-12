@@ -36,8 +36,21 @@ export function isUsableAccessToken(
   );
 }
 
-export function buildBackendRequestHeaders(source: Headers, accessToken: string): Headers {
-  const headers = new Headers({ Authorization: `Bearer ${accessToken}` });
+export function buildBasicAuthorization(username: string | undefined, password: string | undefined): string | null {
+  if (
+    !username ||
+    !password ||
+    username.includes(":") ||
+    /[\r\n]/.test(username) ||
+    /[\r\n]/.test(password)
+  ) {
+    return null;
+  }
+  return `Basic ${Buffer.from(`${username}:${password}`, "utf8").toString("base64")}`;
+}
+
+export function buildBackendRequestHeaders(source: Headers, authorization: string): Headers {
+  const headers = new Headers({ Authorization: authorization });
   FORWARDED_REQUEST_HEADERS.forEach((name) => {
     const value = source.get(name);
     if (value) {

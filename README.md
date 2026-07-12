@@ -43,16 +43,16 @@ docker compose config
 docker compose up -d --build
 ```
 
-Login development setelah `.env.example` disalin ke `.env`: isi password lokal sendiri, lalu samakan `NEXT_PUBLIC_DEV_BASIC_AUTH_*` dengan user bootstrap agar frontend local Docker otomatis mengirim Basic Auth dev ke backend.
+Login development setelah `.env.example` disalin ke `.env`: isi password lokal sendiri, lalu samakan `DEV_BASIC_AUTH_*` dengan user bootstrap. Next.js BFF menyuntikkan Basic Auth di server; credential tidak masuk browser bundle.
 
 ```env
 SIA_BOOTSTRAP_ADMIN_USERNAME=admin
 SIA_BOOTSTRAP_ADMIN_PASSWORD=<password-lokal>
-NEXT_PUBLIC_DEV_BASIC_AUTH_USERNAME=admin
-NEXT_PUBLIC_DEV_BASIC_AUTH_PASSWORD=<password-lokal>
+DEV_BASIC_AUTH_USERNAME=admin
+DEV_BASIC_AUTH_PASSWORD=<password-lokal>
 ```
 
-`NEXT_PUBLIC_DEV_BASIC_AUTH_*` hanya untuk local Docker. Jangan set variable ini di staging/production.
+`DEV_BASIC_AUTH_*` hanya untuk local Docker. Jangan set variable ini di staging/production.
 
 Endpoint `/api/auth/me` bisa dibuka langsung untuk cek status sesi. Tanpa credential hasilnya anonymous; dengan credential hasilnya user admin:
 

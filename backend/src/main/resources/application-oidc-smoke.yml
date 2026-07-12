@@ -6,6 +6,8 @@ spring:
           issuer-uri: ${KEYCLOAK_ISSUER_URI:http://keycloak:8080/realms/sia-pdam-test}
 
 sia:
+  admin:
+    local-mutations-enabled: false
   security:
     production:
       enabled: false

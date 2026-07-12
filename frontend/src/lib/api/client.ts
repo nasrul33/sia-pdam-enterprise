@@ -1,9 +1,5 @@
 const AUTH_MODE = process.env.NEXT_PUBLIC_DEV_AUTH_MODE ?? "basic";
-const API_BASE_URL = AUTH_MODE === "oidc"
-  ? "/api/backend"
-  : process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:18080";
-const DEV_BASIC_AUTH_USERNAME = process.env.NEXT_PUBLIC_DEV_BASIC_AUTH_USERNAME ?? "";
-const DEV_BASIC_AUTH_PASSWORD = process.env.NEXT_PUBLIC_DEV_BASIC_AUTH_PASSWORD ?? "";
+const API_BASE_URL = "/api/backend";
 
 export class ApiClientError extends Error {
   constructor(
@@ -35,19 +31,7 @@ function applyDefaultHeaders(headers: Headers): Headers {
     headers.set("Content-Type", "application/json");
   }
 
-  const devAuthorization = devBasicAuthorization();
-  if (devAuthorization && !headers.has("Authorization")) {
-    headers.set("Authorization", devAuthorization);
-  }
-
   return headers;
-}
-
-function devBasicAuthorization(): string | null {
-  if (AUTH_MODE !== "basic" || !DEV_BASIC_AUTH_USERNAME || !DEV_BASIC_AUTH_PASSWORD) {
-    return null;
-  }
-  return `Basic ${btoa(`${DEV_BASIC_AUTH_USERNAME}:${DEV_BASIC_AUTH_PASSWORD}`)}`;
 }
 
 async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {

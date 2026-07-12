@@ -6,6 +6,8 @@ spring:
           issuer-uri: ${KEYCLOAK_ISSUER_URI}
 
 sia:
+  admin:
+    local-mutations-enabled: false
   security:
     production:
       enabled: true

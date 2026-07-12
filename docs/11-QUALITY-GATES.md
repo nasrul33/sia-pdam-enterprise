@@ -39,7 +39,7 @@ CI runs the full route smoke after backend, frontend, and compose-config gates p
 sh scripts/smoke-compose.sh
 ```
 
-The smoke script builds and starts the stack, waits for `/actuator/health`, verifies anonymous `/api/auth/me`, checks all baseline frontend routes, fails if Flyway has any failed migration entry, and then runs the PostgreSQL V22/V23 constraint plus V24 performance-index checks. By default it keeps the local stack running after success. CI sets `SMOKE_KEEP_RUNNING=0` so containers are torn down after the job.
+The smoke script uses an isolated project/port/volume set, builds and starts the stack, waits for `/actuator/health`, verifies anonymous backend auth plus authenticated server-side Basic BFF, checks all baseline frontend routes, fails if Flyway has any failed migration entry, and then runs the PostgreSQL V22/V23 constraint plus V24 performance-index checks. It removes its isolated containers and volumes by default; set `SMOKE_KEEP_RUNNING=1` only for debugging.
 
 Current frontend route coverage:
 

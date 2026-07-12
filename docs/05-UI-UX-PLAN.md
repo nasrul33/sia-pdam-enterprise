@@ -40,3 +40,16 @@ Every page must include:
 - Combobox interaction supports Arrow Up/Down, Enter, Escape, clear action, `aria-expanded`, `aria-controls`, and `role="listbox"`/`role="option"` semantics.
 - Lookup results are bounded to 20 rows and show business number/name, supporting description, and status. Loading, error, empty, disabled, invalid, and selected states use a fixed-height overlay so form layout does not shift.
 - Backend payloads continue to carry UUID values and retain UUID validation; only the operator-facing input method changes.
+
+## Authentication UX Standard
+
+- All browser API traffic is same-origin through `/api/backend`; frontend components never construct Basic/Bearer authorization values.
+- Local Basic credentials exist only in the Next.js server environment. Production access token remains inside the encrypted NextAuth server session and is never stored in local/session storage.
+- `SessionProvider` is rendered only for OIDC builds to avoid unnecessary session fetches and hydration errors in local Basic mode.
+- A backend `401` in OIDC mode redirects to `/api/auth/signin` with the current route as callback. Local server misconfiguration and backend unavailability render the existing query error state without exposing credential details.
+- Permission-aware controls remain usability hints only; backend method security is authoritative for every sensitive mutation.
+- User administration renders `EXTERNAL_MANAGED` accounts as "Dikelola IdP" and disables local status/role commands; local database mutation is available only under local Basic profile.
+
+## Implemented Enterprise Workspaces
+
+The 21 built routes cover dashboard, accounting/period/journal/AP/assets, billing/tariff, customer/connection/request, metering/offline import/lock, payment/bank mutation/reconciliation, receivable aging/collection/installment, financial reporting, settings, and guarded user/role administration. Each operational workspace uses typed API schemas, loading/error/empty states, permission gates, audit reason validation, and stable responsive layouts.

@@ -17,8 +17,14 @@ test("resolveAdminUserPermissions maps granular administration authorities", () 
 test("admin user guards block self status mutation and require role permission", () => {
   const fullPermissions = resolveAdminUserPermissions(["user.read", "user.manage", "role.manage"]);
 
-  assert.equal(canChangeUserStatus({ username: "admin" }, "admin", fullPermissions), false);
-  assert.equal(canChangeUserStatus({ username: "operator" }, "admin", fullPermissions), true);
-  assert.equal(canReplaceUserRoles(fullPermissions), true);
-  assert.equal(canReplaceUserRoles(resolveAdminUserPermissions(["user.read"])), false);
+  const localAdmin = { username: "admin", identityProviderStatus: "LOCAL_ONLY" };
+  const localOperator = { username: "operator", identityProviderStatus: "LOCAL_ONLY" };
+  const externalOperator = { username: "operator", identityProviderStatus: "EXTERNAL_MANAGED" };
+
+  assert.equal(canChangeUserStatus(localAdmin, "admin", fullPermissions), false);
+  assert.equal(canChangeUserStatus(localOperator, "admin", fullPermissions), true);
+  assert.equal(canChangeUserStatus(externalOperator, "admin", fullPermissions), false);
+  assert.equal(canReplaceUserRoles(localOperator, fullPermissions), true);
+  assert.equal(canReplaceUserRoles(externalOperator, fullPermissions), false);
+  assert.equal(canReplaceUserRoles(localOperator, resolveAdminUserPermissions(["user.read"])), false);
 });

@@ -19,9 +19,8 @@ Buat `.env.production` di secret store/host deployment, jangan commit file terse
 SPRING_PROFILES_ACTIVE=prod
 AUTH_MODE=oidc
 NEXT_PUBLIC_DEV_AUTH_MODE=oidc
-NEXT_PUBLIC_DEV_BASIC_AUTH_USERNAME=
-NEXT_PUBLIC_DEV_BASIC_AUTH_PASSWORD=
-NEXT_PUBLIC_API_BASE_URL=https://api.sia-pdam.example.id
+DEV_BASIC_AUTH_USERNAME=
+DEV_BASIC_AUTH_PASSWORD=
 BACKEND_INTERNAL_URL=http://backend:8080
 NEXTAUTH_URL=https://sia-pdam.example.id
 AUTH_SECRET=<minimum-32-byte-random-secret>

@@ -12,6 +12,7 @@ public interface IdentityProviderAdminPort {
 
     enum IdentityProviderStatus {
         LOCAL_ONLY,
+        EXTERNAL_MANAGED,
         SYNCED,
         SYNC_ERROR
     }

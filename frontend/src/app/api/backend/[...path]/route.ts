@@ -2,6 +2,7 @@ import { getToken } from "next-auth/jwt";
 import { NextRequest, NextResponse } from "next/server";
 
 import {
+  buildBasicAuthorization,
   buildBackendRequestHeaders,
   isUsableAccessToken,
   normalizeBackendPath
@@ -13,11 +14,33 @@ type RouteContext = {
   params: Promise<{ path: string[] }>;
 };
 
-function unauthorized(message: string) {
-  return NextResponse.json({ code: "OIDC_SESSION_REQUIRED", message }, { status: 401 });
+function unauthorized(code: string, message: string) {
+  return NextResponse.json({ code, message }, { status: 401 });
 }
 
-async function proxy(request: NextRequest, context: RouteContext) {
+async function resolveAuthorization(request: NextRequest): Promise<string | NextResponse> {
+  const authMode = process.env.AUTH_MODE ?? "basic";
+  if (authMode === "basic") {
+    const authorization = buildBasicAuthorization(
+      process.env.DEV_BASIC_AUTH_USERNAME,
+      process.env.DEV_BASIC_AUTH_PASSWORD
+    );
+    if (!authorization) {
+      return NextResponse.json(
+        { code: "BASIC_SERVER_MISCONFIGURED", message: "Local Basic Auth server configuration is incomplete." },
+        { status: 503 }
+      );
+    }
+    return authorization;
+  }
+
+  if (authMode !== "oidc") {
+    return NextResponse.json(
+      { code: "AUTH_MODE_UNSUPPORTED", message: "Authentication mode is not supported." },
+      { status: 503 }
+    );
+  }
+
   const secret = process.env.AUTH_SECRET;
   if (!secret) {
     return NextResponse.json(
@@ -28,7 +51,18 @@ async function proxy(request: NextRequest, context: RouteContext) {
 
   const token = await getToken({ req: request, secret });
   if (!isUsableAccessToken(token)) {
-    return unauthorized(token ? "OIDC session has expired." : "OIDC session is missing.");
+    return unauthorized(
+      "OIDC_SESSION_REQUIRED",
+      token ? "OIDC session has expired." : "OIDC session is missing."
+    );
+  }
+  return `Bearer ${token.accessToken}`;
+}
+
+async function proxy(request: NextRequest, context: RouteContext) {
+  const authorization = await resolveAuthorization(request);
+  if (authorization instanceof NextResponse) {
+    return authorization;
   }
 
   const { path } = await context.params;
@@ -41,7 +75,7 @@ async function proxy(request: NextRequest, context: RouteContext) {
   const backendUrl = new URL(`${backendBaseUrl.replace(/\/$/, "")}/${normalizedPath}`);
   backendUrl.search = request.nextUrl.search;
 
-  const headers = buildBackendRequestHeaders(request.headers, token.accessToken);
+  const headers = buildBackendRequestHeaders(request.headers, authorization);
 
   const body = request.method === "GET" || request.method === "HEAD" ? undefined : await request.arrayBuffer();
   try {

@@ -5,7 +5,7 @@ const databaseUuidSchema = z.string().regex(
   "Invalid database UUID"
 );
 
-export const identityProviderStatusSchema = z.enum(["LOCAL_ONLY", "SYNCED", "SYNC_ERROR"]);
+export const identityProviderStatusSchema = z.enum(["LOCAL_ONLY", "EXTERNAL_MANAGED", "SYNCED", "SYNC_ERROR"]);
 
 export const adminUserSchema = z.object({
   id: databaseUuidSchema,

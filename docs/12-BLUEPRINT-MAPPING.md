@@ -25,24 +25,24 @@ Repo blueprint dipakai sebagai referensi domain, acceptance criteria, backlog, d
 | RBAC, SoD, audit chain | `shared/security`, `shared/audit`, all frontend command panels | Granular authorities, separation of duties, tamper-evident audit chain, permission-aware UI |
 | Docker, scheduler, queue jobs, UAT docs | `infra`, `scripts`, `.github`, docs | Worker/scheduler readiness, health checks, reproducible local smoke path |
 
-## Extracted Blueprint Gap Backlog
+## Blueprint Gap Closure Register
 
-| Gap ID | Gap | Target Agent | Priority |
+| Gap ID | Status | Evidence Implementasi | Evidence Verifikasi |
 |---|---|---|---|
-| BP-BIL-001 | Invoice correction workflow with reversal/adjustment governance | BillingAgent + AccountingAgent | High |
-| BP-BIL-002 | Invoice document/PDF generation and customer-facing print view | BillingAgent + FrontendAgent | High |
-| BP-PAY-001 | Bank mutation import adapter beyond frontend-only UAT normalization | PaymentAgent | High |
-| BP-PAY-002 | Daily reconciliation job and receipt view data | PaymentAgent + DevOpsAgent | Medium |
-| BP-REC-001 | Installment plan and installment item lifecycle | ReceivableAgent | High |
-| BP-REC-002 | Dunning worklist, allowance, and provision workflow | ReceivableAgent + AccountingAgent | Medium |
-| BP-ACC-001 | Payable/AP recording and settlement | AccountingAgent | High |
-| BP-ACC-002 | Fixed asset registration, depreciation, and disposal | AccountingAgent | Medium |
-| BP-ACC-003 | Opening balance, closing entry, and journal reversal services | AccountingAgent | High |
-| BP-REP-001 | Financial statements and tax recap from posted ledger | ReportingAgent | High |
-| BP-SEC-001 | Tamper-evident audit chain verification | SecurityAgent | Medium |
-| BP-OPS-001 | Application settings/admin configuration surface | FrontendAgent + BackendFoundationAgent | Medium |
-| BP-MTR-001 | Offline meter reading import and explicit reading lock before billing | MeteringAgent + BillingAgent + FrontendAgent | High |
-| BP-DB-001 | Blueprint performance indexes reviewed against current PostgreSQL schema | DatabaseAgent | Medium |
+| BP-BIL-001 | Closed | V20 invoice void trace, issue/void API, exact source-journal reversal, guarded billing UI | Billing/accounting service and permission tests; seeded issue-settle-reverse-void IT |
+| BP-BIL-002 | Closed | persisted invoice document endpoint and preview/print surface | InvoiceDocumentApplicationServiceTest, billing model/frontend gates |
+| BP-PAY-001 | Closed | V22 bank mutation persistence, source adapters, import/reconcile API/UI | PaymentBankMutationApplicationServiceTest, frontend import model tests |
+| BP-PAY-002 | Closed | daily reconciliation command, receipt/detail API, review/evidence/sign-off surfaces | payment reconciliation/reporting tests and frontend model tests |
+| BP-REC-001 | Closed | V22 installment plan/item lifecycle and UI | ReceivableBlueprintApplicationServiceTest, frontend gates |
+| BP-REC-002 | Closed | dunning worklist, collection actions, allowance posting | collection/receivable/accounting tests, frontend gates |
+| BP-ACC-001 | Closed | supplier/AP record and settlement through accounting posting | AccountingBlueprintApplicationServiceTest, V22 constraint checks |
+| BP-ACC-002 | Closed | fixed-asset registration, depreciation, disposal, and pre-close blocker | accounting tests and seeded period-close IT |
+| BP-ACC-003 | Closed | opening balance, closing entry, reversal, period pre-close/lock | accounting tests and seeded period-close IT |
+| BP-REP-001 | Closed | posted-ledger financial statements, trial balance, and tax recap | reporting tests, ledger balance IT, frontend gates |
+| BP-SEC-001 | Closed | tamper-evident audit-chain writer and verification endpoint | AuditChainApplicationServiceTest and permission tests |
+| BP-OPS-001 | Closed | application settings plus guarded user/role admin workspaces | admin/settings backend tests, 64-test frontend suite, route smoke |
+| BP-MTR-001 | Closed | V23 offline import batches, row results, explicit reading lock, locked-only billing | metering/billing tests, V23 constraint smoke, frontend gates |
+| BP-DB-001 | Closed | V24 additive performance indexes for operational/reporting queries | rollback-only PostgreSQL constraint/index smoke |
 
 ## Adoption Status - 2026-07-10
 
@@ -83,6 +83,21 @@ Frontend parity route yang ditambahkan:
 4. Add backend tests for domain/application behavior and frontend tests for permission/state logic.
 5. Update `docs/00-CONTEXT-PACK.md` and backlog with traceability after each adopted feature.
 
-## Immediate Next Adoption Targets
+## Post-Baseline Validation Targets
 
 Blueprint implementation gaps listed above are closed at baseline level. The next phase is controlled UAT with official tariff/numbering data, infrastructure-specific secret manager/TLS/PITR wiring, load testing, and operator sign-off; these require environment and business inputs rather than additional inferred domain behavior.
+
+## Final Audit Evidence - 2026-07-12
+
+| Control | Command/Evidence | Result |
+|---|---|---|
+| Generic authentication scan | `rg -n 'isAuthenticated\(\)' backend/src/main/java/id/pdam/sia` | Only `AuthController` response-state reporting; no endpoint authorization contract uses generic authentication |
+| Production secret exposure | `rg -n 'dev-only-change-me\|NEXT_PUBLIC_DEV_BASIC_AUTH_(USERNAME\|PASSWORD)' backend/src/main/resources/application-prod.yml frontend/src` | No match |
+| Raw UUID operator input | `rg -n 'placeholder=.*UUID' frontend/src` | No match |
+| Backend clean gate | `gradle clean test integrationTest bootJar` | Passed in 5m47s |
+| Frontend clean gate | `npm ci && npm run test:permissions && npm run typecheck && npm run lint && npm run build` | Passed; 64 tests, 0 vulnerabilities, 21 routes |
+| Local runtime gate | `sh scripts/smoke-compose.sh` | Passed on isolated fresh project/volumes, including authenticated server-side Basic BFF |
+| OIDC runtime gate | `sh scripts/smoke-oidc.sh` | Passed on isolated Keycloak 26.7.0 project/volumes |
+| Git hygiene | `git diff --check`, scope/status/secret review | Required before final commit and push; `.superpowers/` excluded |
+
+No approved blueprint implementation gap remains open. Official tariff values, numbering policy, production TLS/secret-manager/PITR endpoints, load targets, and UAT approval remain external business/infrastructure inputs and are not inferred in code.

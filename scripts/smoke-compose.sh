@@ -10,16 +10,35 @@ else
   exit 1
 fi
 
-BACKEND_BASE_URL="${BACKEND_BASE_URL:-http://localhost:18080}"
-FRONTEND_BASE_URL="${FRONTEND_BASE_URL:-http://localhost:13000}"
+SMOKE_COMPOSE_PROJECT_NAME="${SMOKE_COMPOSE_PROJECT_NAME:-sia-pdam-compose-smoke}"
+POSTGRES_PORT="${POSTGRES_PORT:-15632}"
+REDIS_PORT="${REDIS_PORT:-16579}"
+MINIO_PORT="${MINIO_PORT:-19200}"
+MINIO_CONSOLE_PORT="${MINIO_CONSOLE_PORT:-19201}"
+BACKEND_PORT="${BACKEND_PORT:-18280}"
+FRONTEND_PORT="${FRONTEND_PORT:-13200}"
+BACKEND_BASE_URL="${BACKEND_BASE_URL:-http://localhost:$BACKEND_PORT}"
+FRONTEND_BASE_URL="${FRONTEND_BASE_URL:-http://localhost:$FRONTEND_PORT}"
 POSTGRES_DB="${POSTGRES_DB:-sia_pdam}"
 POSTGRES_USER="${POSTGRES_USER:-sia}"
 SMOKE_TIMEOUT_SECONDS="${SMOKE_TIMEOUT_SECONDS:-180}"
-SMOKE_KEEP_RUNNING="${SMOKE_KEEP_RUNNING:-1}"
+SMOKE_KEEP_RUNNING="${SMOKE_KEEP_RUNNING:-0}"
+SIA_BOOTSTRAP_ADMIN_USERNAME="${SIA_BOOTSTRAP_ADMIN_USERNAME:-smoke-admin}"
+SIA_BOOTSTRAP_ADMIN_EMAIL="${SIA_BOOTSTRAP_ADMIN_EMAIL:-smoke-admin@example.test}"
+SIA_BOOTSTRAP_ADMIN_PASSWORD="${SIA_BOOTSTRAP_ADMIN_PASSWORD:-SmokeOnly-Compose-2026!}"
+DEV_BASIC_AUTH_USERNAME="${DEV_BASIC_AUTH_USERNAME:-$SIA_BOOTSTRAP_ADMIN_USERNAME}"
+DEV_BASIC_AUTH_PASSWORD="${DEV_BASIC_AUTH_PASSWORD:-$SIA_BOOTSTRAP_ADMIN_PASSWORD}"
+export POSTGRES_PORT REDIS_PORT MINIO_PORT MINIO_CONSOLE_PORT BACKEND_PORT FRONTEND_PORT
+export SIA_BOOTSTRAP_ADMIN_USERNAME SIA_BOOTSTRAP_ADMIN_EMAIL SIA_BOOTSTRAP_ADMIN_PASSWORD
+export DEV_BASIC_AUTH_USERNAME DEV_BASIC_AUTH_PASSWORD
+
+compose() {
+  $DOCKER_COMPOSE -p "$SMOKE_COMPOSE_PROJECT_NAME" -f docker-compose.yml "$@"
+}
 
 cleanup() {
   if [ "$SMOKE_KEEP_RUNNING" != "1" ]; then
-    $DOCKER_COMPOSE down --remove-orphans >/dev/null 2>&1 || true
+    compose down --volumes --remove-orphans >/dev/null 2>&1 || true
   fi
 }
 
@@ -41,7 +60,7 @@ wait_for_content() {
   done
 
   echo "Smoke failed: $name did not return expected content from $url" >&2
-  $DOCKER_COMPOSE logs --no-color backend frontend >&2 || true
+  compose logs --no-color backend frontend >&2 || true
   exit 1
 }
 
@@ -61,18 +80,20 @@ wait_for_status() {
   done
 
   echo "Smoke failed: $name returned HTTP ${status:-none}, expected $expected_status from $url" >&2
-  $DOCKER_COMPOSE logs --no-color backend frontend >&2 || true
+  compose logs --no-color backend frontend >&2 || true
   exit 1
 }
 
 echo "Validating Docker Compose config..."
-$DOCKER_COMPOSE config >/dev/null
+compose config >/dev/null
 
 echo "Building and starting Docker Compose stack..."
-$DOCKER_COMPOSE up -d --build
+compose up -d --build
 
 wait_for_content "backend health" "$BACKEND_BASE_URL/actuator/health" '"status":"UP"'
 wait_for_content "anonymous auth state" "$BACKEND_BASE_URL/api/auth/me" '"authenticated":false'
+wait_for_content "server-side Basic Auth BFF" "$FRONTEND_BASE_URL/api/backend/api/auth/me" '"authenticated":true'
+wait_for_content "BFF principal" "$FRONTEND_BASE_URL/api/backend/api/auth/me" '"username":"smoke-admin"'
 
 for route in \
   "/" \
@@ -98,14 +119,15 @@ do
   wait_for_status "frontend route $route" "$FRONTEND_BASE_URL$route" "200"
 done
 
-failed_migrations="$($DOCKER_COMPOSE exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "select count(*) from flyway_schema_history where success = false;")"
+failed_migrations="$(compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "select count(*) from flyway_schema_history where success = false;")"
 if [ "$failed_migrations" != "0" ]; then
   echo "Smoke failed: Flyway has $failed_migrations failed migration(s)." >&2
-  $DOCKER_COMPOSE logs --no-color backend postgres >&2 || true
+  compose logs --no-color backend postgres >&2 || true
   exit 1
 fi
 echo "OK Flyway migration history has no failed entries"
 
-sh scripts/check-migration-constraints.sh
+DOCKER_COMPOSE="$DOCKER_COMPOSE -p $SMOKE_COMPOSE_PROJECT_NAME -f docker-compose.yml" \
+  sh scripts/check-migration-constraints.sh
 
 echo "Docker Compose smoke verification complete."

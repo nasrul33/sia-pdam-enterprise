@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  buildBasicAuthorization,
   buildBackendRequestHeaders,
   isUsableAccessToken,
   normalizeBackendPath
@@ -28,7 +29,16 @@ test("isUsableAccessToken rejects missing and near-expiry tokens", () => {
   assert.equal(isUsableAccessToken({ accessToken: "token", accessTokenExpiresAt: now + 5_001 }, now), true);
 });
 
-test("buildBackendRequestHeaders forwards only allowlisted headers and injects bearer token", () => {
+test("buildBasicAuthorization rejects missing or header-unsafe local credentials", () => {
+  assert.equal(buildBasicAuthorization(undefined, "password"), null);
+  assert.equal(buildBasicAuthorization("admin", undefined), null);
+  assert.equal(buildBasicAuthorization("admin:other", "password"), null);
+  assert.equal(buildBasicAuthorization("admin\nheader", "password"), null);
+  assert.equal(buildBasicAuthorization("admin", "pass\rword"), null);
+  assert.equal(buildBasicAuthorization("admin", "local-password"), "Basic YWRtaW46bG9jYWwtcGFzc3dvcmQ=");
+});
+
+test("buildBackendRequestHeaders forwards only allowlisted headers and injects server authorization", () => {
   const source = new Headers({
     accept: "application/json",
     cookie: "session=secret",
@@ -39,7 +49,7 @@ test("buildBackendRequestHeaders forwards only allowlisted headers and injects b
     "x-request-id": "request-1"
   });
 
-  const result = buildBackendRequestHeaders(source, "server-token");
+  const result = buildBackendRequestHeaders(source, "Bearer server-token");
 
   assert.equal(result.get("authorization"), "Bearer server-token");
   assert.equal(result.get("accept"), "application/json");

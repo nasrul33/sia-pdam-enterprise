@@ -6,7 +6,7 @@
 |---|---|---|---|
 | GET | /api/status | service status | public/dev |
 | GET | /api/dashboard/overview | bootstrap dashboard overview | public/dev read-only |
-| GET | /api/auth/me | current authenticated user and authorities for frontend permission visibility | authenticated |
+| GET | /api/auth/me | current auth state and authorities for frontend visibility; anonymous returns an empty state | public read-only |
 
 `/api/dashboard/overview` returns:
 
@@ -32,6 +32,18 @@
 
 This endpoint is for UI visibility only. Backend permission checks remain authoritative on command endpoints.
 
+## Authentication Boundary
+
+- Browser requests always use the same-origin Next.js BFF at `/api/backend/{path}`. The browser cannot supply or override the forwarded `Authorization` header.
+- Local profile uses HTTP Basic only between the Next.js server and backend. `DEV_BASIC_AUTH_USERNAME`/`DEV_BASIC_AUTH_PASSWORD` are server environment variables and must never use a `NEXT_PUBLIC_` prefix.
+- Production uses `AUTH_MODE=oidc`, NextAuth encrypted JWT sessions, and Keycloak. The BFF reads the server-side session and injects a non-expired bearer token.
+- Backend profile `prod` requires an HTTPS issuer, non-default webhook secret of at least 32 characters, and client ID. Startup fails closed when validation fails.
+- Profile `oidc-smoke` exercises the same resource-server filter chain against isolated HTTP Keycloak but does not run the production validator; it is not a deployment profile.
+- BFF forwards only `Accept`, `Content-Type`, `Idempotency-Key`, and `X-Request-Id`; cookies, inbound authorization, and forwarding headers are discarded.
+- Missing local server credentials returns `503 BASIC_SERVER_MISCONFIGURED`; missing/expired OIDC session returns `401 OIDC_SESSION_REQUIRED`; unreachable backend returns `502 BACKEND_UNAVAILABLE`.
+
+Lookup list endpoints for accounts, accounting periods, customers, connections, tariff groups, meter routes, invoices, and payments accept bounded `search` plus pagination where supported. The response retains UUID identifiers for payload integrity while UI selectors render business code/number, label, description, and status.
+
 ## User and Role Administration
 
 | Method | Endpoint | Purpose | Permission |
@@ -41,7 +53,7 @@ This endpoint is for UI visibility only. Backend permission checks remain author
 | PATCH | /api/admin/users/{userId}/status | enable or disable a user | user.manage |
 | PUT | /api/admin/users/{userId}/roles | atomically replace user role assignments | role.manage |
 
-Status and role mutations require a non-empty `reason`. A user cannot disable their own account. Any status change to an account holding `super-admin`, or any addition/removal of that role, also requires the actor to be an enabled super-admin. Row locking prevents concurrent requests from removing or disabling the final enabled super-admin. Local mode reports `identityProviderStatus=LOCAL_ONLY`; production IdP synchronization uses the same application port and must complete inside the transaction boundary or fail the mutation.
+Status and role mutations require a non-empty `reason`. A user cannot disable their own account. Any status change to an account holding `super-admin`, or any addition/removal of that role, also requires the actor to be an enabled super-admin. Row locking prevents concurrent requests from removing or disabling the final enabled super-admin. Local mode reports `identityProviderStatus=LOCAL_ONLY` and allows database-authoritative mutations. Production/OIDC reports `EXTERNAL_MANAGED`; status and role mutations return `IDP_ADMIN_MUTATION_EXTERNAL` and the enclosing database transaction rolls back. Production identity lifecycle and permission claims are managed in Keycloak until an explicitly approved atomic IdP adapter replaces this fail-closed port.
 
 ## Accounting
 

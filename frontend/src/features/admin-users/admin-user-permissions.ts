@@ -20,13 +20,18 @@ export function resolveAdminUserPermissions(authorities: readonly string[]): Adm
 }
 
 export function canChangeUserStatus(
-  user: { username: string },
+  user: { username: string; identityProviderStatus: string },
   currentUsername: string | null,
   permissions: AdminUserPermissionState
 ): boolean {
-  return permissions.canManageUsers && user.username.toLowerCase() !== currentUsername?.toLowerCase();
+  return permissions.canManageUsers &&
+    user.identityProviderStatus !== "EXTERNAL_MANAGED" &&
+    user.username.toLowerCase() !== currentUsername?.toLowerCase();
 }
 
-export function canReplaceUserRoles(permissions: AdminUserPermissionState): boolean {
-  return permissions.canManageRoles;
+export function canReplaceUserRoles(
+  user: { identityProviderStatus: string },
+  permissions: AdminUserPermissionState
+): boolean {
+  return permissions.canManageRoles && user.identityProviderStatus !== "EXTERNAL_MANAGED";
 }
