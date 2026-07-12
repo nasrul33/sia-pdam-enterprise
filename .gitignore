@@ -36,3 +36,4 @@ tmp/
 
 # Local reference repositories
 .blueprint/
+.worktrees/
