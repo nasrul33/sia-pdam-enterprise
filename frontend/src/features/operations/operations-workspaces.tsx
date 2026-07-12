@@ -260,7 +260,6 @@ function CustomerTable({
             <th className="px-4 py-3 text-left font-bold text-slate-700">Nama</th>
             <th className="px-4 py-3 text-left font-bold text-slate-700">Telepon</th>
             <th className="px-4 py-3 text-left font-bold text-slate-700">Status</th>
-            <th className="px-4 py-3 text-left font-bold text-slate-700">Lock</th>
             <th className="px-4 py-3 text-left font-bold text-slate-700">Aksi</th>
           </tr>
         </thead>

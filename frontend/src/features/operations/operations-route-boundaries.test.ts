@@ -22,3 +22,9 @@ test("tariff route remains owned by TariffWorkspace", () => {
   assert.match(tariffRoute, /TariffWorkspace/);
   assert.doesNotMatch(tariffRoute, /CustomerWorkspace|ConnectionWorkspace|MasterDataWorkspace/);
 });
+
+test("customer table has no orphan lock column", () => {
+  const workspaceSource = readRoute("./operations-workspaces.tsx");
+
+  assert.doesNotMatch(workspaceSource, />Lock<\/th>/);
+});
