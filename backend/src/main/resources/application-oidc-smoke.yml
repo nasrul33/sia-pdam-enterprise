@@ -1,0 +1,17 @@
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://keycloak:8080/realms/sia-pdam-test}
+
+sia:
+  security:
+    production:
+      enabled: false
+      webhook-secret: ${SIA_PAYMENT_WEBHOOK_SECRET:oidc-smoke-webhook-secret-not-for-production}
+      issuer-uri: ${KEYCLOAK_ISSUER_URI:http://keycloak:8080/realms/sia-pdam-test}
+      client-id: ${KEYCLOAK_CLIENT_ID:sia-pdam}
+  payment:
+    webhook:
+      secret: ${SIA_PAYMENT_WEBHOOK_SECRET:oidc-smoke-webhook-secret-not-for-production}

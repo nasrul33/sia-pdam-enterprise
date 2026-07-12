@@ -80,6 +80,7 @@ for route in \
   "/accounting/assets" \
   "/accounting/payables" \
   "/admin/settings" \
+  "/admin/users" \
   "/billing" \
   "/connections" \
   "/connections/requests" \

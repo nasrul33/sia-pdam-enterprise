@@ -1,0 +1,51 @@
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7.0
+    profiles: ["oidc"]
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: smoke-admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: smoke-admin-not-for-production
+    ports:
+      - "${KEYCLOAK_PORT:-18181}:8080"
+    volumes:
+      - ./infra/keycloak/realm-sia-pdam-test.json:/opt/keycloak/data/import/realm-sia-pdam-test.json:ro
+
+  backend:
+    image: sia-pdam-oidc-smoke-backend:local
+    environment:
+      SPRING_PROFILES_ACTIVE: oidc-smoke
+      KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/sia-pdam-test
+      KEYCLOAK_CLIENT_ID: sia-pdam
+      SIA_PAYMENT_WEBHOOK_SECRET: oidc-smoke-webhook-secret-not-for-production
+    depends_on:
+      keycloak:
+        condition: service_started
+
+  frontend:
+    image: sia-pdam-oidc-smoke-frontend:local
+    build:
+      args:
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:${BACKEND_PORT:-18180}
+        NEXT_PUBLIC_DEV_BASIC_AUTH_USERNAME: ""
+        NEXT_PUBLIC_DEV_BASIC_AUTH_PASSWORD: ""
+        NEXT_PUBLIC_DEV_AUTH_MODE: oidc
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:${BACKEND_PORT:-18180}
+      NEXT_PUBLIC_DEV_BASIC_AUTH_USERNAME: ""
+      NEXT_PUBLIC_DEV_BASIC_AUTH_PASSWORD: ""
+      NEXT_PUBLIC_DEV_AUTH_MODE: oidc
+      AUTH_MODE: oidc
+      NEXTAUTH_URL: http://localhost:${FRONTEND_PORT:-13100}
+      AUTH_SECRET: oidc-smoke-auth-secret-with-at-least-32-characters
+      KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/sia-pdam-test
+      KEYCLOAK_CLIENT_ID: sia-pdam
+      KEYCLOAK_CLIENT_SECRET: smoke-client-secret-not-for-production
+    depends_on:
+      keycloak:
+        condition: service_started
+
+  oidc-token-client:
+    image: curlimages/curl:8.20.0
+    profiles: ["oidc-tools"]
+    entrypoint: ["curl"]

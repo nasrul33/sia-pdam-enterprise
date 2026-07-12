@@ -10,7 +10,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
-@Profile("!prod")
+@Profile("!prod & !oidc-smoke")
 public class LocalSecurityConfiguration {
     @Bean
     SecurityFilterChain localSecurityFilterChain(HttpSecurity http) throws Exception {

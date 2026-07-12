@@ -4,9 +4,10 @@
 
 ```bash
 cd backend
-gradle clean test
-gradle bootJar
+gradle clean test integrationTest bootJar
 ```
+
+`test` mengecualikan kelas `*IT`; task `integrationTest` menjalankan API high-risk terhadap PostgreSQL Testcontainers dengan seluruh migrasi Flyway dan fixture deterministik.
 
 ## Frontend
 
@@ -48,6 +49,7 @@ Current frontend route coverage:
 /accounting/assets
 /accounting/payables
 /admin/settings
+/admin/users
 /billing
 /connections
 /connections/requests
@@ -62,6 +64,16 @@ Current frontend route coverage:
 /reports/trial-balance
 /tariffs
 ```
+
+## Keycloak OIDC Smoke
+
+```bash
+sh scripts/smoke-oidc.sh
+```
+
+Smoke OIDC memakai project, port, network, dan volume terisolasi. Gate mengimpor realm test Keycloak 26.7.0, membangun backend dengan profil `oidc-smoke`, membangun frontend OIDC, memverifikasi discovery/provider, memastikan API terproteksi menolak anonymous, mengambil token test, dan memeriksa principal, realm role, client role, permission claim, serta endpoint `account.manage`. Credential realm ini hanya untuk smoke dan tidak boleh digunakan di staging/produksi.
+
+CI menjalankan `smoke-compose.sh` lalu `smoke-oidc.sh`. Keduanya membersihkan container setelah selesai.
 
 ## Migration
 

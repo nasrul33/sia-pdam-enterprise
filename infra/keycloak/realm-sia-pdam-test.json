@@ -1,0 +1,97 @@
+{
+  "realm": "sia-pdam-test",
+  "displayName": "SIA-PDAM Integration",
+  "enabled": true,
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "rememberMe": false,
+  "roles": {
+    "realm": [
+      {
+        "name": "finance-supervisor",
+        "description": "Integration-only finance supervisor role"
+      }
+    ],
+    "client": {
+      "sia-pdam": [
+        {
+          "name": "billing-officer",
+          "description": "Integration-only billing role"
+        }
+      ]
+    }
+  },
+  "clients": [
+    {
+      "clientId": "sia-pdam",
+      "name": "SIA-PDAM smoke client",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "smoke-client-secret-not-for-production",
+      "publicClient": false,
+      "bearerOnly": false,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://localhost:13100/api/auth/callback/keycloak",
+        "http://localhost:13000/api/auth/callback/keycloak"
+      ],
+      "webOrigins": [
+        "http://localhost:13100",
+        "http://localhost:13000"
+      ],
+      "protocol": "openid-connect",
+      "protocolMappers": [
+        {
+          "name": "sia-pdam-permissions",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "permissions",
+            "claim.name": "permissions",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "oidc-smoke",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "OIDC",
+      "lastName": "Smoke",
+      "email": "oidc-smoke@example.test",
+      "attributes": {
+        "permissions": [
+          "account.manage",
+          "period.manage",
+          "invoice.issue",
+          "payment.counter"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "SmokeOnly-2026!",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "finance-supervisor"
+      ],
+      "clientRoles": {
+        "sia-pdam": [
+          "billing-officer"
+        ]
+      }
+    }
+  ]
+}

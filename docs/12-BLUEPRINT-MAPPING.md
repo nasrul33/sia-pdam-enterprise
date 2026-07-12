@@ -59,6 +59,9 @@ Baseline parity sudah ditambahkan untuk gap besar blueprint:
 - Customer/Connection blueprint gap: connection request workflow dan customer history read surface.
 - DevOps CI parity: GitHub Actions now runs frontend permission/workspace model tests and Docker Compose route smoke for backend health, anonymous auth state, Flyway no-failure history, and all baseline frontend routes.
 - Testing parity: Docker Compose smoke now runs DB-backed V22/V23 PostgreSQL constraint checks plus V24 performance-index checks for blueprint financial/operational tables, metering import/lock tables, and dashboard/report query paths.
+- Release integration parity: dedicated `integrationTest` runs API-level invoice issue, payment settlement/reversal, invoice void, posted-journal/ledger balance, and period pre-close controls against fresh PostgreSQL migrations and deterministic seed data.
+- Production security parity: isolated Keycloak 26.7.0 smoke validates OIDC token issuance, NextAuth provider wiring, JWT principal, realm/client roles, permission claims, anonymous rejection, and a permission-protected API without weakening the production HTTPS issuer validator.
+- Operations parity: executable deployment, backup/restore, rollback, and observability runbooks define immutable images, PITR/backup evidence, Flyway controls, health/metrics/logs, alert thresholds, and financial reconciliation queries.
 - Focused backend regression tests sudah ditambahkan untuk AP posting/settlement, asset depreciation, journal reversal, closing entry, opening balance duplicate guard, bank mutation import/reconcile, installment plan, dunning, allowance delegation, dan audit-chain verification.
 
 Frontend parity route yang ditambahkan:
@@ -82,5 +85,4 @@ Frontend parity route yang ditambahkan:
 
 ## Immediate Next Adoption Targets
 
-1. DevOpsAgent: add deployment backup/rollback and observability runbook for production release hardening.
-2. TestingAgent: add API-level integration tests for high-risk V22/V23 workflows once a dedicated seeded integration profile is introduced.
+Blueprint implementation gaps listed above are closed at baseline level. The next phase is controlled UAT with official tariff/numbering data, infrastructure-specific secret manager/TLS/PITR wiring, load testing, and operator sign-off; these require environment and business inputs rather than additional inferred domain behavior.

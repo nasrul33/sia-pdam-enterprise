@@ -36,6 +36,7 @@ services:
       - sia_pdam_miniodata:/data
 
   backend:
+    image: ${BACKEND_IMAGE:-sia-pdam-enterprise-backend:local}
     build:
       context: ./backend
     environment:
@@ -66,6 +67,7 @@ services:
         condition: service_started
 
   frontend:
+    image: ${FRONTEND_IMAGE:-sia-pdam-enterprise-frontend:local}
     build:
       context: ./frontend
       args:

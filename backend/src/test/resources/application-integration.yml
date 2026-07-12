@@ -1,0 +1,16 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+
+sia:
+  security:
+    bootstrap-admin:
+      username: ""
+      email: ""
+      password: ""
+  payment:
+    webhook:
+      secret: integration-test-secret

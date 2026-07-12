@@ -72,7 +72,7 @@ Backend:
 
 ```bash
 cd backend
-gradle clean test
+gradle clean test integrationTest
 gradle bootJar
 ```
 
@@ -85,6 +85,15 @@ npm run lint
 npm run typecheck
 npm run build
 ```
+
+Release smoke dan runbook produksi:
+
+```bash
+sh scripts/smoke-compose.sh
+sh scripts/smoke-oidc.sh
+```
+
+Lihat [`infra/README.md`](infra/README.md) untuk deployment, backup/restore, rollback, observability, dan Keycloak smoke. Realm smoke memakai credential test deterministik dan tidak boleh dipakai di staging/produksi.
 
 Dashboard awal membaca `GET /api/dashboard/overview` dari backend dan sudah memiliki loading, error, empty, dan table state.
 

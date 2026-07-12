@@ -12,7 +12,7 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
-@Profile("prod")
+@Profile({"prod", "oidc-smoke"})
 public class OidcSecurityConfiguration {
     @Bean
     KeycloakAuthorityConverter keycloakAuthorityConverter(ProductionSecurityProperties properties) {
@@ -49,6 +49,7 @@ public class OidcSecurityConfiguration {
     }
 
     @Bean
+    @Profile("prod")
     ApplicationRunner productionSecurityValidation(
             ProductionSecurityProperties properties,
             ProductionSecurityValidator validator

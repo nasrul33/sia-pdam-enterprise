@@ -20,7 +20,7 @@ jobs:
           gradle-version: '9.6.1'
       - name: Backend tests
         working-directory: backend
-        run: gradle clean test bootJar
+        run: gradle clean test integrationTest bootJar
 
   frontend:
     runs-on: ubuntu-latest
@@ -64,3 +64,7 @@ jobs:
         env:
           SMOKE_KEEP_RUNNING: '0'
         run: sh scripts/smoke-compose.sh
+      - name: Keycloak OIDC smoke
+        env:
+          OIDC_SMOKE_KEEP_RUNNING: '0'
+        run: sh scripts/smoke-oidc.sh
