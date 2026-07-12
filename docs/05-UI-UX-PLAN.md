@@ -54,6 +54,12 @@ Every page must include:
 
 The 21 built routes cover dashboard, accounting/period/journal/AP/assets, billing/tariff, customer/connection/request, metering/offline import/lock, payment/bank mutation/reconciliation, receivable aging/collection/installment, financial reporting, settings, and guarded user/role administration. Each operational workspace uses typed API schemas, loading/error/empty states, permission gates, audit reason validation, and stable responsive layouts.
 
+## Operations Workspace Ownership
+
+- `/customers` owns customer list, detail, and creation only.
+- `/connections` owns connection list, detail, creation, and lifecycle workflow; customer and tariff group are lookup dependencies only.
+- `/tariffs` owns tariff group, version, block, lifecycle, and simulation management.
+
 ## Theme Standard
 
 - The shell exposes one icon-only light/dark toggle with an accessible Indonesian label and pressed state.
