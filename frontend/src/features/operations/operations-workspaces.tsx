@@ -817,6 +817,7 @@ function MeterReadingTable({
             <th className="px-4 py-3 text-right font-bold text-slate-700">Akhir</th>
             <th className="px-4 py-3 text-right font-bold text-slate-700">Pakai m3</th>
             <th className="px-4 py-3 text-left font-bold text-slate-700">Status</th>
+            <th className="px-4 py-3 text-left font-bold text-slate-700">Terkunci</th>
             <th className="px-4 py-3 text-left font-bold text-slate-700">Aksi</th>
           </tr>
         </thead>
@@ -1389,9 +1390,13 @@ export function TariffWorkspace() {
   const addBlockMutation = useAddTariffBlock();
   const workflowMutation = useTariffVersionWorkflow();
   const calculationMutation = useTariffCalculation();
+  const tariffGroupsReady = tariffGroupsQuery.isSuccess;
 
   function submitTariffGroup(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!tariffGroupsReady) {
+      return;
+    }
     createTariffGroupMutation.mutate(tariffGroupForm, {
       onSuccess: () => setTariffGroupForm({ code: "", name: "", reason: "" })
     });
@@ -1399,6 +1404,9 @@ export function TariffWorkspace() {
 
   function submitVersion(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!tariffGroupsReady) {
+      return;
+    }
     createVersionMutation.mutate({
       tariffGroupId: versionForm.tariffGroupId,
       effectiveDate: versionForm.effectiveDate,
@@ -1439,6 +1447,9 @@ export function TariffWorkspace() {
 
   function submitCalculation(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!tariffGroupsReady) {
+      return;
+    }
     calculationMutation.mutate({
       tariffGroupId: calculationForm.tariffGroupId,
       billingDate: calculationForm.billingDate,
@@ -1459,11 +1470,25 @@ export function TariffWorkspace() {
       />
       <AuthNotice authenticated={authenticated} />
 
+      {tariffGroupsQuery.isError ? (
+        <Section
+          title="Status Golongan Tarif"
+          description="Data referensi wajib tersedia sebelum membuat golongan, versi, atau simulasi tarif."
+        >
+          <div className="space-y-3">
+            <ErrorState message={apiErrorMessage(tariffGroupsQuery.error, "Golongan tarif tidak tersedia.")} />
+            <button type="button" className={secondaryButtonClass} onClick={() => void tariffGroupsQuery.refetch()}>
+              Muat ulang golongan tarif
+            </button>
+          </div>
+        </Section>
+      ) : null}
+
       <section className="grid gap-4 md:grid-cols-4">
         <SummaryCard
           label="Golongan Tarif"
-          value={String(tariffGroupsQuery.data?.totalItems ?? 0)}
-          helper="Master golongan untuk sambungan dan versi tarif."
+          value={tariffGroupsQuery.isError ? "-" : String(tariffGroupsQuery.data?.totalItems ?? 0)}
+          helper={tariffGroupsQuery.isError ? "Data golongan gagal dimuat." : "Master golongan untuk sambungan dan versi tarif."}
           tone="info"
         />
         <SummaryCard label="Versi Tarif" value={String(versionsQuery.data?.totalItems ?? 0)} helper="Versi sesuai filter." />
@@ -1492,6 +1517,7 @@ export function TariffWorkspace() {
                   className={inputClass}
                   value={filters.tariffGroupId}
                   onChange={(event) => setFilters((prev) => ({ ...prev, page: 0, tariffGroupId: event.target.value }))}
+                  disabled={!tariffGroupsReady}
                 >
                   <option value="">Semua golongan</option>
                   {(tariffGroupsQuery.data?.items ?? []).map((group) => (
@@ -1602,7 +1628,7 @@ export function TariffWorkspace() {
             <button
               type="submit"
               className={primaryButtonClass}
-              disabled={!authenticated || createTariffGroupMutation.isPending}
+              disabled={!authenticated || !tariffGroupsReady || createTariffGroupMutation.isPending}
             >
               {createTariffGroupMutation.isPending ? "Menyimpan..." : "Simpan Golongan"}
             </button>
@@ -1618,6 +1644,7 @@ export function TariffWorkspace() {
                 className={inputClass}
                 value={versionForm.tariffGroupId}
                 onChange={(event) => setVersionForm((prev) => ({ ...prev, tariffGroupId: event.target.value }))}
+                disabled={!tariffGroupsReady}
                 required
               >
                 <option value="">Pilih golongan</option>
@@ -1663,7 +1690,7 @@ export function TariffWorkspace() {
               />
             </Field>
             <MutationError error={createVersionMutation.error} fallback="Gagal membuat versi tarif." />
-            <button type="submit" className={primaryButtonClass} disabled={!authenticated || createVersionMutation.isPending}>
+            <button type="submit" className={primaryButtonClass} disabled={!authenticated || !tariffGroupsReady || createVersionMutation.isPending}>
               Simpan Versi
             </button>
           </form>
@@ -1767,6 +1794,7 @@ export function TariffWorkspace() {
                 className={inputClass}
                 value={calculationForm.tariffGroupId}
                 onChange={(event) => setCalculationForm((prev) => ({ ...prev, tariffGroupId: event.target.value }))}
+                disabled={!tariffGroupsReady}
                 required
               >
                 <option value="">Pilih golongan</option>
@@ -1808,7 +1836,7 @@ export function TariffWorkspace() {
               />
             </Field>
             <MutationError error={calculationMutation.error} fallback="Kalkulasi tarif gagal." />
-            <button type="submit" className={secondaryButtonClass} disabled={calculationMutation.isPending}>
+            <button type="submit" className={secondaryButtonClass} disabled={!tariffGroupsReady || calculationMutation.isPending}>
               Hitung Tarif
             </button>
             {calculationMutation.data ? (
